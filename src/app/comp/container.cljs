@@ -1,24 +1,37 @@
 
 (ns app.comp.container
-  (:require-macros [respo.macros :refer [defcomp <> div button span]]
+  (:require-macros [respo.macros :refer [defcomp <> div button span input]]
                    [verbosely.core :refer [verbosely!]])
   (:require [hsl.core :refer [hsl]]
             [respo-ui.style :as ui]
             [respo.core :refer [create-comp]]
             [respo.comp.space :refer [=<]]
-            [reel.comp.reel :refer [comp-reel]]))
+            [reel.comp.reel :refer [comp-reel]]
+            [cljs.reader :refer [read-string]]
+            [app.comp.viewer :refer [comp-viewer]]))
 
-(defn on-click [e dispatch!] (dispatch! :inc nil))
+(defn on-file-change [e d! m!]
+  (let [file (-> (:event e) .-target .-files (aget 0)), filename (.-name file)]
+    (if (not= filename "coir.edn")
+      (do (d! :error (str "Expected coir.edn , but got " filename)))
+      (let [fr (js/FileReader.)]
+        (set! fr.onload (fn [event] (d! :load/coir (read-string event.target.result))))
+        (.readAsText fr file)))))
 
 (defcomp
  comp-container
  (reel)
  (let [store (:store reel)]
    (div
-    {:style (merge ui/global ui/row)}
-    (=< "8px" nil)
+    {:style (merge ui/global)}
     (div
-     {}
-     (button
-      {:style ui/button, :inner-text (str "inc " (:data store)), :on {:click on-click}}))
+     {:style {:padding 16}}
+     (<> "Pick coir.edn to view:")
+     (=< 8 nil)
+     (input {:type "file", :accept ".edn", :on {:change on-file-change}}))
+    (div
+     {:style {:padding 16}}
+     (if (some? (:error store))
+       (<> span (:error store) {:color :red})
+       (if (some? (:coir store)) (comp-viewer (:coir store)) (<> "Nothing"))))
     (comp-reel reel {}))))

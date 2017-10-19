@@ -25,7 +25,7 @@
   (let [html-content (make-string (comp-container schema/store))
         webpack-info (.parse js/JSON (slurp "dist/webpack-manifest.json"))
         cljs-info (.parse js/JSON (slurp "dist/cljs-manifest.json"))
-        cdn (if previews? "" "http://cdn.tiye.me/coworkflow/")
+        cdn (if previews? "" "http://cdn.tiye.me/coir-viewer/")
         prefix-cdn (fn [x] (str cdn x))]
     (make-page
      html-content

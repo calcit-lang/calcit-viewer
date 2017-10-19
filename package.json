@@ -1,11 +1,11 @@
 {
-  "name": "coworkflow",
+  "name": "coir-viewer",
   "version": "0.1.0",
   "description": "Stack Workflow",
   "main": "index.js",
   "scripts": {
-    "cdn": "rsync -avr --progress dist/* tiye.me:cdn/coworkflow",
-    "tiye": "rsync -avr --progress dist/{index.html,manifest.json} tiye.me:repo/mvc-works/coworkflow/",
+    "cdn": "rsync -avr --progress dist/* tiye.me:cdn/coir-viewer",
+    "tiye": "rsync -avr --progress dist/{index.html,manifest.json} tiye.me:repo/Cirru/coir-viewer/",
     "upload": "yarn cdn && yarn tiye",
     "release": "shadow-cljs release browser",
     "watch": "shadow-cljs watch browser",
@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:mvc-works/coworkflow.git"
+    "url": "git@github.com:Cirru/coir-viewer.git"
   },
   "author": "jiyinyiyong",
   "license": "MIT",
