@@ -1,10 +1,9 @@
 
 (ns app.comp.viewer
-  (:require-macros [respo.macros :refer [defcomp <> div button span input]]
-                   [verbosely.core :refer [verbosely!]])
   (:require [hsl.core :refer [hsl]]
+            [verbosely.core :refer [verbosely!]]
             [respo-ui.style :as ui]
-            [respo.core :refer [create-comp]]
+            [respo.macros :refer [defcomp <> div button span input]]
             [respo.comp.space :refer [=<]]
             [cljs.reader :refer [read-string]]))
 
