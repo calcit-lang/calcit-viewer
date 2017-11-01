@@ -3,7 +3,7 @@
   (:require [hsl.core :refer [hsl]]
             [verbosely.core :refer [verbosely!]]
             [respo-ui.style :as ui]
-            [respo.macros :refer [defcomp <> div button span input]]
+            [respo.macros :refer [defcomp cursor-> <> div button span input pre]]
             [respo.comp.space :refer [=<]]
             [reel.comp.reel :refer [comp-reel]]
             [cljs.reader :refer [read-string]]
@@ -20,7 +20,7 @@
 (defcomp
  comp-container
  (reel)
- (let [store (:store reel)]
+ (let [store (:store reel), states (:states store)]
    (div
     {:style (merge ui/global)}
     (div
@@ -33,4 +33,4 @@
      (if (some? (:error store))
        (<> span (:error store) {:color :red})
        (if (some? (:coir store)) (comp-viewer (:coir store)) (<> "Nothing"))))
-    (comp-reel reel {}))))
+    (cursor-> :reel comp-reel states reel {}))))

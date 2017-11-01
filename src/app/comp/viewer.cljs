@@ -3,9 +3,10 @@
   (:require [hsl.core :refer [hsl]]
             [verbosely.core :refer [verbosely!]]
             [respo-ui.style :as ui]
-            [respo.macros :refer [defcomp <> div button span input]]
+            [respo.macros :refer [defcomp <> div list-> button span input]]
             [respo.comp.space :refer [=<]]
-            [cljs.reader :refer [read-string]]))
+            [cljs.reader :refer [read-string]]
+            [app.comp.file :refer [comp-file]]))
 
 (defcomp
  comp-viewer
@@ -16,4 +17,14 @@
     (div {} (<> "Namespace:") (=< 8 nil) (<> (:package ir)))
     (div {} (<> "Users:") (=< 8 nil) (<> (:users coir)))
     (div {} (<> "Configs:") (=< 8 nil) (<> (:configs coir)))
-    (div {} (<> "Files:") (=< 8 nil) (<> (keys (:files ir)))))))
+    (div
+     {:style ui/row}
+     (<> "Files:")
+     (=< 16 nil)
+     (list->
+      :div
+      {}
+      (->> (:files ir)
+           (map
+            (fn [entry]
+              (let [[filename file-info] entry] [filename (comp-file filename file-info)])))))))))
