@@ -11,7 +11,7 @@
  comp-file
  (filename file-info)
  (div
-  {:style ui/row}
+  {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 70)), :padding-left 16})}
   (<> filename nil)
   (=< 16 nil)
   (div
@@ -23,7 +23,9 @@
     (=< 16 nil)
     (list->
      :div
-     {}
+     {:style {:border-left (str "1px solid " (hsl 0 0 70)),
+              :padding-left 16,
+              :margin-bottom 2}}
      (->> (:defs file-info)
           (map
            (fn [entry]
