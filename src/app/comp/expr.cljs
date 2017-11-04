@@ -8,24 +8,31 @@
 
 (defcomp
  comp-expr
- (expr)
- (div
-  {:style {:background-color (hsl 300 0 94),
-           :border-left (str "1px solid " (hsl 0 0 70)),
-           :color :black,
-           :padding "2px 16px",
-           :font-family "Source Code Pro, menlo",
-           :line-height "16px",
-           :margin-bottom 2}}
-  (list->
-   :div
-   {}
-   (->> (:data expr)
-        (sort-by first)
-        (map
-         (fn [entry]
-           (let [[k child] entry]
-             [k
-              (if (= :expr (:type child))
-                (comp-expr child)
-                (<> span (:text child) {:margin-right 8}))])))))))
+ (expr last?)
+ (list->
+  :div
+  {:style (merge
+           {:background-color (hsl 300 0 94),
+            :border (str "1px solid " (hsl 0 0 70)),
+            :border-width "0 0 0 1px",
+            :color :black,
+            :padding "2px 16px",
+            :font-family "Source Code Pro, menlo",
+            :line-height "16px",
+            :margin-bottom 2,
+            :vertical-align :top,
+            :min-height 16,
+            :min-width 32}
+           (if last?
+             {:display :inline-block}
+             (if (every? (fn [entry] (= :leaf (:type (val entry)))) (:data expr))
+               {:display :inline-block, :border-width "0 0 1px 0", :margin "0 4px"})))}
+  (->> (:data expr)
+       (sort-by first)
+       (map-indexed
+        (fn [idx entry]
+          (let [[k child] entry]
+            [k
+             (if (= :expr (:type child))
+               (comp-expr child (= idx (dec (count (:data expr)))))
+               (<> span (:text child) {:margin-right 8}))]))))))

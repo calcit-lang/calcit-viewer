@@ -35,5 +35,5 @@
                  {:style ui/row}
                  (<> def-name {:white-space :nowrap})
                  (=< 8 nil)
-                 (comp-expr def-info))]))))))
+                 (comp-expr def-info false))]))))))
    (div {:style ui/row} (<> "proc" nil) (=< 16 nil) (comp-expr (:proc file-info))))))
