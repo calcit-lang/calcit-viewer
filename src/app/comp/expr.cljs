@@ -22,7 +22,8 @@
             :margin-bottom 2,
             :vertical-align :top,
             :min-height 16,
-            :min-width 32}
+            :min-width 32,
+            :font-size 13}
            (if last?
              {:display :inline-block}
              (if (every? (fn [entry] (= :leaf (:type (val entry)))) (:data expr))

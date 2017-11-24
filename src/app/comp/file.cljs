@@ -11,14 +11,22 @@
  comp-file
  (filename file-info)
  (div
-  {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 70)), :padding-left 16})}
+  {:style (merge
+           ui/row
+           {:border-left (str "1px solid " (hsl 0 0 70)),
+            :padding-left 8,
+            :font-family "Source Code Pro, menlo"})}
   (<> filename nil)
   (=< 16 nil)
   (div
    {}
-   (div {:style ui/row} (<> "ns" nil) (=< 16 nil) (comp-expr (:ns file-info)))
    (div
-    {:style ui/row}
+    {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 80)), :padding-left 8})}
+    (<> "ns" nil)
+    (=< 16 nil)
+    (comp-expr (:ns file-info)))
+   (div
+    {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 80)), :padding-left 8})}
     (<> "defs" nil)
     (=< 16 nil)
     (list->
@@ -36,4 +44,8 @@
                  (<> def-name {:white-space :nowrap})
                  (=< 8 nil)
                  (comp-expr def-info false))]))))))
-   (div {:style ui/row} (<> "proc" nil) (=< 16 nil) (comp-expr (:proc file-info))))))
+   (div
+    {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 80)), :padding-left 8})}
+    (<> "proc" nil)
+    (=< 16 nil)
+    (comp-expr (:proc file-info))))))
