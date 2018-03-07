@@ -2,7 +2,7 @@
 (ns app.comp.container
   (:require [hsl.core :refer [hsl]]
             [verbosely.core :refer [verbosely!]]
-            [respo-ui.style :as ui]
+            [respo-ui.core :as ui]
             [respo.macros :refer [defcomp cursor-> <> div button span input pre]]
             [respo.comp.space :refer [=<]]
             [reel.comp.reel :refer [comp-reel]]
@@ -11,8 +11,8 @@
 
 (defn on-file-change [e d! m!]
   (let [file (-> (:event e) .-target .-files (aget 0)), filename (.-name file)]
-    (if (not= filename "coir.edn")
-      (do (d! :error (str "Expected coir.edn , but got " filename)))
+    (if (not= filename "calcit.edn")
+      (do (d! :error (str "Expected calcit.edn , but got " filename)))
       (let [fr (js/FileReader.)]
         (set! fr.onload (fn [event] (d! :load/coir (read-string event.target.result))))
         (.readAsText fr file)))))

@@ -1,45 +1,25 @@
 {
-  "name": "coir-viewer",
+  "name": "calcit-viewer",
   "version": "0.1.0",
-  "description": "Stack Workflow",
+  "description": "App for reading calcit.edn",
   "main": "index.js",
   "scripts": {
-    "cdn": "rsync -avr --progress dist/* tiye.me:cdn/coir-viewer",
-    "tiye": "rsync -avr --progress dist/{index.html,manifest.json} tiye.me:repo/Cirru/coir-viewer/",
-    "upload": "yarn cdn && yarn tiye",
-    "release": "shadow-cljs release browser",
     "watch": "shadow-cljs watch browser",
-    "compile-ssr": "shadow-cljs compile ssr",
-    "html-dev": "env=dev node target/ssr.js",
-    "html": "node target/ssr.js",
-    "hmr": "webpack-dev-server --config webpack.dev.coffee --hot-only",
-    "webpack": "webpack --config webpack.release.coffee --hide-modules --progress",
-    "dev": "yarn compile-ssr && yarn html-dev && yarn dev-manifest && yarn hmr",
-    "del": "rm -rf dist/*",
-    "serve": "http-server dist",
-    "dev-manifest": "cp entry/manifest.json target/",
-    "manifest": "cp entry/manifest.json dist/",
-    "build": "yarn del && yarn release && yarn webpack && yarn compile-ssr && yarn html && yarn manifest"
+    "serve": "http-server dist -s",
+    "repl": "rlwrap shadow-cljs clj-repl",
+    "build": "shadow-cljs clj-run build.main/build"
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:Cirru/coir-viewer.git"
+    "url": "git@github.com:Cirru/calcit-viewer.git"
   },
   "author": "jiyinyiyong",
   "license": "MIT",
   "devDependencies": {
-    "coffeescript": "^2.0.1",
-    "css-loader": "^0.28.7",
-    "extract-text-webpack-plugin": "^3.0.1",
-    "file-loader": "^1.1.5",
-    "http-server": "^0.10.0",
-    "shadow-cljs": "^2.0.41",
-    "source-map-loader": "^0.2.3",
-    "style-loader": "^0.19.0",
-    "uglifyjs-webpack-plugin": "^1.0.1",
-    "url-loader": "^0.6.2",
-    "webpack": "^3.8.1",
-    "webpack-dev-server": "^2.9.3",
-    "webpack-manifest-plugin": "^1.3.2"
+    "http-server": "^0.11.1",
+    "shadow-cljs": "^2.2.4"
+  },
+  "dependencies": {
+    "shortid": "^2.2.8"
   }
 }

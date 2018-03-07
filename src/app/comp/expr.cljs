@@ -2,7 +2,7 @@
 (ns app.comp.expr
   (:require [hsl.core :refer [hsl]]
             [verbosely.core :refer [verbosely!]]
-            [respo-ui.style :as ui]
+            [respo-ui.core :as ui]
             [respo.macros :refer [defcomp <> list-> div button span input pre]]
             [respo.comp.space :refer [=<]]))
 

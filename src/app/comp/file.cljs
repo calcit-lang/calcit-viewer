@@ -2,7 +2,7 @@
 (ns app.comp.file
   (:require [hsl.core :refer [hsl]]
             [verbosely.core :refer [verbosely!]]
-            [respo-ui.style :as ui]
+            [respo-ui.core :as ui]
             [respo.macros :refer [defcomp <> list-> div button span input pre]]
             [respo.comp.space :refer [=<]]
             [app.comp.expr :refer [comp-expr]]))
@@ -24,7 +24,7 @@
     {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 80)), :padding-left 8})}
     (<> "ns" nil)
     (=< 16 nil)
-    (comp-expr (:ns file-info)))
+    (comp-expr (:ns file-info) false))
    (div
     {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 80)), :padding-left 8})}
     (<> "defs" nil)
@@ -48,4 +48,4 @@
     {:style (merge ui/row {:border-left (str "1px solid " (hsl 0 0 80)), :padding-left 8})}
     (<> "proc" nil)
     (=< 16 nil)
-    (comp-expr (:proc file-info))))))
+    (comp-expr (:proc file-info) false)))))

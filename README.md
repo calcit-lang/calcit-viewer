@@ -1,14 +1,14 @@
 
-Coir Viewer
+Calcit Viewer
 ----
 
-> a simple viewer to read `coir.edn`.
+> a simple viewer to read `calcit.edn`.
 
-http://repo.cirru.org/coir-viewer/
+http://repo.cirru.org/calcit-viewer/
 
 ### Workflow
 
-Workflow https://github.com/mvc-works/coworkflow
+Workflow https://github.com/mvc-works/calcit-workflow
 
 ### License
 
