@@ -8,7 +8,7 @@
             [cljs.reader :refer [read-string]]))
 
 (def base-info
-  {:title "Coir Viewer",
+  {:title "Calcit Viewer",
    :icon "http://cdn.tiye.me/logo/cirru.png",
    :ssr nil,
    :inline-html nil,

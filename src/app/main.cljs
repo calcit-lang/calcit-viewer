@@ -13,11 +13,14 @@
 (defonce *reel
   (atom (-> reel-schema/reel (assoc :base schema/store) (assoc :store schema/store))))
 
-(defn dispatch! [op op-data] (reset! *reel (reel-updater updater @*reel op op-data)))
+(defn dispatch! [op op-data]
+  (println "Dispatch!" op op-data)
+  (reset! *reel (reel-updater updater @*reel op op-data)))
 
 (def mount-target (.querySelector js/document ".app"))
 
-(defn render-app! [renderer] (renderer mount-target (comp-container @*reel) dispatch!))
+(defn render-app! [renderer]
+  (renderer mount-target (comp-container @*reel) #(dispatch! %1 %2)))
 
 (def ssr? (some? (js/document.querySelector "meta.respo-ssr")))
 
