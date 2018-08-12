@@ -501,7 +501,7 @@
                        "j" {
                         :type :expr, :id "BklF1t8Lp-", :by "root", :at 1508432096991
                         :data {
-                         "T" {:type :leaf, :text ":coir", :id "HyFkK8UaZ", :by "root", :at 1508432098556}
+                         "T" {:type :leaf, :text ":calcit", :id "HyFkK8UaZ", :by "root", :at 1508432098556}
                          "j" {:type :leaf, :text "store", :id "Bkgo1F8Uab", :by "root", :at 1508432099904}
                         }
                        }
@@ -514,7 +514,7 @@
                        "j" {
                         :type :expr, :id "r1BeUILTb", :by "root", :at 1508431340877
                         :data {
-                         "T" {:type :leaf, :text ":coir", :id "BJBMgUUU6Z", :by "root", :at 1508431342138}
+                         "T" {:type :leaf, :text ":calcit", :id "BJBMgUUU6Z", :by "root", :at 1508431342138}
                          "j" {:type :leaf, :text "store", :id "ryDxL8IaZ", :by "root", :at 1508431344132}
                         }
                        }
@@ -818,7 +818,7 @@
           :type :expr, :by "root", :at 1520439397186, :id "Hk0pDx9T_G"
           :data {
            "T" {:type :leaf, :by "root", :at 1520439397186, :text "<>", :id "r11e6wl5aOf"}
-           "j" {:type :leaf, :by "root", :at 1520439397186, :text "|Pick coir.edn to view:", :id "BkxeaPxc6_z"}
+           "j" {:type :leaf, :by "root", :at 1534089601016, :text "|Pick calcit.edn to view:", :id "BkxeaPxc6_z"}
           }
          }
          "v" {
@@ -1128,7 +1128,7 @@
                       :type :expr, :by "root", :at 1520440574694, :id "H1gvbBqT_f"
                       :data {
                        "T" {:type :leaf, :by "root", :at 1520440692981, :text "d!", :id "S1wWSqp_f"}
-                       "b" {:type :leaf, :by "root", :at 1520440704548, :text ":load/coir", :id "HkLtrcT_f"}
+                       "b" {:type :leaf, :by "root", :at 1520440704548, :text ":load/calcit", :id "HkLtrcT_f"}
                        "j" {
                         :type :expr, :by "root", :at 1520440639649, :id "SkbFSqpdz"
                         :data {
@@ -1367,7 +1367,7 @@
                     :type :expr, :id "HkzmWZELLpb", :by "root", :at 1508430840605
                     :data {
                      "T" {:type :leaf, :text "d!", :id "HyXXbZ48LaW", :by "root", :at 1508430840605}
-                     "j" {:type :leaf, :text ":load/coir", :id "r14QW-VU8ab", :by "root", :at 1508430840605}
+                     "j" {:type :leaf, :text ":load/calcit", :id "r14QW-VU8ab", :by "root", :at 1508430840605}
                      "r" {
                       :type :expr, :id "S1Hm-bNLLpW", :by "root", :at 1508430840605
                       :data {
@@ -2687,7 +2687,7 @@
        "r" {
         :type :expr, :id "rkQQaBLIp-", :by "root", :at 1508431291056
         :data {
-         "T" {:type :leaf, :text "coir", :id "rJHJ8LI6Z", :by "root", :at 1508431326073}
+         "T" {:type :leaf, :text "calcit", :id "rJHJ8LI6Z", :by "root", :at 1534089768866}
         }
        }
        "v" {
@@ -2705,7 +2705,7 @@
               :type :expr, :id "HJzEwULI6b", :by "root", :at 1508431451935
               :data {
                "T" {:type :leaf, :text ":ir", :id "H1Z4PL8U6-", :by "root", :at 1508431452397}
-               "j" {:type :leaf, :text "coir", :id "r1IVDIU8a-", :by "root", :at 1508431453648}
+               "j" {:type :leaf, :text "calcit", :id "r1IVDIU8a-", :by "root", :at 1534089774905}
               }
              }
             }
@@ -2795,7 +2795,7 @@
                 :type :expr, :id "B1GQdUUIpb", :by "root", :at 1508431467235
                 :data {
                  "T" {:type :leaf, :text ":users", :id "B1Zm_L88T-", :by "root", :at 1508431469099}
-                 "j" {:type :leaf, :text "coir", :id "S1VHOULLa-", :by "root", :at 1508431471807}
+                 "j" {:type :leaf, :text "calcit", :id "S1VHOULLa-", :by "root", :at 1534089776352}
                 }
                }
               }
@@ -2835,7 +2835,7 @@
                 :type :expr, :id "S1ef7II8pW", :by "root", :at 1508431386314
                 :data {
                  "T" {:type :leaf, :text ":configs", :id "ryRMIUU6Z", :by "root", :at 1508431388215}
-                 "j" {:type :leaf, :text "coir", :id "HkHXULLa-", :by "root", :at 1508431389533}
+                 "j" {:type :leaf, :text "calcit", :id "HkHXULLa-", :by "root", :at 1534089777522}
                 }
                }
               }
@@ -4157,7 +4157,7 @@
          "r" {
           :type :expr, :id "B1aixsdK9pHb", :by nil, :at 1499755354983
           :data {
-           "T" {:type :leaf, :text ":coir", :id "BJ0oxjdFq6rb", :by "root", :at 1508430339389}
+           "T" {:type :leaf, :text ":calcit", :id "BJ0oxjdFq6rb", :by "root", :at 1508430339389}
            "j" {:type :leaf, :text "nil", :id "BJy2go_tcaBZ", :by "root", :at 1508430341420}
           }
          }
@@ -4257,7 +4257,7 @@
          "r" {
           :type :expr, :id "S1kexiuF9arZ", :by nil, :at 1499755354983
           :data {
-           "T" {:type :leaf, :text ":load/coir", :id "S1lxeout56HW", :by "root", :at 1508430323713}
+           "T" {:type :leaf, :text ":load/calcit", :id "S1lxeout56HW", :by "root", :at 1508430323713}
            "j" {
             :type :expr, :id "HJgKEUUp-", :by "root", :at 1508430968054
             :data {
@@ -4267,7 +4267,7 @@
               :type :expr, :id "S1b6lzL8pW", :by "root", :at 1508430325393
               :data {
                "T" {:type :leaf, :text "assoc", :id "ryg6gf8Lpb", :by "root", :at 1508430328320}
-               "r" {:type :leaf, :text ":coir", :id "HJV-ZG8L6W", :by "root", :at 1508430331142}
+               "r" {:type :leaf, :text ":calcit", :id "HJV-ZG8L6W", :by "root", :at 1508430331142}
                "v" {:type :leaf, :text "op-data", :id "r1NWzUL6W", :by "root", :at 1508430333364}
               }
              }
