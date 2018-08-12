@@ -1,19 +1,13 @@
 
 (ns build.upload
-  (:require [clojure.java.shell :refer [sh]]))
-
-(def configs {:orgization "Cirru"
-              :name "calcit-viewer"
-              :cdn "calcit-viewer"})
+  (:require ["child_process" :as child-process]
+            [app.config :as config]))
 
 (defn sh! [command]
   (println command)
-  (println (sh "bash" "-c" command)))
+  (println (.toString (child-process/execSync command))))
 
 (defn -main []
-  (sh! (str "rsync -avr --progress dist/* tiye.me:cdn/" (:cdn configs)))
-  (sh!
-    (str "rsync -avr --progress dist/{index.html,manifest.json} tiye.me:repo/"
-      (:orgization configs) "/"
-      (:name configs) "/"))
-  (shutdown-agents))
+  (sh! (str "rsync -avr --progress dist/* " (:cdn-folder config/site)))
+  (sh! (str "rsync -avr --progress dist/{index.html,manifest.json} "
+            (:upload-folder config/site))))
