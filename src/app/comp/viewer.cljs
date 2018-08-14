@@ -10,13 +10,13 @@
 
 (defcomp
  comp-viewer
- (coir)
- (let [ir (:ir coir)]
+ (calcit)
+ (let [ir (:ir calcit)]
    (div
     {}
     (div {} (<> "Namespace:") (=< 8 nil) (<> (:package ir)))
-    (div {} (<> "Users:") (=< 8 nil) (<> (:users coir)))
-    (div {} (<> "Configs:") (=< 8 nil) (<> (:configs coir)))
+    (div {} (<> "Users:") (=< 8 nil) (<> (:users calcit)))
+    (div {} (<> "Configs:") (=< 8 nil) (<> (:configs calcit)))
     (div
      {:style ui/row}
      (<> "Files:")

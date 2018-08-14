@@ -44,7 +44,7 @@
  (error)
  (div
   {:style {:padding 16}}
-  (<> "Pick coir.edn to view:")
+  (<> "Pick calcit.edn to view:")
   (=< 8 nil)
   (input {:type "file", :accept ".edn", :on {:change on-file-change}})
   (div {:style {:color :red}} (<> error))))

@@ -2,10 +2,12 @@
 body {
   margin: 0;
   font-display: optional;
+  overscroll-behavior-y: none;
 }
 
 body * {
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 ::-webkit-scrollbar {
