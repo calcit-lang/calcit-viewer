@@ -1,15 +1,15 @@
 
 (ns app.comp.container
   (:require [hsl.core :refer [hsl]]
-            [verbosely.core :refer [verbosely!]]
             [respo-ui.core :as ui]
-            [respo.macros :refer [defcomp cursor-> <> div button textarea span input pre]]
+            [respo.core :refer [defcomp cursor-> <> div button textarea span input pre]]
             [respo.comp.space :refer [=<]]
             [reel.comp.reel :refer [comp-reel]]
             [cljs.reader :refer [read-string]]
             [app.comp.viewer :refer [comp-viewer]]
-            [respo-ui.comp.icon :refer [comp-icon]]
-            [respo-md.comp.md :refer [comp-md]]))
+            [respo-md.comp.md :refer [comp-md]]
+            [feather.core :refer [comp-i]]
+            [respo.comp.inspect :refer [comp-inspect]]))
 
 (defcomp
  comp-about
@@ -28,7 +28,7 @@
            {:font-size 28, :width 48, :height 48, :color (hsl 0 0 60), :cursor :pointer}
            (if (= page current-page) {:color :white})),
    :on-click (fn [e d! m!] (d! :page page))}
-  (comp-icon icon)))
+  (comp-i icon 14 (hsl 200 80 80))))
 
 (defn on-file-change [e d! m!]
   (let [file (-> (:event e) .-target .-files (aget 0))]
@@ -36,7 +36,7 @@
       (if (not= (.-name file) "calcit.edn")
         (do (d! :error (str "Expected calcit.edn , but got " (.-name file))))
         (let [fr (js/FileReader.)]
-          (set! fr.onload (fn [event] (d! :load/coir (read-string event.target.result))))
+          (set! fr.onload (fn [event] (d! :load/calcit (read-string event.target.result))))
           (.readAsText fr file))))))
 
 (defcomp
@@ -67,7 +67,9 @@
    (button
     {:style ui/button,
      :on-click (fn [e d! m!]
-       (try (d! :load/coir (read-string text)) (catch js/Error error (d! :error (str error)))))}
+       (try
+        (d! :load/calcit (read-string text))
+        (catch js/Error error (d! :error (str error)))))}
     (<> "Parse"))
    (div {:style {:color :red}} (<> error)))))
 
@@ -81,18 +83,19 @@
       (div
        {:style {:background-color (hsl 200 30 24), :color :white}}
        (comp-entry :upload :input page)
-       (comp-entry :android-create :textarea page)
-       (comp-entry :android-desktop :viewer page)
-       (comp-entry :information :about page)))
+       (comp-entry :edit :textarea page)
+       (comp-entry :monitor :viewer page)
+       (comp-entry :info :about page)))
     (case (:page store)
       :viewer
         (div
-         {:style {:padding 16, :overflow :auto}}
+         {:style (merge ui/expand {:padding 16, :overflow :auto})}
          (if (some? (:error store))
            (<> span (:error store) {:color :red})
-           (if (some? (:coir store)) (comp-viewer (:coir store)) (<> "Nothing"))))
+           (if (some? (:calcit store)) (comp-viewer (:calcit store)) (<> "Nothing"))))
       :textarea (comp-text-area (:text store) (:error store))
       :input (comp-file-input (:error store))
       :about (comp-about)
       (<> "Unknown route"))
+    (comp-inspect :store store {:bottom 0, :right 8})
     (cursor-> :reel comp-reel states reel {}))))
