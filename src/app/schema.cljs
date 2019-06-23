@@ -1,4 +1,4 @@
 
 (ns app.schema )
 
-(def store {:states {}, :error nil, :coir nil, :page :input, :text ""})
+(def store {:states {}, :error nil, :calcit nil, :page :input, :text ""})
