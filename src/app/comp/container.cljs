@@ -9,7 +9,9 @@
             [app.comp.viewer :refer [comp-viewer]]
             [respo-md.comp.md :refer [comp-md]]
             [feather.core :refer [comp-i]]
-            [respo.comp.inspect :refer [comp-inspect]]))
+            [respo.comp.inspect :refer [comp-inspect]]
+            [respo-message.action :as action]
+            [respo-message.comp.messages :refer [comp-messages]]))
 
 (defcomp
  comp-about
@@ -97,5 +99,6 @@
       :input (comp-file-input (:error store))
       :about (comp-about)
       (<> "Unknown route"))
+    (comp-messages (:messages store) {} (fn [info d! m!] (d! action/clear nil)))
     (comp-inspect :store store {:bottom 0, :right 8})
     (cursor-> :reel comp-reel states reel {}))))
