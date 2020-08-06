@@ -1,7 +1,6 @@
 
 (ns app.main
   (:require [respo.core :refer [render! clear-cache! realize-ssr!]]
-            [respo.cursor :refer [mutate]]
             [app.comp.container :refer [comp-container]]
             [cljs.reader :refer [read-string]]
             [app.updater :refer [updater]]
@@ -37,5 +36,3 @@
   (clear-cache!)
   (reset! *reel (refresh-reel @*reel schema/store updater))
   (println "Code updated."))
-
-(set! (.-onload js/window) main!)

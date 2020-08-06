@@ -1,12 +1,12 @@
 
 (ns app.updater
-  (:require [respo.cursor :refer [mutate]]
+  (:require [respo.cursor :refer [update-states]]
             [respo-message.action :as action]
             [respo-message.updater :refer [update-messages]]))
 
 (defn updater [store op op-data]
   (case op
-    :states (update store :states (mutate op-data))
+    :states (update-states store op-data)
     :load/calcit (-> store (assoc :calcit op-data) (assoc :error nil) (assoc :page :viewer))
     :text (assoc store :text op-data)
     :error (assoc store :error op-data)
