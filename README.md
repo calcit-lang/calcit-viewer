@@ -2,7 +2,7 @@
 Calcit Viewer
 ----
 
-> a simple viewer to read `calcit.edn`.
+> a simple viewer to read `calcit.cirru`.
 
 http://repo.cirru.org/calcit-viewer/
 

@@ -2,7 +2,7 @@
 (ns app.comp.container
   (:require [hsl.core :refer [hsl]]
             [respo-ui.core :as ui]
-            [respo.core :refer [defcomp cursor-> <> div button textarea span input pre]]
+            [respo.core :refer [defcomp >> <> div button textarea span input pre]]
             [respo.comp.space :refer [=<]]
             [reel.comp.reel :refer [comp-reel]]
             [cljs.reader :refer [read-string]]
@@ -11,7 +11,8 @@
             [feather.core :refer [comp-i]]
             [respo.comp.inspect :refer [comp-inspect]]
             [respo-message.action :as action]
-            [respo-message.comp.messages :refer [comp-messages]]))
+            [respo-message.comp.messages :refer [comp-messages]]
+            [cirru-edn.core :as cirru-edn]))
 
 (defcomp
  comp-about
@@ -32,13 +33,15 @@
    :on-click (fn [e d! m!] (d! :page page))}
   (comp-i icon 14 (hsl 200 80 80))))
 
-(defn on-file-change [e d! m!]
+(defn on-file-change [e d!]
   (let [file (-> (:event e) .-target .-files (aget 0))]
     (if (some? file)
-      (if (not= (.-name file) "calcit.edn")
-        (do (d! :error (str "Expected calcit.edn , but got " (.-name file))))
+      (if (not= (.-name file) "calcit.cirru")
+        (do (d! :error (str "Expected calcit.cirru , but got " (.-name file))))
         (let [fr (js/FileReader.)]
-          (set! fr.onload (fn [event] (d! :load/calcit (read-string event.target.result))))
+          (set!
+           fr.onload
+           (fn [event] (d! :load/calcit (cirru-edn/parse event.target.result))))
           (.readAsText fr file))))))
 
 (defcomp
@@ -46,9 +49,9 @@
  (error)
  (div
   {:style {:padding 16}}
-  (<> "Pick calcit.edn to view:")
+  (<> "Pick calcit.cirru to view:")
   (=< 8 nil)
-  (input {:type "file", :accept ".edn", :on {:change on-file-change}})
+  (input {:type "file", :accept ".cirru", :on-change on-file-change})
   (div {:style {:color :red}} (<> error))))
 
 (defcomp
@@ -63,12 +66,12 @@
             {:width "100%", :font-family ui/font-code, :font-size 12, :line-height "1.4em"}),
     :value text,
     :placeholder "Paste calcit.edn content here...",
-    :on-input (fn [e d! m!] (d! :text (:value e)))})
+    :on-input (fn [e d!] (d! :text (:value e)))})
   (div
    {:style {:padding 8}}
    (button
     {:style ui/button,
-     :on-click (fn [e d! m!]
+     :on-click (fn [e d!]
        (try
         (d! :load/calcit (read-string text))
         (catch js/Error error (d! :error (str error)))))}
@@ -101,4 +104,4 @@
       (<> "Unknown route"))
     (comp-messages (:messages store) {} (fn [info d! m!] (d! action/clear nil)))
     (comp-inspect :store store {:bottom 0, :right 8})
-    (cursor-> :reel comp-reel states reel {}))))
+    (comp-reel (>> states :reel) reel {}))))
