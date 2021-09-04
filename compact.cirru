@@ -128,6 +128,7 @@
           [] respo.comp.inspect :refer $ [] comp-inspect
           [] respo-message.action :as action
           [] respo-message.comp.messages :refer $ [] comp-messages
+          app.config :as config
       :defs $ {}
         |comp-file-input $ quote
           defcomp comp-file-input (error)
@@ -165,7 +166,7 @@
                       merge ui/expand $ {} (:padding 16) (:overflow :auto)
                     if
                       some? $ :error store
-                      <> span (:error store)
+                      <> (:error store)
                         {} $ :color :red
                       if
                         some? $ :calcit store
@@ -176,13 +177,14 @@
                   :about $ comp-about
                 comp-messages (:messages store) ({})
                   fn (info d!) (d! action/clear nil)
-                comp-inspect :store store $ {} (:bottom 0) (:right 8)
+                if config/dev? $ comp-inspect :store store
+                  {} (:bottom 0) (:right 8)
                 comp-reel (>> states :reel) reel $ {}
         |comp-about $ quote
           defcomp comp-about () $ div
             {} $ :style
               {} $ :padding 8
-            comp-md "\"Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/Cirru/calcit-viewer ."
+            comp-md "\"Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/calcit-lang/calcit-viewer ."
         |comp-entry $ quote
           defcomp comp-entry (icon page current-page)
             div
