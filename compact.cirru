@@ -128,6 +128,8 @@
           [] respo.comp.inspect :refer $ [] comp-inspect
           [] respo-message.action :as action
           [] respo-message.comp.messages :refer $ [] comp-messages
+          app.config :as config
+          app.comp.graph :refer $ comp-graph
       :defs $ {}
         |comp-file-input $ quote
           defcomp comp-file-input (error)
@@ -159,13 +161,14 @@
                     comp-entry :edit :textarea page
                     comp-entry :monitor :viewer page
                     comp-entry :info :about page
+                    comp-entry :map :graph page
                 case-default (:page store) (<> "\"Unknown route")
                   :viewer $ div
                     {} $ :style
                       merge ui/expand $ {} (:padding 16) (:overflow :auto)
                     if
                       some? $ :error store
-                      <> span (:error store)
+                      <> (:error store)
                         {} $ :color :red
                       if
                         some? $ :calcit store
@@ -174,15 +177,17 @@
                   :textarea $ comp-text-area (:text store) (:error store)
                   :input $ comp-file-input (:error store)
                   :about $ comp-about
+                  :graph $ comp-graph (>> states :graph) (:calcit store)
                 comp-messages (:messages store) ({})
                   fn (info d!) (d! action/clear nil)
-                comp-inspect :store store $ {} (:bottom 0) (:right 8)
+                if config/dev? $ comp-inspect :store store
+                  {} (:bottom 0) (:right 8)
                 comp-reel (>> states :reel) reel $ {}
         |comp-about $ quote
           defcomp comp-about () $ div
             {} $ :style
               {} $ :padding 8
-            comp-md "\"Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/Cirru/calcit-viewer ."
+            comp-md "\"Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/calcit-lang/calcit-viewer ."
         |comp-entry $ quote
           defcomp comp-entry (icon page current-page)
             div
@@ -300,6 +305,210 @@
               :text $ assoc store :text op-data
               :error $ assoc store :error op-data
               :page $ assoc store :page op-data
+    |app.ast $ {}
+      :ns $ quote (ns app.ast)
+      :defs $ {}
+        |build-deps-graph $ quote
+          defn build-deps-graph (entry-ns entry-def files pkg) (; println entry-ns entry-def pkg) (; js/console.log files)
+            let
+                ns-deps-map $ -> files
+                  .map-kv $ fn (ns' file)
+                    let
+                        ns-form $ tree->cirru (:ns file)
+                        rules $ if
+                          = 3 $ count ns-form
+                          .slice (nth ns-form 2) 1
+                          []
+                        defs $ :defs file
+                      ; js/console.log "\"entry" ns' ns-form
+                      [] ns' $ let
+                          results $ map rules
+                            fn (rule)
+                              parse-rule $ unify-rule rule
+                          ns-dict $ merge ({}) &
+                            -> results
+                              filter $ fn (paired)
+                                = :ns $ get paired 0
+                              map last
+                          defs-dict $ merge ({}) &
+                            -> results
+                              filter $ fn (paired)
+                                = :def $ get paired 0
+                              map last
+                          defaults-dict $ merge ({}) &
+                            -> results
+                              filter $ fn (paired)
+                                = :default $ get paired 0
+                              map last
+                          defs-deps $ -> defs
+                            .map-kv $ fn (k form)
+                              [] k $ match-references (tree->cirru form) ns-dict defs-dict defaults-dict (keys defs) ns'
+                        , defs-deps
+              js/console.log "\"Deps Map" ns-deps-map
+              , ns-deps-map
+        |tree->cirru $ quote
+          defn tree->cirru (x)
+            if
+              = :leaf $ :type x
+              :text x
+              -> (:data x) (.to-list) (.sort-by first)
+                map $ fn (entry)
+                  tree->cirru $ last entry
+        |parse-rule $ quote
+          defn parse-rule (rule) (; println "\"rule" rule)
+            case-default (nth rule 1)
+              do (js/console.log "\"Unknown rule:" rule) nil
+              "\":as" $ [] :ns
+                {} $ 
+                  nth rule 2
+                  {} (:kind :ns)
+                    :alias $ nth rule 2
+                    :ns $ nth rule 0
+              "\":refer" $ [] :def
+                -> (nth rule 2)
+                  map $ fn (def-name)
+                    [] def-name $ {} (:kind :def) (:def def-name)
+                      :ns $ nth rule 0
+                  .pairs-map
+              "\":default" $ [] :default
+                &{} (nth rule 2)
+                  {} (:kind :default)
+                    :package $ nth rule 0
+                    :alias $ nth rule 2
+        |unify-rule $ quote
+          defn unify-rule (rule)
+            -> rule
+              .filter $ fn (x) (not= x "\"[]")
+              .map $ fn (x)
+                if (list? x) (unify-rule x) x
+        |match-references $ quote
+          defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns) (js/console.log "\"Defaults" defaults-dict)
+            let
+                tokens $ -> form (.slice 2) (flatten-form)
+                  .filter $ fn (x)
+                    cond
+                        .starts-with? x "\":"
+                        , false
+                      (.starts-with? x "\".") false
+                      (.starts-with? x "\"|") false
+                      (.starts-with? x "\"\"") false
+                      (.!test pattern-number x) false
+                      true true
+                  .map $ fn (x)
+                    -> x (.strip-prefix "\"~@") (.strip-prefix "\"~") (.strip-prefix "\"@")
+                  .distinct
+                  .map $ fn (x)
+                    cond
+                        .contains? current-defs x
+                        {} (:kind :def) (:ns current-ns) (:def x)
+                      (.contains? defs-dict x) (get defs-dict x)
+                      (.contains? defaults-dict x) (get defaults-dict x)
+                      (.includes? x "\"/")
+                        let[] (ns-part def-part) (.split x "\"/")
+                          if (.contains? defs-dict ns-part)
+                            {} (:kind :def)
+                              :ns $ :ns (get ns-dict ns-part)
+                              :def x
+                      true nil
+                  .filter some?
+              ; js/console.log "\"tokens" tokens
+              , tokens
+        |flatten-form $ quote
+          defn flatten-form (xs)
+            if (list? xs) (mapcat xs flatten-form) ([] xs)
+        |pattern-number $ quote
+          def pattern-number $ new js/RegExp "\"^\\d+(\\.\\d+)?$"
+    |app.comp.graph $ {}
+      :ns $ quote
+        ns app.comp.graph $ :require
+          [] respo-ui.core :refer $ [] hsl
+          [] respo-ui.core :as ui
+          [] respo.core :refer $ [] defcomp <> list-> div button span input pre
+          [] respo.comp.space :refer $ [] =<
+          app.ast :refer $ build-deps-graph
+      :defs $ {}
+        |comp-graph $ quote
+          defcomp comp-graph (states snapshot)
+            let
+                cursor $ :cursor states
+                configs $ :configs snapshot
+                state $ or (:data states)
+                  {} (:graph nil)
+                    :init-fn $ :init-fn configs
+                entry $ .split (:init-fn state) "\"/"
+                ir $ :ir snapshot
+              div
+                {} $ :style
+                  merge ui/expand ui/column $ {}
+                div
+                  {} $ :style
+                    {}
+                      :border-bottom $ str "\"1px solid " (hsl 0 0 90)
+                      :padding "\"8px 4px"
+                  button $ {} (:style ui/button) (:inner-text "\"Button")
+                    :on-click $ fn (e d!) (; js/console.log snapshot)
+                      d! cursor $ assoc state :graph
+                        build-deps-graph (nth entry 0) (nth entry 1) (:files ir) (:package ir)
+                  =< 8 nil
+                  input $ {}
+                    :value $ :init-fn state
+                    :style ui/input
+                    :on-input $ fn (e d!)
+                      d! cursor $ assoc state :init-fn (:value e)
+                div
+                  {} $ :style
+                    merge ui/expand $ {} (:padding "\"8px")
+                  if
+                    some? $ :graph state
+                    comp-graph-tree (nth entry 0) (nth entry 1) (:graph state) (#{})
+                    <> "\"no graph"
+        |comp-graph-tree $ quote
+          defcomp comp-graph-tree (ns' def' dict footprints)
+            let
+                path $ str ns' "\"/" def'
+              div
+                {} $ :style ui/row
+                div
+                  {} $ :style
+                    {} (:margin "\"0px 0") (:line-height "\"20px")
+                  <> (str ns' "\"/")
+                    {}
+                      :color $ hsl 0 0 70
+                      :line-height "\"14px"
+                      :font-size "\"12px"
+                  <> def' $ {} (:line-height "\"20px") (:font-family ui/font-normal)
+                if (.contains? footprints path)
+                  <> "\"Looped" $ {} (:display :inline-block) (:margin "\"0 4px")
+                    :background-color $ hsl 40 80 60
+                    :padding "\"0 6px"
+                    :color :white
+                    :border-radius "\"8px"
+                  let
+                      deps $ get-in dict ([] ns' def')
+                    if (list? deps)
+                      div
+                        {} $ :style
+                          {}
+                            :border-left $ str "\"1px solid " (hsl 0 0 90)
+                            :padding "\"0 8px"
+                            :margin "\"0 8px"
+                        , & $ -> deps
+                          map $ fn (dep)
+                            if
+                              = :default $ :kind dep
+                              div
+                                {} $ :style
+                                  {}
+                                    :color $ hsl 200 80 60
+                                    :line-height "\"20px"
+                                    :text-decoration :underline
+                                <> $ :package dep
+                              comp-graph-tree (:ns dep) (:def dep) dict $ .include footprints path
+                      div
+                        {} $ :style
+                          {} (:padding "\"0 8px") (:line-height "\"20px")
+                        <> "\"-" $ {}
+                          :color $ hsl 0 0 80
     |app.main $ {}
       :ns $ quote
         ns app.main $ :require
@@ -323,7 +532,9 @@
           defatom *reel $ -> reel-schema/reel (assoc :base schema/store) (assoc :store schema/store)
         |main! $ quote
           defn main! ()
-            println "\"Running mode:" $ if config/dev? "\"dev" "\"release"
+            println "\"Running mode:" $ if config/dev?
+              do (load-console-formatter!) "\"dev"
+              , "\"release"
             render-app!
             add-watch *reel :changes $ fn (r p) (render-app!)
             listen-devtools! |a dispatch!
