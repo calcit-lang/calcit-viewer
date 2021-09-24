@@ -4,7 +4,7 @@ Calcit Viewer
 
 > a simple viewer to read `calcit.cirru`.
 
-http://repo.cirru.org/calcit-viewer/
+Demo http://repo.calcit-lang.org/calcit-viewer/ .
 
 ### Workflow
 
