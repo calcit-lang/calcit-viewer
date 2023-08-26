@@ -110,9 +110,7 @@
         |tree->cirru $ %{} :CodeEntry (:doc |)
           :code $ quote
             defn tree->cirru (x)
-              if
-                = :leaf $ :type x
-                :text x
+              if (&record:matches? schema/CirruLeaf x) (:text x)
                 -> (:data x) (.to-list) (.sort-by first)
                   map $ fn (entry)
                     tree->cirru $ last entry
@@ -124,7 +122,8 @@
                 .map $ fn (x)
                   if (list? x) (unify-rule x) x
       :ns $ %{} :CodeEntry (:doc |)
-        :code $ quote (ns app.ast)
+        :code $ quote
+          ns app.ast $ :require (app.schema :as schema)
     |app.comp.container $ {}
       :defs $ {}
         |comp-about $ %{} :CodeEntry (:doc |)
@@ -140,7 +139,7 @@
                   store $ :store reel
                   states $ :states store
                 div
-                  {} $ :style (merge ui/global ui/fullscreen ui/row)
+                  {} $ :class-name (str-spaced css/global css/fullscreen css/row)
                   let
                       page $ :page store
                     div
@@ -155,8 +154,8 @@
                       comp-entry :map :graph page
                   case-default (:page store) (<> "\"Unknown route")
                     :viewer $ div
-                      {} $ :style
-                        merge ui/expand $ {} (:padding 16) (:overflow :auto)
+                      {} (:class-name css/expand)
+                        :style $ {} (:padding 16) (:overflow :auto)
                       if
                         some? $ :error store
                         <> (:error store)
@@ -179,12 +178,9 @@
             defcomp comp-entry (icon page current-page)
               div
                 {}
-                  :style $ merge ui/center
-                    {} (:font-size 28) (:width 48) (:height 48)
-                      :color $ hsl 0 0 60
-                      :cursor :pointer
-                    if (= page current-page)
-                      {} $ :color :white
+                  :class-name $ str-spaced css/center style-entry
+                  :style $ if (= page current-page)
+                    {} $ :color :white
                   :on-click $ fn (e d!) (d! :page page)
                 comp-i icon 14 $ hsl 200 80 80
         |comp-file-input $ %{} :CodeEntry (:doc |)
@@ -244,24 +240,31 @@
                           d! :load/calcit $ parse-cirru-edn (-> event .-target .-result)
                             {} (:CodeEntry schema/CodeEntry) (:Leaf schema/CirruLeaf) (:Expr schema/CirruExpr)
                       .!readAsText fr file
+        |style-entry $ %{} :CodeEntry (:doc |)
+          :code $ quote
+            defstyle style-entry $ {}
+              "\"&" $ {} (:font-size 28) (:width 48) (:height 48)
+                :color $ hsl 0 0 60
+                :cursor :pointer
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.container $ :require
-            [] respo-ui.core :refer $ [] hsl
-            [] respo-ui.core :as ui
-            [] respo.core :refer $ [] defcomp >> <> div button textarea span input pre
-            [] respo.comp.space :refer $ [] =<
-            [] reel.comp.reel :refer $ [] comp-reel
-            [] cljs.reader :refer $ [] read-string
-            [] app.comp.viewer :refer $ [] comp-viewer
-            [] respo-md.comp.md :refer $ [] comp-md
-            [] feather.core :refer $ [] comp-i
-            [] respo.comp.inspect :refer $ [] comp-inspect
-            [] respo-message.action :as action
-            [] respo-message.comp.messages :refer $ [] comp-messages
+            respo-ui.core :refer $ hsl
+            respo-ui.core :as ui
+            respo.core :refer $ defcomp >> <> div button textarea span input pre
+            respo.comp.space :refer $ =<
+            reel.comp.reel :refer $ comp-reel
+            app.comp.viewer :refer $ comp-viewer
+            respo-md.comp.md :refer $ comp-md
+            feather.core :refer $ comp-i
+            respo.comp.inspect :refer $ comp-inspect
+            respo-message.action :as action
+            respo-message.comp.messages :refer $ comp-messages
             app.config :as config
             app.comp.graph :refer $ comp-graph
             app.schema :as schema
+            respo-ui.css :as css
+            respo.css :refer $ defstyle
     |app.comp.expr $ {}
       :defs $ {}
         |comp-expr $ %{} :CodeEntry (:doc |)
@@ -269,19 +272,19 @@
             defcomp comp-expr (expr last?)
               list->
                 {}
-                  :style $ merge style-expr
-                    if last?
-                      {} $ :display :inline-block
-                      if
-                        every? (:data expr)
-                          fn (entry)
-                            &record:matches? schema/CirruLeaf $ last entry
-                        {} (:display :inline-block) (:border-width "|0 0 1px 0") (:margin "|0 4px")
+                  :class-name $ str-spaced style-expr "\"comp-expr"
+                  :style $ if last?
+                    {} $ :display :inline-block
+                    if
+                      every? (:data expr)
+                        fn (entry)
+                          &record:matches? schema/CirruLeaf $ last entry
+                      {} (:display :inline-block) (:border-width "|0 0 1px 0") (:margin "|0 4px")
                   :title "\"Click to copy."
-                  :class-name "\"comp-expr"
                   :on-click $ fn (e d!)
                     let
-                        code $ format-cirru (tree->cirru expr)
+                        code $ format-cirru
+                          [] $ tree->cirru expr
                       copy! code
                       d! action/create $ {}
                         :text $ str "\"Copied! " code
@@ -298,47 +301,45 @@
                           {} $ :margin-right 8
         |style-expr $ %{} :CodeEntry (:doc |)
           :code $ quote
-            def style-expr $ {}
-              :background-color $ hsl 300 0 94
-              :border $ str "|1px solid " (hsl 0 0 70)
-              :border-width "|0 0 0 1px"
-              :padding "|2px 16px"
-              :font-family "|Source Code Pro, menlo"
-              :line-height |16px
-              :margin-bottom 2
-              :vertical-align :top
-              :min-height 16
-              :min-width 32
-              :font-size 13
-              :cursor :pointer
+            defstyle style-expr $ {}
+              "\"&" $ {}
+                :background-color $ hsl 300 0 94
+                :border $ str "|1px solid " (hsl 0 0 70)
+                :border-width "|0 0 0 1px"
+                :padding "|2px 16px"
+                :font-family "|Source Code Pro, menlo"
+                :line-height |16px
+                :margin-bottom 2
+                :vertical-align :top
+                :min-height 16
+                :min-width 32
+                :font-size 13
+                :cursor :pointer
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.expr $ :require
-            [] respo-ui.core :refer $ [] hsl
-            [] respo-ui.core :as ui
-            [] respo.core :refer $ [] defcomp <> list-> div button span input pre
-            [] respo.comp.space :refer $ [] =<
-            [] app.util :refer $ [] tree->cirru
-            [] "\"copy-to-clipboard" :default copy!
-            [] respo-message.action :as action
+            respo-ui.core :refer $ hsl
+            respo-ui.core :as ui
+            respo.core :refer $ defcomp <> list-> div button span input pre
+            respo.comp.space :refer $ =<
+            app.ast :refer $ tree->cirru
+            "\"copy-to-clipboard" :default copy!
+            respo-message.action :as action
             app.schema :as schema
+            respo.css :refer $ defstyle
     |app.comp.file $ {}
       :defs $ {}
         |comp-file $ %{} :CodeEntry (:doc |)
           :code $ quote
             defcomp comp-file (filename file-info)
               div
-                {} $ :style
-                  merge ui/row $ {}
-                    :border-left $ str "|1px solid " (hsl 0 0 70)
-                    :padding-left 8
-                    :font-family "|Source Code Pro, menlo"
+                {} $ :class-name (str-spaced css/row style-file)
                 <> filename
                 =< 16 nil
                 div ({})
                   div
-                    {} $ :style
-                      merge ui/column $ {}
+                    {} (:class-name css/column)
+                      :style $ {}
                         :border-left $ str "|1px solid " (hsl 0 0 80)
                         :padding-left 8
                     <> :ns $ {}
@@ -358,18 +359,27 @@
                               [] def-name def-info
                               , entry
                           [] def-name $ div
-                            {} $ :style ui/column
+                            {} $ :class-name css/column
                             <> def-name $ {} (:white-space :nowrap)
                               :color $ hsl 0 0 70
                             comp-expr (:code def-info) false
+        |style-file $ %{} :CodeEntry (:doc |)
+          :code $ quote
+            defstyle style-file $ {}
+              "\"&" $ {}
+                :border-left $ str "|1px solid " (hsl 0 0 70)
+                :padding-left 8
+                :font-family "|Source Code Pro, menlo"
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.file $ :require
-            [] respo-ui.core :refer $ [] hsl
-            [] respo-ui.core :as ui
-            [] respo.core :refer $ [] defcomp <> list-> div button span input pre
-            [] respo.comp.space :refer $ [] =<
-            [] app.comp.expr :refer $ [] comp-expr
+            respo-ui.core :refer $ hsl
+            respo-ui.core :as ui
+            respo.core :refer $ defcomp <> list-> div button span input pre
+            respo.comp.space :refer $ =<
+            app.comp.expr :refer $ comp-expr
+            respo-ui.css :as css
+            respo.css :refer $ defstyle
     |app.comp.graph $ {}
       :defs $ {}
         |comp-graph $ %{} :CodeEntry (:doc |)
@@ -459,10 +469,10 @@
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.graph $ :require
-            [] respo-ui.core :refer $ [] hsl
-            [] respo-ui.core :as ui
-            [] respo.core :refer $ [] defcomp <> list-> div button span input pre
-            [] respo.comp.space :refer $ [] =<
+            respo-ui.core :refer $ hsl
+            respo-ui.core :as ui
+            respo.core :refer $ defcomp <> list-> div button span input pre
+            respo.comp.space :refer $ =<
             app.ast :refer $ build-deps-graph
     |app.comp.viewer $ {}
       :defs $ {}
@@ -492,12 +502,11 @@
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.viewer $ :require
-            [] hsl.core :refer $ [] hsl
-            [] respo-ui.core :as ui
-            [] respo.core :refer $ [] defcomp <> div list-> button span input
-            [] respo.comp.space :refer $ [] =<
-            [] cljs.reader :refer $ [] read-string
-            [] app.comp.file :refer $ [] comp-file
+            hsl.core :refer $ hsl
+            respo-ui.core :as ui
+            respo.core :refer $ defcomp <> div list-> button span input
+            respo.comp.space :refer $ =<
+            app.comp.file :refer $ comp-file
     |app.config $ {}
       :defs $ {}
         |dev? $ %{} :CodeEntry (:doc |)
@@ -545,15 +554,14 @@
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.main $ :require
-            [] respo.core :refer $ [] render! clear-cache! realize-ssr!
-            [] app.comp.container :refer $ [] comp-container
-            [] cljs.reader :refer $ [] read-string
-            [] app.updater :refer $ [] updater
-            [] app.schema :as schema
-            [] reel.util :refer $ [] listen-devtools!
-            [] reel.core :refer $ [] reel-updater refresh-reel
-            [] reel.schema :as reel-schema
-            [] app.config :as config
+            respo.core :refer $ render! clear-cache! realize-ssr!
+            app.comp.container :refer $ comp-container
+            app.updater :refer $ updater
+            app.schema :as schema
+            reel.util :refer $ listen-devtools!
+            reel.core :refer $ reel-updater refresh-reel
+            reel.schema :as reel-schema
+            app.config :as config
             "\"./calcit.build-errors" :default build-errors
             "\"bottom-tip" :default hud!
     |app.schema $ {}
@@ -575,6 +583,7 @@
               :calcit nil
               :page :input
               :text "\""
+              :messages $ {}
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote (ns app.schema)
     |app.updater $ {}
@@ -596,19 +605,6 @@
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.updater $ :require
-            [] respo.cursor :refer $ [] update-states
-            [] respo-message.action :as action
-            [] respo-message.updater :refer $ [] update-messages
-    |app.util $ {}
-      :defs $ {}
-        |tree->cirru $ %{} :CodeEntry (:doc |)
-          :code $ quote
-            defn tree->cirru (x)
-              if
-                = :leaf $ :type x
-                :text x
-                -> (:data x) (.to-list) (.sort-by first)
-                  map $ fn (pair)
-                    tree->cirru $ last pair
-      :ns $ %{} :CodeEntry (:doc |)
-        :code $ quote (ns app.util)
+            respo.cursor :refer $ update-states
+            respo-message.action :as action
+            respo-message.updater :refer $ update-messages
