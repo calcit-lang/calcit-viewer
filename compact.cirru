@@ -4,7 +4,7 @@
     :modules $ [] |respo.calcit/ |lilac/ |memof/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |cumulo-util.calcit/
   :entries $ {}
   :files $ {}
-    |app.ast $ {}
+    |app.ast $ %{} :FileEntry
       :defs $ {}
         |build-deps-graph $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -13,7 +13,8 @@
                   ns-deps-map $ -> files
                     .map-kv $ fn (ns' file)
                       let
-                          ns-form $ tree->cirru (:ns file)
+                          ns-form $ tree->cirru
+                            get-in file $ [] :ns :code
                           rules $ if
                             = 3 $ count ns-form
                             .slice (nth ns-form 2) 1
@@ -40,8 +41,10 @@
                                   = :default $ get paired 0
                                 map last
                             defs-deps $ -> defs
-                              .map-kv $ fn (k form)
-                                [] k $ match-references (tree->cirru form) ns-dict defs-dict defaults-dict (keys defs) ns'
+                              .map-kv $ fn (k entry)
+                                [] k $ match-references
+                                  tree->cirru $ :code entry
+                                  , ns-dict defs-dict defaults-dict (keys defs) ns'
                           , defs-deps
                 js/console.log "\"Deps Map" ns-deps-map
                 , ns-deps-map
@@ -65,7 +68,7 @@
                         true true
                     .map $ fn (x)
                       -> x (.strip-prefix "\"~@") (.strip-prefix "\"~") (.strip-prefix "\"@")
-                    .distinct
+                    distinct
                     .map $ fn (x)
                       cond
                           .contains? current-defs x
@@ -124,7 +127,7 @@
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.ast $ :require (app.schema :as schema)
-    |app.comp.container $ {}
+    |app.comp.container $ %{} :FileEntry
       :defs $ {}
         |comp-about $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -265,7 +268,7 @@
             app.schema :as schema
             respo-ui.css :as css
             respo.css :refer $ defstyle
-    |app.comp.expr $ {}
+    |app.comp.expr $ %{} :FileEntry
       :defs $ {}
         |comp-expr $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -327,7 +330,7 @@
             respo-message.action :as action
             app.schema :as schema
             respo.css :refer $ defstyle
-    |app.comp.file $ {}
+    |app.comp.file $ %{} :FileEntry
       :defs $ {}
         |comp-file $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -380,7 +383,7 @@
             app.comp.expr :refer $ comp-expr
             respo-ui.css :as css
             respo.css :refer $ defstyle
-    |app.comp.graph $ {}
+    |app.comp.graph $ %{} :FileEntry
       :defs $ {}
         |comp-graph $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -392,7 +395,6 @@
                     {} (:graph nil)
                       :init-fn $ :init-fn configs
                   entry $ .split (:init-fn state) "\"/"
-                  ir $ :ir snapshot
                 div
                   {} $ :style
                     merge ui/expand ui/column $ {}
@@ -404,7 +406,7 @@
                     button $ {} (:style ui/button) (:inner-text "\"Button")
                       :on-click $ fn (e d!) (; js/console.log snapshot)
                         d! cursor $ assoc state :graph
-                          build-deps-graph (nth entry 0) (nth entry 1) (:files ir) (:package ir)
+                          build-deps-graph (nth entry 0) (nth entry 1) (:files snapshot) (:package snapshot)
                     =< 8 nil
                     input $ {}
                       :value $ :init-fn state
@@ -474,31 +476,29 @@
             respo.core :refer $ defcomp <> list-> div button span input pre
             respo.comp.space :refer $ =<
             app.ast :refer $ build-deps-graph
-    |app.comp.viewer $ {}
+    |app.comp.viewer $ %{} :FileEntry
       :defs $ {}
         |comp-viewer $ %{} :CodeEntry (:doc |)
           :code $ quote
             defcomp comp-viewer (calcit)
-              let
-                  ir $ :ir calcit
-                div ({})
-                  div ({}) (<> "\"Namespace:") (=< 8 nil)
-                    <> $ :package ir
-                  div ({}) (<> "\"Users:") (=< 8 nil)
-                    <> $ :users calcit
-                  div ({}) (<> "\"Configs:") (=< 8 nil)
-                    <> $ :configs calcit
-                  div
-                    {} $ :style ui/row
-                    <> "\"Files:"
-                    =< 16 nil
-                    list-> ({})
-                      -> (:files ir) (.to-list)
-                        map $ fn (entry)
-                          let-sugar
-                                [] filename file-info
-                                , entry
-                            [] filename $ comp-file filename file-info
+              div ({})
+                div ({}) (<> "\"Namespace:") (=< 8 nil)
+                  <> $ :package calcit
+                div ({}) (<> "\"Users:") (=< 8 nil)
+                  <> $ :users calcit
+                div ({}) (<> "\"Configs:") (=< 8 nil)
+                  <> $ :configs calcit
+                div
+                  {} $ :style ui/row
+                  <> "\"Files:"
+                  =< 16 nil
+                  list-> ({})
+                    -> (:files calcit) (.to-list)
+                      map $ fn (entry)
+                        let-sugar
+                              [] filename file-info
+                              , entry
+                          [] filename $ comp-file filename file-info
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.viewer $ :require
@@ -507,7 +507,7 @@
             respo.core :refer $ defcomp <> div list-> button span input
             respo.comp.space :refer $ =<
             app.comp.file :refer $ comp-file
-    |app.config $ {}
+    |app.config $ %{} :FileEntry
       :defs $ {}
         |dev? $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -517,7 +517,7 @@
             def site $ {} (:dev-ui "\"http://localhost:8100/main.css") (:release-ui "\"http://cdn.tiye.me/favored-fonts/main.css") (:cdn-url "\"http://cdn.tiye.me/calcit-viewer/") (:title "\"Calcit Viewer") (:icon "\"http://cdn.tiye.me/logo/cirru.png") (:storage-key "\"calcit-viewer")
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote (ns app.config)
-    |app.main $ {}
+    |app.main $ %{} :FileEntry
       :defs $ {}
         |*reel $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -564,7 +564,7 @@
             app.config :as config
             "\"./calcit.build-errors" :default build-errors
             "\"bottom-tip" :default hud!
-    |app.schema $ {}
+    |app.schema $ %{} :FileEntry
       :defs $ {}
         |CirruExpr $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -586,7 +586,7 @@
               :messages $ {}
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote (ns app.schema)
-    |app.updater $ {}
+    |app.updater $ %{} :FileEntry
       :defs $ {}
         |updater $ %{} :CodeEntry (:doc |)
           :code $ quote
