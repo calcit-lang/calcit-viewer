@@ -203,10 +203,10 @@
           :code $ quote
             defcomp comp-text-area (text error)
               div
-                {} $ :style (merge ui/row ui/flex)
+                {} $ :class-name (str-spaced css/row css/flex)
                 textarea $ {}
-                  :style $ merge ui/textarea ui/flex
-                    {} (:width |100%) (:font-family ui/font-code) (:font-size 12) (:line-height |1.4em)
+                  :class-name $ str-spaced css/textarea css/flex css/font-code!
+                  :style $ {} (:width |100%) (:font-size 12) (:line-height |1.4em)
                   :value text
                   :placeholder "\"Paste calcit.cirru content here..."
                   :on-input $ fn (e d!)
@@ -215,7 +215,7 @@
                   {} $ :style
                     {} $ :padding 8
                   button
-                    {} (:style ui/button)
+                    {} (:class-name css/button)
                       :on-click $ fn (e d!)
                         try
                           d! :load/calcit $ parse-cirru-edn text
@@ -408,26 +408,25 @@
                       :init-fn $ :init-fn configs
                   entry $ .split (:init-fn state) "\"/"
                 div
-                  {} $ :style
-                    merge ui/expand ui/column $ {}
+                  {} $ :class-name (str-spaced css/expand css/column)
                   div
                     {} $ :style
                       {}
                         :border-bottom $ str "\"1px solid " (hsl 0 0 90)
                         :padding "\"8px 4px"
-                    button $ {} (:style ui/button) (:inner-text "\"Button")
+                    button $ {} (:class-name css/button) (:inner-text "\"Button")
                       :on-click $ fn (e d!) (; js/console.log snapshot)
                         d! cursor $ assoc state :graph
                           build-deps-graph (nth entry 0) (nth entry 1) (:files snapshot) (:package snapshot)
                     =< 8 nil
                     input $ {}
                       :value $ :init-fn state
-                      :style ui/input
+                      :class-name css/input
                       :on-input $ fn (e d!)
                         d! cursor $ assoc state :init-fn (:value e)
                   div
-                    {} $ :style
-                      merge ui/expand $ {} (:padding "\"8px")
+                    {} (:class-name css/expand)
+                      :style $ {} (:padding "\"8px")
                     if
                       some? $ :graph state
                       comp-graph-tree (nth entry 0) (nth entry 1) (:graph state) (#{}) (:files snapshot)
@@ -438,7 +437,7 @@
               let
                   path $ str ns' "\"/" def'
                 div
-                  {} $ :style ui/row
+                  {} $ :class-name css/row
                   div
                     {} $ :class-name css/column
                     div
@@ -491,13 +490,13 @@
         :code $ quote
           ns app.comp.graph $ :require
             respo-ui.core :refer $ hsl
-            respo-ui.core :as ui
             respo.core :refer $ defcomp <> list-> div button span input pre
             respo.comp.space :refer $ =<
             app.ast :refer $ build-deps-graph
             respo-ui.css :as css
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
+            respo-ui.core :as ui
     |app.comp.viewer $ %{} :FileEntry
       :defs $ {}
         |comp-viewer $ %{} :CodeEntry (:doc |)
