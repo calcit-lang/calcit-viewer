@@ -345,8 +345,14 @@
                       :style $ {}
                         :border-left $ str "|1px solid " (hsl 0 0 80)
                         :padding-left 8
-                    <> :ns $ {}
-                      :color $ hsl 0 0 70
+                    div
+                      {} $ :class-name css/row
+                      <> :ns $ {}
+                        :color $ hsl 0 0 70
+                      =< 8 nil
+                      comp-md-block
+                        get-in file-info $ [] :ns :doc
+                        {} $ :class-name css/font-normal
                     comp-expr
                       get-in file-info $ [] :ns :code
                       , false
@@ -363,8 +369,13 @@
                               , entry
                           [] def-name $ div
                             {} $ :class-name css/column
-                            <> def-name $ {} (:white-space :nowrap)
-                              :color $ hsl 0 0 70
+                            div
+                              {} $ :class-name css/row
+                              <> def-name $ {} (:white-space :nowrap)
+                                :color $ hsl 0 0 70
+                              =< 8 nil
+                              comp-md-block (:doc def-info)
+                                {} $ :class-name css/font-normal
                             comp-expr (:code def-info) false
         |style-file $ %{} :CodeEntry (:doc |)
           :code $ quote
@@ -383,6 +394,7 @@
             app.comp.expr :refer $ comp-expr
             respo-ui.css :as css
             respo.css :refer $ defstyle
+            respo-md.comp.md :refer $ comp-md-block
     |app.comp.graph $ %{} :FileEntry
       :defs $ {}
         |comp-graph $ %{} :CodeEntry (:doc |)
@@ -418,24 +430,31 @@
                       merge ui/expand $ {} (:padding "\"8px")
                     if
                       some? $ :graph state
-                      comp-graph-tree (nth entry 0) (nth entry 1) (:graph state) (#{})
+                      comp-graph-tree (nth entry 0) (nth entry 1) (:graph state) (#{}) (:files snapshot)
                       <> "\"no graph"
         |comp-graph-tree $ %{} :CodeEntry (:doc |)
           :code $ quote
-            defcomp comp-graph-tree (ns' def' dict footprints)
+            defcomp comp-graph-tree (ns' def' dict footprints files)
               let
                   path $ str ns' "\"/" def'
                 div
                   {} $ :style ui/row
                   div
-                    {} $ :style
-                      {} (:margin "\"0px 0") (:line-height "\"20px")
-                    <> (str ns' "\"/")
-                      {}
-                        :color $ hsl 0 0 70
-                        :line-height "\"14px"
-                        :font-size "\"12px"
-                    <> def' $ {} (:line-height "\"20px") (:font-family ui/font-normal)
+                    {} $ :class-name css/column
+                    div
+                      {} $ :style
+                        {} (:margin "\"0px 0") (:line-height "\"20px")
+                      <> (str ns' "\"/")
+                        {}
+                          :color $ hsl 0 0 70
+                          :line-height "\"14px"
+                          :font-size "\"12px"
+                      <> def' $ {} (:line-height "\"20px") (:font-family ui/font-normal)
+                    if-let
+                      doc $ get-in files ([] ns' :defs def' :doc)
+                      comp-md-block doc $ {} (:class-name css/font-normal)
+                        :style $ {}
+                          :color $ hsl 0 0 50
                   if (.contains? footprints path)
                     <> "\"Looped" $ {} (:display :inline-block) (:margin "\"0 4px")
                       :background-color $ hsl 40 80 60
@@ -462,7 +481,7 @@
                                       :line-height "\"20px"
                                       :text-decoration :underline
                                   <> $ :package dep
-                                comp-graph-tree (:ns dep) (:def dep) dict $ .include footprints path
+                                comp-graph-tree (:ns dep) (:def dep) dict (.include footprints path) files
                         div
                           {} $ :style
                             {} (:padding "\"0 8px") (:line-height "\"20px")
@@ -476,6 +495,9 @@
             respo.core :refer $ defcomp <> list-> div button span input pre
             respo.comp.space :refer $ =<
             app.ast :refer $ build-deps-graph
+            respo-ui.css :as css
+            respo.css :refer $ defstyle
+            respo-md.comp.md :refer $ comp-md-block
     |app.comp.viewer $ %{} :FileEntry
       :defs $ {}
         |comp-viewer $ %{} :CodeEntry (:doc |)
@@ -514,7 +536,7 @@
             def dev? $ = "\"dev" (get-env "\"mode" "\"release")
         |site $ %{} :CodeEntry (:doc |)
           :code $ quote
-            def site $ {} (:dev-ui "\"http://localhost:8100/main.css") (:release-ui "\"http://cdn.tiye.me/favored-fonts/main.css") (:cdn-url "\"http://cdn.tiye.me/calcit-viewer/") (:title "\"Calcit Viewer") (:icon "\"http://cdn.tiye.me/logo/cirru.png") (:storage-key "\"calcit-viewer")
+            def site $ {} (:dev-ui "\"http://localhost:8100/main.css") (:title "\"Calcit Viewer") (:icon "\"http://cdn.tiye.me/logo/cirru.png") (:storage-key "\"calcit-viewer")
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote (ns app.config)
     |app.main $ %{} :FileEntry
@@ -530,16 +552,28 @@
         |main! $ %{} :CodeEntry (:doc |)
           :code $ quote
             defn main! ()
-              println "\"Running mode:" $ if config/dev?
-                do (load-console-formatter!) "\"dev"
-                , "\"release"
+              println "\"Running mode:" $ if config/dev? "\"dev" "\"release"
+              if config/dev? $ load-console-formatter!
               render-app!
               add-watch *reel :changes $ fn (r p) (render-app!)
-              listen-devtools! |a dispatch!
+              listen-devtools! |k dispatch!
+              js/window.addEventListener |beforeunload $ fn (event) (persist-storage!)
+              js/window.addEventListener |visibilitychange $ fn (event)
+                if (= "\"hidden" js/document.visibilityState) (persist-storage!)
+              let
+                  raw $ js/localStorage.getItem (:storage-key config/site)
+                when (some? raw)
+                  dispatch! $ :: :hydrate-storage (parse-cirru-edn raw)
               println "|App started."
         |mount-target $ %{} :CodeEntry (:doc |)
           :code $ quote
             def mount-target $ .querySelector js/document |.app
+        |persist-storage! $ %{} :CodeEntry (:doc |)
+          :code $ quote
+            defn persist-storage! ()
+              println "\"Saved at" $ .!toISOString (new js/Date)
+              js/localStorage.setItem (:storage-key config/site)
+                format-cirru-edn $ :store @*reel
         |reload! $ %{} :CodeEntry (:doc |)
           :code $ quote
             defn reload! () $ if (nil? build-errors)
@@ -602,6 +636,7 @@
                   (:text t) (assoc store :text t)
                   (:error e) (assoc store :error e)
                   (:page p) (assoc store :page p)
+                  (:hydrate-storage d) d
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.updater $ :require
