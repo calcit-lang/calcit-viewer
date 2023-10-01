@@ -17,6 +17,7 @@
   "dependencies": {
     "@calcit/procs": "^0.8.3",
     "copy-to-clipboard": "^3.3.3",
+    "dayjs": "^1.11.10",
     "feather-icons": "^4.29.1",
     "shortid": "^2.2.16"
   }

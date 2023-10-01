@@ -283,7 +283,6 @@
                         fn (entry)
                           &record:matches? schema/CirruLeaf $ last entry
                       {} (:display :inline-block) (:border-width "|0 0 1px 0") (:margin "|0 4px")
-                  :title "\"Click to copy."
                   :on-click $ fn (e d!)
                     let
                         code $ format-cirru
@@ -300,24 +299,34 @@
                       [] k $ if (&record:matches? schema/CirruExpr child)
                         comp-expr child $ = idx
                           dec $ count (:data expr)
-                        <> (:text child)
-                          {} $ :margin-right 8
+                        div
+                          {} $ :class-name (str-spaced css/column style-leaf)
+                          <> $ :text child
+                          <>
+                            -> (:at child) dayjs $ .!format "\"YY MM-DD"
+                            str-spaced style-date-hint css/font-normal!
+        |style-date-hint $ %{} :CodeEntry (:doc |)
+          :code $ quote
+            defstyle style-date-hint $ {}
+              "\"&" $ {} (:font-size 12) (:white-space :nowrap)
+                :color $ hsl 0 0 60
         |style-expr $ %{} :CodeEntry (:doc |)
           :code $ quote
             defstyle style-expr $ {}
-              "\"&" $ {}
-                :background-color $ hsl 300 0 94
-                :border $ str "|1px solid " (hsl 0 0 70)
+              "\"&" $ {} (:padding "|2px 16px") (:font-family "|Source Code Pro, menlo") (:line-height |16px) (:margin-bottom 2) (:vertical-align :top) (:min-height 16) (:min-width 32) (:font-size 13) (:cursor :pointer) (:border-radius "\"8px") (:border-style :solid)
+                :border-color $ hsl 0 0 70
                 :border-width "|0 0 0 1px"
-                :padding "|2px 16px"
-                :font-family "|Source Code Pro, menlo"
-                :line-height |16px
-                :margin-bottom 2
-                :vertical-align :top
-                :min-height 16
-                :min-width 32
-                :font-size 13
-                :cursor :pointer
+                :background-color $ hsl 300 0 98
+              "\"&:hover" $ {}
+                ; :background-color $ hsl 300 0 92
+                :outline $ str "\"2px solid " (hsl 200 90 70 0.5)
+              "\"&:has(.comp-expr:hover):hover" $ {}
+                :background-color $ hsl 300 0 98
+                :outline :none
+        |style-leaf $ %{} :CodeEntry (:doc |)
+          :code $ quote
+            defstyle style-leaf $ {}
+              "\"&" $ {} (:display :inline-flex) (:margin-right 8)
       :ns $ %{} :CodeEntry (:doc |)
         :code $ quote
           ns app.comp.expr $ :require
@@ -330,6 +339,8 @@
             respo-message.action :as action
             app.schema :as schema
             respo.css :refer $ defstyle
+            respo-ui.css :as css
+            "\"dayjs" :default dayjs
     |app.comp.file $ %{} :FileEntry
       :defs $ {}
         |comp-file $ %{} :CodeEntry (:doc |)
