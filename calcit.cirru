@@ -1110,10 +1110,13 @@
                       |u $ %{} :Expr (:at 1572778202681) (:by |qvLe3TKxz)
                         :data $ {}
                           |T $ %{} :Leaf (:at 1572778208613) (:by |qvLe3TKxz) (:text |comp-messages)
-                          |j $ %{} :Expr (:at 1572778210773) (:by |qvLe3TKxz)
+                          |j $ %{} :Expr (:at 1696270622438) (:by |qvLe3TKxz)
                             :data $ {}
-                              |T $ %{} :Leaf (:at 1572778212581) (:by |qvLe3TKxz) (:text |:messages)
-                              |j $ %{} :Leaf (:at 1572778214176) (:by |qvLe3TKxz) (:text |store)
+                              |D $ %{} :Leaf (:at 1696270625200) (:by |qvLe3TKxz) (:text |w-js-log)
+                              |T $ %{} :Expr (:at 1572778210773) (:by |qvLe3TKxz)
+                                :data $ {}
+                                  |T $ %{} :Leaf (:at 1572778212581) (:by |qvLe3TKxz) (:text |:messages)
+                                  |j $ %{} :Leaf (:at 1572778214176) (:by |qvLe3TKxz) (:text |store)
                           |r $ %{} :Expr (:at 1572778218680) (:by |qvLe3TKxz)
                             :data $ {}
                               |T $ %{} :Leaf (:at 1572778219327) (:by |qvLe3TKxz) (:text |{})
@@ -3737,8 +3740,7 @@
               |j $ %{} :Leaf (:at 1499755354983) (:by |root) (:text |mount-target)
               |r $ %{} :Expr (:at 1499755354983) (:by nil)
                 :data $ {}
-                  |T $ %{} :Leaf (:at 1499755354983) (:by |root) (:text |.querySelector)
-                  |j $ %{} :Leaf (:at 1499755354983) (:by |root) (:text |js/document)
+                  |j $ %{} :Leaf (:at 1696270496931) (:by |qvLe3TKxz) (:text |js/document.querySelector)
                   |r $ %{} :Leaf (:at 1499755354983) (:by |root) (:text ||.app)
         |persist-storage! $ %{} :CodeEntry (:doc |)
           :code $ %{} :Expr (:at 1696174161971) (:by |qvLe3TKxz)

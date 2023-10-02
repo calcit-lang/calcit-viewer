@@ -171,7 +171,9 @@
                     :input $ comp-file-input (:error store)
                     :about $ comp-about
                     :graph $ comp-graph (>> states :graph) (:calcit store)
-                  comp-messages (:messages store) ({})
+                  comp-messages
+                    w-js-log $ :messages store
+                    {}
                     fn (info d!) (d! action/clear nil)
                   if config/dev? $ comp-inspect :store store
                     {} (:bottom 0) (:right 8)
@@ -577,7 +579,7 @@
               println "|App started."
         |mount-target $ %{} :CodeEntry (:doc |)
           :code $ quote
-            def mount-target $ .querySelector js/document |.app
+            def mount-target $ js/document.querySelector |.app
         |persist-storage! $ %{} :CodeEntry (:doc |)
           :code $ quote
             defn persist-storage! ()

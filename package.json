@@ -15,7 +15,7 @@
     "vite": "^4.4.9"
   },
   "dependencies": {
-    "@calcit/procs": "^0.8.3",
+    "@calcit/procs": "^0.8.4",
     "copy-to-clipboard": "^3.3.3",
     "dayjs": "^1.11.10",
     "feather-icons": "^4.29.1",
