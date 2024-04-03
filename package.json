@@ -12,11 +12,11 @@
   "license": "MIT",
   "devDependencies": {
     "bottom-tip": "^0.1.5",
-    "vite": "^5.0.13"
+    "vite": "^5.2.8"
   },
   "dependencies": {
-    "@calcit/procs": "^0.8.14",
-    "cirru-color": "^0.2.3",
+    "@calcit/procs": "^0.8.46",
+    "cirru-color": "^0.2.4",
     "copy-text-to-clipboard": "^3.2.0",
     "copy-to-clipboard": "^3.3.3",
     "dayjs": "^1.11.10",

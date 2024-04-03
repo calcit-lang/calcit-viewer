@@ -8,5 +8,5 @@
     |Respo/respo-markdown.calcit |main
     |Respo/respo-ui.calcit |main
     |Respo/respo-feather.calcit |main
-    |Respo/respo-message.calcit |0.0.8
+    |Respo/respo-message.calcit |main
     |Cumulo/cumulo-util.calcit |main
