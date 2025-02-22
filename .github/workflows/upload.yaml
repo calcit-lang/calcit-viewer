@@ -21,7 +21,7 @@ jobs:
 
     - name: "compiles to js"
       run: >
-        caps --ci && cr --emit-js --once
+        caps --ci && cr js --once
         && yarn && yarn vite build --base=./
 
     - name: Deploy to server
