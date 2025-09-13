@@ -12,14 +12,14 @@
   "license": "MIT",
   "devDependencies": {
     "bottom-tip": "^0.1.5",
-    "vite": "^6.3.6"
+    "vite": "^7.1.5"
   },
   "dependencies": {
-    "@calcit/procs": "^0.9.8",
+    "@calcit/procs": "^0.9.18",
     "cirru-color": "^0.2.4",
-    "copy-text-to-clipboard": "^3.2.0",
+    "copy-text-to-clipboard": "^3.2.1",
     "copy-to-clipboard": "^3.3.3",
-    "dayjs": "^1.11.13",
+    "dayjs": "^1.11.18",
     "feather-icons": "^4.29.2",
     "shortid": "^2.2.17"
   }
