@@ -10,19 +10,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
-        node-version: 20
-        cache: 'yarn'
+        node-version: 24
 
-    - uses: calcit-lang/setup-cr@0.0.8
+    - name: Enable Corepack
+      run: |
+        corepack enable
+        corepack prepare yarn@4.12.0 --activate
+        yarn --version
+
+    - uses: calcit-lang/setup-cr@0.0.9
 
     - name: "compiles to js"
       run: >
-        caps --ci && cr js --once
-        && yarn && yarn vite build --base=./
+        caps --ci && yarn install --immutable
+        && cr js
+        && yarn vite build --base=./
 
     - name: Deploy to server
       id: deploy

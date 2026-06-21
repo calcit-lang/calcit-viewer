@@ -206,7 +206,7 @@
                   {} $ :padding 16
                 <> "|Pick calcit.cirru to view:"
                 =< 8 nil
-                input $ {} (:type |file) (:accept |.cirru) (:on-change on-file-change)
+                input $ {} (:type |file) (:on-change on-file-change)
                 div
                   {} $ :style
                     {} $ :color :red
@@ -456,7 +456,8 @@
                       :value $ :init-fn state
                       :class-name css/input
                       :on-input $ fn (e d!)
-                        d! cursor $ assoc state :init-fn (:value e)
+                        d! cursor $ assoc state :init-fn
+                          assert-type (:value e) :string
                   div
                     {} (:class-name css/expand)
                       :style $ {} (:padding |8px)
