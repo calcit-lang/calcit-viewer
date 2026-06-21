@@ -1,9 +1,9 @@
 {
+  "packageManager": "yarn@4.12.0",
   "name": "calcit-viewer",
   "version": "0.1.0",
   "description": "App for reading calcit.edn",
   "main": "index.js",
-  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git@github.com:Cirru/calcit-viewer.git"
@@ -15,7 +15,7 @@
     "vite": "^7.3.5"
   },
   "dependencies": {
-    "@calcit/procs": "^0.9.18",
+    "@calcit/procs": "^0.12.47",
     "cirru-color": "^0.2.4",
     "copy-text-to-clipboard": "^3.2.1",
     "copy-to-clipboard": "^3.3.3",
