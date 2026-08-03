@@ -24,10 +24,13 @@ jobs:
 
     - uses: calcit-lang/setup-cr@0.0.9
 
-    - name: "compiles to js"
+    - name: Validate and compile to JS
       run: >
         caps --ci && yarn install --immutable
-        && cr js
+        && cr calcit.cirru edit format
+        && git diff --exit-code -- calcit.cirru
+        && cr calcit.cirru --check-only
+        && cr calcit.cirru js
         && yarn vite build --base=./
 
     - name: Deploy to server
