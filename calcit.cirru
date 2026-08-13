@@ -20,7 +20,7 @@
                             = 3 $ count ns-form
                             .slice (nth ns-form 2) 1
                             []
-                          defs $ :defs file
+                          defs $ reel.schema/read-field file :defs
                         ; js/console.log |entry ns' ns-form
                         [] ns' $ let
                             results $ map rules
@@ -29,22 +29,22 @@
                             ns-dict $ merge ({}) &
                               -> results
                                 filter $ fn (paired)
-                                  = :ns $ get paired 0
+                                  = :ns $ option:unwrap-or (get paired 0) :none
                                 map last
                             defs-dict $ merge ({}) &
                               -> results
                                 filter $ fn (paired)
-                                  = :def $ get paired 0
+                                  = :def $ option:unwrap-or (get paired 0) :none
                                 map last
                             defaults-dict $ merge ({}) &
                               -> results
                                 filter $ fn (paired)
-                                  = :default $ get paired 0
+                                  = :default $ option:unwrap-or (get paired 0) :none
                                 map last
                             defs-deps $ -> defs
                               .map-kv $ fn (k entry)
                                 [] k $ match-references
-                                  tree->cirru $ :code entry
+                                  tree->cirru $ reel.schema/read-field entry :code
                                   , ns-dict defs-dict defaults-dict (keys defs) ns'
                           , defs-deps
                 js/console.log "|Deps Map" ns-deps-map
@@ -84,7 +84,7 @@
                           let[] (ns-part def-part) (.split x |/)
                             if (.contains? defs-dict ns-part)
                               {} (:kind :def)
-                                :ns $ :ns (get ns-dict ns-part)
+                                :ns $ reel.schema/read-field (get ns-dict ns-part) :ns
                                 :def x
                         true nil
                     .filter some?
@@ -127,8 +127,8 @@
         |tree->cirru $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn tree->cirru (x)
-              if (&record:matches? x schema/CirruLeaf) (:text x)
-                -> (:data x) (.to-list) (.sort-by first)
+              if (&struct:matches? x schema/CirruLeaf) (reel.schema/read-field x :text)
+                -> (reel.schema/read-field x :data) (.to-list) (.sort-by first)
                   map $ fn (entry)
                     tree->cirru $ last entry
           :examples $ []
@@ -144,7 +144,7 @@
           :schema $ :: 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
-          ns app.ast $ :require (app.schema :as schema)
+          ns app.ast $ :require (app.schema :as schema) (reel.schema :as reel-schema)
     |app.comp.container $ %{} 'FileEntry
       :defs $ {}
         |comp-about $ %{} 'CodeEntry (:doc |)
@@ -159,12 +159,12 @@
           :code $ quote
             defcomp comp-container (reel)
               let
-                  store $ :store reel
-                  states $ :states store
+                  store $ reel.schema/read-field reel :store
+                  states $ reel.schema/read-field store :states
                 div
                   {} $ :class-name (str-spaced css/global css/fullscreen css/row)
                   let
-                      page $ :page store
+                      page $ reel.schema/read-field store :page
                     div
                       {} $ :style
                         {}
@@ -175,24 +175,24 @@
                       comp-entry :monitor :viewer page
                       comp-entry :info :about page
                       comp-entry :map :graph page
-                  case-default (:page store) (<> "|Unknown route")
+                  case-default (reel.schema/read-field store :page) (<> "|Unknown route")
                     :viewer $ div
                       {} (:class-name css/expand)
                         :style $ {} (:padding 16) (:overflow :auto)
                       if
-                        some? $ :error store
-                        <> (:error store)
+                        some? $ reel.schema/read-field store :error
+                        <> (reel.schema/read-field store :error)
                           {} $ :color :red
                         if
-                          some? $ :calcit store
-                          comp-viewer $ :calcit store
+                          some? $ reel.schema/read-field store :calcit
+                          comp-viewer $ reel.schema/read-field store :calcit
                           <> |Nothing
-                    :textarea $ comp-text-area (:text store) (:error store)
-                    :input $ comp-file-input (:error store)
+                    :textarea $ comp-text-area (reel.schema/read-field store :text) (reel.schema/read-field store :error)
+                    :input $ comp-file-input (reel.schema/read-field store :error)
                     :about $ comp-about
-                    :graph $ comp-graph (>> states :graph) (:calcit store)
+                    :graph $ comp-graph (>> states :graph) (reel.schema/read-field store :calcit)
                   comp-messages
-                    w-js-log $ :messages store
+                    w-js-log $ reel.schema/read-field store :messages
                     {}
                     fn (info d!) (d! action/clear nil)
                   if config/dev? $ comp-inspect :store store
@@ -238,7 +238,7 @@
                   :value text
                   :placeholder "|Paste calcit.cirru content here..."
                   :on-input $ fn (e d!)
-                    d! :text $ :value e
+                    d! :text $ option:unwrap (get e :value)
                 div
                   {} $ :style
                     {} $ :padding 8
@@ -260,17 +260,26 @@
           :code $ quote
             defn on-file-change (e d!)
               let
-                  file $ -> (:event e) .-target .-files (aget 0)
-                if (some? file)
+                  target $ unsafe-coerce
+                    .-target $ option:unwrap (get e :event)
+                    , 'JsObject
+                  files $ unsafe-coerce (.-files target) 'List
+                  file $ unsafe-coerce (aget files 0) 'JsObject
+                if (js-present? file)
                   if
-                    not= (.-name file) |calcit.cirru
+                    not=
+                      unsafe-coerce (.-name file) 'String
+                      , |calcit.cirru
                     do $ d! :error
-                      str "|Expected calcit.cirru , but got " $ .-name file
+                      str "|Expected calcit.cirru , but got " $ unsafe-coerce (.-name file) 'String
                     let
                         fr $ new js/FileReader
                       set! (.-onload fr)
                         fn (event)
-                          d! :load/calcit $ parse-cirru-edn (-> event .-target .-result)
+                          d! :load/calcit $ parse-cirru-edn
+                            unsafe-coerce
+                              .-result $ unsafe-coerce (.-target event) 'JsObject
+                              , 'String
                             {} (:CodeEntry schema/CodeEntry) (:Leaf schema/CirruLeaf) (:Expr schema/CirruExpr)
                       .!readAsText fr file
           :examples $ []
@@ -294,6 +303,7 @@
             respo.core :refer $ defcomp >> <> div button textarea span input pre
             respo.comp.space :refer $ =<
             reel.comp.reel :refer $ comp-reel
+            reel.schema :as reel-schema
             app.comp.viewer :refer $ comp-viewer
             respo-md.comp.md :refer $ comp-md
             feather.core :refer $ comp-i
@@ -316,9 +326,9 @@
                   :style $ if last?
                     {} $ :display :inline-block
                     if
-                      every? (:data expr)
+                      every? (reel.schema/read-field expr :data)
                         fn (entry)
-                          &record:matches? (last entry) schema/CirruLeaf
+                          &struct:matches? (last entry) schema/CirruLeaf
                       {} (:display :inline-block) (:border-width "|0 0 1px 0") (:margin "|0 4px")
                   :on-click $ fn (e d!)
                     let
@@ -328,19 +338,19 @@
                       d! action/create $ {}
                         :text $ str "|Copied! " code
                         :token code
-                -> (:data expr) (.to-list) (.sort-by first)
+                -> (reel.schema/read-field expr :data) (.to-list) (.sort-by first)
                   map-indexed $ fn (idx entry)
                     let-sugar
                           [] k child
                           , entry
-                      [] k $ if (&record:matches? child schema/CirruExpr)
+                      [] k $ if (&struct:matches? child schema/CirruExpr)
                         comp-expr child $ = idx
-                          dec $ count (:data expr)
+                          dec $ count (reel.schema/read-field expr :data)
                         div
                           {} $ :class-name (str-spaced css/column style-leaf)
-                          <> $ :text child
+                          <> $ reel.schema/read-field child :text
                           <>
-                            -> (:at child) dayjs $ .!format "|YY MM-DD"
+                            str $ -> (reel.schema/read-field child :at) dayjs (.!format "|YY MM-DD")
                             str-spaced style-date-hint css/font-normal!
           :examples $ []
           :schema $ :: 'Dynamic
@@ -380,6 +390,7 @@
             respo.core :refer $ defcomp <> list-> div button span input pre
             respo.comp.space :refer $ =<
             app.ast :refer $ tree->cirru
+            reel.schema :as reel-schema
             |copy-to-clipboard :default copy!
             respo-message.action :as action
             app.schema :as schema
@@ -418,7 +429,7 @@
                         :border-left $ str "|1px solid " (hsl 0 0 70)
                         :padding-left 16
                         :margin-bottom 2
-                    -> (:defs file-info) (.to-list)
+                    -> (reel.schema/read-field file-info :defs) (.to-list)
                       map $ fn (entry)
                         let-sugar
                               [] def-name def-info
@@ -430,9 +441,9 @@
                               <> def-name $ {} (:white-space :nowrap)
                                 :color $ hsl 0 0 70
                               =< 8 nil
-                              comp-md-block (:doc def-info)
+                              comp-md-block (reel.schema/read-field def-info :doc)
                                 {} $ :class-name css/font-normal
-                            comp-expr (:code def-info) false
+                            comp-expr (reel.schema/read-field def-info :code) false
           :examples $ []
           :schema $ :: 'Dynamic
         |style-file $ %{} 'CodeEntry (:doc |)
@@ -452,6 +463,7 @@
             respo.core :refer $ defcomp <> list-> div button span input pre
             respo.comp.space :refer $ =<
             app.comp.expr :refer $ comp-expr
+            reel.schema :as reel-schema
             respo-ui.css :as css
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
@@ -461,12 +473,12 @@
           :code $ quote
             defcomp comp-graph (states snapshot)
               let
-                  cursor $ :cursor states
-                  configs $ :configs snapshot
-                  state $ or (:data states)
+                  cursor $ reel.schema/read-field states :cursor
+                  configs $ reel.schema/read-field snapshot :configs
+                  state $ or (reel.schema/read-field states :data)
                     {} (:graph nil)
-                      :init-fn $ :init-fn configs
-                  entry $ .split (:init-fn state) |/
+                      :init-fn $ reel.schema/read-field configs :init-fn
+                  entry $ .split (reel.schema/read-field state :init-fn) |/
                 div
                   {} $ :class-name (str-spaced css/expand css/column)
                   div
@@ -477,20 +489,22 @@
                     button $ {} (:class-name css/button) (:inner-text |Button)
                       :on-click $ fn (e d!) (; js/console.log snapshot)
                         d! cursor $ assoc state :graph
-                          build-deps-graph (nth entry 0) (nth entry 1) (:files snapshot) (:package snapshot)
+                          build-deps-graph (nth entry 0) (nth entry 1) (reel.schema/read-field snapshot :files) (reel.schema/read-field snapshot :package)
                     =< 8 nil
                     input $ {}
-                      :value $ :init-fn state
+                      :value $ reel.schema/read-field state :init-fn
                       :class-name css/input
                       :on-input $ fn (e d!)
                         d! cursor $ assoc state :init-fn
-                          assert-type (:value e) 'String
+                          assert-type
+                            option:unwrap $ get e :value
+                            , 'String
                   div
                     {} (:class-name css/expand)
                       :style $ {} (:padding |8px)
                     if
-                      some? $ :graph state
-                      comp-graph-tree (nth entry 0) (nth entry 1) (:graph state) (#{}) (:files snapshot)
+                      some? $ reel.schema/read-field state :graph
+                      comp-graph-tree (nth entry 0) (nth entry 1) (reel.schema/read-field state :graph) (#{}) (reel.schema/read-field snapshot :files)
                       <> "|no graph"
           :examples $ []
           :schema $ :: 'Dynamic
@@ -535,15 +549,15 @@
                           , & $ -> deps
                             map $ fn (dep)
                               if
-                                = :default $ :kind dep
+                                = :default $ reel.schema/read-field dep :kind
                                 div
                                   {} $ :style
                                     {}
                                       :color $ hsl 200 80 60
                                       :line-height |20px
                                       :text-decoration :underline
-                                  <> $ :package dep
-                                comp-graph-tree (:ns dep) (:def dep) dict (.include footprints path) files
+                                  <> $ reel.schema/read-field dep :package
+                                comp-graph-tree (reel.schema/read-field dep :ns) (reel.schema/read-field dep :def) dict (.include footprints path) files
                         div
                           {} $ :style
                             {} (:padding "|0 8px") (:line-height |20px)
@@ -558,6 +572,7 @@
             respo.core :refer $ defcomp <> list-> div button span input pre
             respo.comp.space :refer $ =<
             app.ast :refer $ build-deps-graph
+            reel.schema :as reel-schema
             respo-ui.css :as css
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
@@ -569,17 +584,17 @@
             defcomp comp-viewer (calcit)
               div ({})
                 div ({}) (<> |Namespace:) (=< 8 nil)
-                  <> $ :package calcit
+                  <> $ reel.schema/read-field calcit :package
                 div ({}) (<> |Users:) (=< 8 nil)
-                  <> $ :users calcit
+                  <> $ reel.schema/read-field calcit :users
                 div ({}) (<> |Configs:) (=< 8 nil)
-                  <> $ :configs calcit
+                  <> $ reel.schema/read-field calcit :configs
                 div
                   {} $ :style ui/row
                   <> |Files:
                   =< 16 nil
                   list-> ({})
-                    -> (:files calcit) (.to-list)
+                    -> (reel.schema/read-field calcit :files) (.to-list)
                       map $ fn (entry)
                         let-sugar
                               [] filename file-info
@@ -595,11 +610,13 @@
             respo.core :refer $ defcomp <> div list-> button span input
             respo.comp.space :refer $ =<
             app.comp.file :refer $ comp-file
+            reel.schema :as reel-schema
     |app.config $ %{} 'FileEntry
       :defs $ {}
         |dev? $ %{} 'CodeEntry (:doc |)
           :code $ quote
-            def dev? $ = |dev (get-env |mode |release)
+            def dev? $ = |dev
+              option:unwrap-or (get-env |mode) |release
           :examples $ []
           :schema $ :: 'Dynamic
         |site $ %{} 'CodeEntry (:doc |)
@@ -635,9 +652,10 @@
               js/window.addEventListener |visibilitychange $ fn (event)
                 if (= |hidden js/document.visibilityState) (persist-storage!)
               let
-                  raw $ js/localStorage.getItem (:storage-key config/site)
-                when (some? raw)
-                  dispatch! $ :: :hydrate-storage (parse-cirru-edn raw)
+                  raw $ js/localStorage.getItem (reel-schema/read-field config/site :storage-key)
+                when (js-present? raw)
+                  dispatch! $ :: :hydrate-storage
+                    parse-cirru-edn $ unsafe-coerce raw 'String
               println "|App started."
           :examples $ []
           :schema $ :: 'Fn
@@ -653,8 +671,8 @@
           :code $ quote
             defn persist-storage! ()
               println "|Saved at" $ .!toISOString (new js/Date)
-              js/localStorage.setItem (:storage-key config/site)
-                format-cirru-edn $ :store @*reel
+              js/localStorage.setItem (reel-schema/read-field config/site :storage-key)
+                format-cirru-edn $ reel-schema/read-field @*reel :store
           :examples $ []
           :schema $ :: 'Fn
             {} (:return 'Dynamic)
@@ -712,7 +730,7 @@
           :schema $ :: 'Dynamic
         |store $ %{} 'CodeEntry (:doc |)
           :code $ quote
-            def store $ %{} app.schema/StoreData
+            def store $ %{} StoreData
               :states $ {}
               :error nil
               :calcit nil
