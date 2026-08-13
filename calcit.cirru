@@ -5,9 +5,9 @@
       :modules $ [] |respo.calcit/ |lilac/ |memof/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |cumulo-util.calcit/
       :type-slots $ {}
   :files $ {}
-    |app.ast $ %{} :FileEntry
+    |app.ast $ %{} 'FileEntry
       :defs $ {}
-        |build-deps-graph $ %{} :CodeEntry (:doc |)
+        |build-deps-graph $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn build-deps-graph (entry-ns entry-def files pkg) (; println entry-ns entry-def pkg) (; js/console.log files)
               let
@@ -51,13 +51,13 @@
                 , ns-deps-map
           :examples $ []
           :schema $ :: 'Dynamic
-        |flatten-form $ %{} :CodeEntry (:doc |)
+        |flatten-form $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn flatten-form (xs)
               if (list? xs) (mapcat xs flatten-form) ([] xs)
           :examples $ []
           :schema $ :: 'Dynamic
-        |match-references $ %{} :CodeEntry (:doc |)
+        |match-references $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns) (js/console.log |Defaults defaults-dict)
               let
@@ -92,7 +92,7 @@
                 , tokens
           :examples $ []
           :schema $ :: 'Dynamic
-        |parse-rule $ %{} :CodeEntry (:doc |)
+        |parse-rule $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn parse-rule (rule) (; println |rule rule)
               case-default (nth rule 1)
@@ -116,7 +116,7 @@
                       :alias $ nth rule 2
           :examples $ []
           :schema $ :: 'Dynamic
-        |pattern-number $ %{} :CodeEntry (:doc |)
+        |pattern-number $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def pattern-number $ new js/RegExp "|^\\d+(\\.\\d+)?$"
           :examples $ []
@@ -124,7 +124,7 @@
             {} (:return 'Dynamic)
               :args $ []
               :features $ #{} :js-ffi
-        |tree->cirru $ %{} :CodeEntry (:doc |)
+        |tree->cirru $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn tree->cirru (x)
               if (&record:matches? x schema/CirruLeaf) (:text x)
@@ -133,7 +133,7 @@
                     tree->cirru $ last entry
           :examples $ []
           :schema $ :: 'Dynamic
-        |unify-rule $ %{} :CodeEntry (:doc |)
+        |unify-rule $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn unify-rule (rule)
               -> rule
@@ -142,12 +142,12 @@
                   if (list? x) (unify-rule x) x
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.ast $ :require (app.schema :as schema)
-    |app.comp.container $ %{} :FileEntry
+    |app.comp.container $ %{} 'FileEntry
       :defs $ {}
-        |comp-about $ %{} :CodeEntry (:doc |)
+        |comp-about $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-about () $ div
               {} $ :style
@@ -155,7 +155,7 @@
               comp-md "|Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/calcit-lang/calcit-viewer ."
           :examples $ []
           :schema $ :: 'Dynamic
-        |comp-container $ %{} :CodeEntry (:doc |)
+        |comp-container $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-container (reel)
               let
@@ -200,7 +200,7 @@
                   comp-reel (>> states :reel) reel $ {}
           :examples $ []
           :schema $ :: 'Dynamic
-        |comp-entry $ %{} :CodeEntry (:doc |)
+        |comp-entry $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-entry (icon page current-page)
               div
@@ -212,7 +212,7 @@
                 comp-i icon 14 $ hsl 200 80 80
           :examples $ []
           :schema $ :: 'Dynamic
-        |comp-file-input $ %{} :CodeEntry (:doc |)
+        |comp-file-input $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-file-input (error)
               div
@@ -227,7 +227,7 @@
                   <> error
           :examples $ []
           :schema $ :: 'Dynamic
-        |comp-text-area $ %{} :CodeEntry (:doc |)
+        |comp-text-area $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-text-area (text error)
               div
@@ -256,7 +256,7 @@
                     <> error
           :examples $ []
           :schema $ :: 'Dynamic
-        |on-file-change $ %{} :CodeEntry (:doc |)
+        |on-file-change $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn on-file-change (e d!)
               let
@@ -278,7 +278,7 @@
             {} (:return 'Dynamic)
               :args $ [] 'Dynamic 'Dynamic
               :features $ #{} :js-ffi
-        |style-entry $ %{} :CodeEntry (:doc |)
+        |style-entry $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-entry $ {}
               |& $ {} (:font-size 28) (:width 48) (:height 48)
@@ -286,7 +286,7 @@
                 :cursor :pointer
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.container $ :require
             respo-ui.core :refer $ hsl
@@ -305,9 +305,9 @@
             app.schema :as schema
             respo-ui.css :as css
             respo.css :refer $ defstyle
-    |app.comp.expr $ %{} :FileEntry
+    |app.comp.expr $ %{} 'FileEntry
       :defs $ {}
-        |comp-expr $ %{} :CodeEntry (:doc |)
+        |comp-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-expr (expr last?)
               list->
@@ -344,14 +344,14 @@
                             str-spaced style-date-hint css/font-normal!
           :examples $ []
           :schema $ :: 'Dynamic
-        |style-date-hint $ %{} :CodeEntry (:doc |)
+        |style-date-hint $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-date-hint $ {}
               |& $ {} (:font-size 12) (:white-space :nowrap)
                 :color $ hsl 0 0 60
           :examples $ []
           :schema $ :: 'Dynamic
-        |style-expr $ %{} :CodeEntry (:doc |)
+        |style-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-expr $ {}
               |& $ {} (:padding "|2px 16px") (:font-family "|Source Code Pro, menlo") (:line-height |16px) (:margin-bottom 2) (:vertical-align :top) (:min-height 16) (:min-width 32) (:font-size 13) (:cursor :pointer) (:border-radius |8px) (:border-style :solid)
@@ -366,13 +366,13 @@
                 :outline :none
           :examples $ []
           :schema $ :: 'Dynamic
-        |style-leaf $ %{} :CodeEntry (:doc |)
+        |style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-leaf $ {}
               |& $ {} (:display :inline-flex) (:margin-right 8)
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.expr $ :require
             respo-ui.core :refer $ hsl
@@ -386,9 +386,9 @@
             respo.css :refer $ defstyle
             respo-ui.css :as css
             |dayjs :default dayjs
-    |app.comp.file $ %{} :FileEntry
+    |app.comp.file $ %{} 'FileEntry
       :defs $ {}
-        |comp-file $ %{} :CodeEntry (:doc |)
+        |comp-file $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-file (filename file-info)
               div
@@ -435,7 +435,7 @@
                             comp-expr (:code def-info) false
           :examples $ []
           :schema $ :: 'Dynamic
-        |style-file $ %{} :CodeEntry (:doc |)
+        |style-file $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-file $ {}
               |& $ {}
@@ -444,7 +444,7 @@
                 :font-family "|Source Code Pro, menlo"
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.file $ :require
             respo-ui.core :refer $ hsl
@@ -455,9 +455,9 @@
             respo-ui.css :as css
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
-    |app.comp.graph $ %{} :FileEntry
+    |app.comp.graph $ %{} 'FileEntry
       :defs $ {}
-        |comp-graph $ %{} :CodeEntry (:doc |)
+        |comp-graph $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-graph (states snapshot)
               let
@@ -494,7 +494,7 @@
                       <> "|no graph"
           :examples $ []
           :schema $ :: 'Dynamic
-        |comp-graph-tree $ %{} :CodeEntry (:doc |)
+        |comp-graph-tree $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-graph-tree (ns' def' dict footprints files)
               let
@@ -551,7 +551,7 @@
                             :color $ hsl 0 0 80
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.graph $ :require
             respo-ui.core :refer $ hsl
@@ -562,9 +562,9 @@
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
             respo-ui.core :as ui
-    |app.comp.viewer $ %{} :FileEntry
+    |app.comp.viewer $ %{} 'FileEntry
       :defs $ {}
-        |comp-viewer $ %{} :CodeEntry (:doc |)
+        |comp-viewer $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-viewer (calcit)
               div ({})
@@ -587,7 +587,7 @@
                           [] filename $ comp-file filename file-info
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.viewer $ :require
             hsl.core :refer $ hsl
@@ -595,35 +595,35 @@
             respo.core :refer $ defcomp <> div list-> button span input
             respo.comp.space :refer $ =<
             app.comp.file :refer $ comp-file
-    |app.config $ %{} :FileEntry
+    |app.config $ %{} 'FileEntry
       :defs $ {}
-        |dev? $ %{} :CodeEntry (:doc |)
+        |dev? $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def dev? $ = |dev (get-env |mode |release)
           :examples $ []
           :schema $ :: 'Dynamic
-        |site $ %{} :CodeEntry (:doc |)
+        |site $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def site $ {} (:dev-ui |http://localhost:8100/main.css) (:title "|Calcit Viewer") (:icon |http://cdn.tiye.me/logo/cirru.png) (:storage-key |calcit-viewer)
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote (ns app.config)
-    |app.main $ %{} :FileEntry
+    |app.main $ %{} 'FileEntry
       :defs $ {}
-        |*reel $ %{} :CodeEntry (:doc |)
+        |*reel $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defatom *reel $ -> reel-schema/reel (assoc :base schema/store) (assoc :store schema/store)
           :examples $ []
           :schema $ :: 'Dynamic
-        |dispatch! $ %{} :CodeEntry (:doc |)
+        |dispatch! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn dispatch! (op)
               when config/dev? $ js/console.log |Dispatch: op
               reset! *reel $ reel-updater updater @*reel op
           :examples $ []
           :schema $ :: 'Dynamic
-        |main! $ %{} :CodeEntry (:doc |)
+        |main! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn main! ()
               println "|Running mode:" $ if config/dev? |dev |release
@@ -644,12 +644,12 @@
             {} (:return 'Dynamic)
               :args $ []
               :features $ #{} :js-ffi
-        |mount-target $ %{} :CodeEntry (:doc |)
+        |mount-target $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def mount-target $ js/document.querySelector |.app
           :examples $ []
           :schema $ :: 'Dynamic
-        |persist-storage! $ %{} :CodeEntry (:doc |)
+        |persist-storage! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn persist-storage! ()
               println "|Saved at" $ .!toISOString (new js/Date)
@@ -660,7 +660,7 @@
             {} (:return 'Dynamic)
               :args $ []
               :features $ #{} :js-ffi
-        |reload! $ %{} :CodeEntry (:doc |)
+        |reload! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn reload! () $ if (nil? build-errors)
               do (remove-watch *reel :changes) (clear-cache!)
@@ -670,12 +670,12 @@
               hud! |error build-errors
           :examples $ []
           :schema $ :: 'Dynamic
-        |render-app! $ %{} :CodeEntry (:doc |)
+        |render-app! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn render-app! () $ render! mount-target (comp-container @*reel) dispatch!
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.main $ :require
             respo.core :refer $ render! clear-cache! realize-ssr!
@@ -688,26 +688,31 @@
             app.config :as config
             |./calcit.build-errors :default build-errors
             |bottom-tip :default hud!
-    |app.schema $ %{} :FileEntry
+    |app.schema $ %{} 'FileEntry
       :defs $ {}
-        |CirruExpr $ %{} :CodeEntry (:doc |)
+        |CirruExpr $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CirruExpr (:by 'Dynamic) (:at 'Dynamic) (:data 'Dynamic)
           :examples $ []
           :schema $ :: 'Dynamic
-        |CirruLeaf $ %{} :CodeEntry (:doc |)
+        |CirruLeaf $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CirruLeaf (:at 'Dynamic) (:by 'Dynamic) (:text 'Dynamic)
           :examples $ []
           :schema $ :: 'Dynamic
-        |CodeEntry $ %{} :CodeEntry (:doc |)
+        |CodeEntry $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CodeEntry (:doc 'Dynamic) (:code 'Dynamic)
           :examples $ []
           :schema $ :: 'Dynamic
-        |store $ %{} :CodeEntry (:doc |)
+        |StoreData $ %{} 'CodeEntry (:doc |)
           :code $ quote
-            def store $ {}
+            defstruct StoreData (:states 'Map) (:error 'Dynamic) (:calcit 'Dynamic) (:page 'Tag) (:text 'String) (:messages 'Map)
+          :examples $ []
+          :schema $ :: 'Dynamic
+        |store $ %{} 'CodeEntry (:doc |)
+          :code $ quote
+            def store $ %{} app.schema/StoreData
               :states $ {}
               :error nil
               :calcit nil
@@ -716,11 +721,11 @@
               :messages $ {}
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote (ns app.schema)
-    |app.updater $ %{} :FileEntry
+    |app.updater $ %{} 'FileEntry
       :defs $ {}
-        |updater $ %{} :CodeEntry (:doc |)
+        |updater $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn updater (store op op-id op-time)
               if
@@ -736,7 +741,7 @@
                   (:hydrate-storage d) d
           :examples $ []
           :schema $ :: 'Dynamic
-      :ns $ %{} :NsEntry (:doc |)
+      :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.updater $ :require
             respo.cursor :refer $ update-states
