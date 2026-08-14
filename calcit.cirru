@@ -84,7 +84,7 @@
                           let[] (ns-part def-part) (.split x |/)
                             if (.contains? defs-dict ns-part)
                               {} (:kind :def)
-                                :ns $ reel.schema/read-field (get ns-dict ns-part) :ns
+                                :ns $ get (get ns-dict ns-part) :ns
                                 :def x
                         true nil
                     .filter some?
@@ -549,7 +549,7 @@
                           , & $ -> deps
                             map $ fn (dep)
                               if
-                                = :default $ reel.schema/read-field dep :kind
+                                = :default $ get dep :kind
                                 div
                                   {} $ :style
                                     {}
@@ -652,7 +652,7 @@
               js/window.addEventListener |visibilitychange $ fn (event)
                 if (= |hidden js/document.visibilityState) (persist-storage!)
               let
-                  raw $ js/localStorage.getItem (reel-schema/read-field config/site :storage-key)
+                  raw $ js/localStorage.getItem (get config/site :storage-key)
                 when (js-present? raw)
                   dispatch! $ :: :hydrate-storage
                     parse-cirru-edn $ unsafe-coerce raw 'String
@@ -671,7 +671,7 @@
           :code $ quote
             defn persist-storage! ()
               println "|Saved at" $ .!toISOString (new js/Date)
-              js/localStorage.setItem (reel-schema/read-field config/site :storage-key)
+              js/localStorage.setItem (get config/site :storage-key)
                 format-cirru-edn $ reel-schema/read-field @*reel :store
           :examples $ []
           :schema $ :: 'Fn
