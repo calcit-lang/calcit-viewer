@@ -30,9 +30,10 @@ jobs:
         && cr calcit.cirru edit format
         && git diff --exit-code -- calcit.cirru
         && cr calcit.cirru --check-only
-        && cr calcit.cirru analyze check-types --summary-only --format json
-        && cr calcit.cirru analyze weak-types --only schema-dynamic,code-dynamic --intent unresolved --summary-only --format json
-        && cr calcit.cirru analyze deprecated --summary-only --format json
+        && cr calcit.cirru analyze check-types --summary-only --format json > .calcit/check-types.json
+        && cr calcit.cirru analyze weak-types --only schema-dynamic,code-dynamic,code-nil --intent unresolved,declared-optional --summary-only --format json > .calcit/weak-types.json
+        && cr calcit.cirru analyze deprecated --summary-only --format json > .calcit/deprecated.json
+        && node scripts/check-calcit-upgrade-baseline.mjs
         && cr calcit.cirru js
         && yarn vite build --base=./
 
