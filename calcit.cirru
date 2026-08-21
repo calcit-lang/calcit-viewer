@@ -1,8 +1,9 @@
 
-{} (:about "|Machine-generated snapshot. Do not edit directly — changes will be overwritten. Use `cr query` to inspect and `cr edit`/`cr tree` to modify. Run `cr docs agents --full` first. Manual edits must follow format and schema conventions, then run `cr edit format`.") (:package |app) (:version |0.0.1)
+{} (:about "|Machine-generated snapshot. Do not edit directly — changes will be overwritten. Use `cr query` to inspect and `cr edit`/`cr tree` to modify. Run `cr docs agents --full` first. Manual edits must follow format and schema conventions, then run `cr edit format`.") (:package |app)
   :entries $ {}
     :default $ {} (:description |) (:init-fn 'app.main/main!) (:mode :native) (:reload-fn 'app.main/reload!)
-      :modules $ [] |respo.calcit/ |lilac/ |memof/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |cumulo-util.calcit/
+      :feature-policy $ {}
+      :modules $ [] |respo.calcit/ |lilac/ |memof/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |cumulo-util.calcit/ |js-ffi/
       :type-slots $ {}
   :files $ {}
     |app.ast $ %{} 'FileEntry
@@ -744,22 +745,22 @@
           :code $ quote
             defstruct CirruExpr (:by 'Dynamic) (:at 'Dynamic) (:data 'Dynamic)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |CirruLeaf $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CirruLeaf (:at 'Dynamic) (:by 'Dynamic) (:text 'Dynamic)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |CodeEntry $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CodeEntry (:doc 'Dynamic) (:code 'Dynamic)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |StoreData $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct StoreData (:states 'Map) (:error 'Dynamic) (:calcit 'Dynamic) (:page 'Tag) (:text 'String) (:messages 'Map)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |store $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def store $ %{} StoreData
