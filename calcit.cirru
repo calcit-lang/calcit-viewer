@@ -1,8 +1,9 @@
 
-{} (:about "|Machine-generated snapshot. Do not edit directly — changes will be overwritten. Use `cr query` to inspect and `cr edit`/`cr tree` to modify. Run `cr docs agents --full` first. Manual edits must follow format and schema conventions, then run `cr edit format`.") (:package |app) (:version |0.0.1)
+{} (:about "|Machine-generated snapshot. Do not edit directly — changes will be overwritten. Use `calcit query` to inspect and `calcit edit`/`calcit tree` to modify. Run `calcit docs agents --full` first. Manual edits must follow format and schema conventions, then run `calcit edit format`.") (:package |app)
   :entries $ {}
     :default $ {} (:description |) (:init-fn 'app.main/main!) (:mode :native) (:reload-fn 'app.main/reload!)
-      :modules $ [] |respo.calcit/ |lilac/ |memof/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |cumulo-util.calcit/
+      :feature-policy $ {}
+      :modules $ [] |respo.calcit/ |lilac/ |memof/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |cumulo-util.calcit/ |js-ffi/
       :type-slots $ {}
   :files $ {}
     |app.ast $ %{} 'FileEntry
@@ -56,7 +57,9 @@
             defn flatten-form (xs)
               if (list? xs) (mapcat xs flatten-form) ([] xs)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Dynamic)
+              :args $ [] 'Dynamic
         |match-references $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns) (js/console.log |Defaults defaults-dict)
@@ -115,7 +118,9 @@
                       :package $ nth rule 0
                       :alias $ nth rule 2
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Dynamic)
+              :args $ [] 'Dynamic
         |pattern-number $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def pattern-number $ new js/RegExp "|^\\d+(\\.\\d+)?$"
@@ -132,7 +137,9 @@
                   map $ fn (entry)
                     tree->cirru $ last entry
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'String)
+              :args $ [] 'Dynamic
         |unify-rule $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn unify-rule (rule)
@@ -141,7 +148,9 @@
                 .map $ fn (x)
                   if (list? x) (unify-rule x) x
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Dynamic)
+              :args $ [] 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.ast $ :require (app.schema :as schema) (reel.schema :as reel-schema)
@@ -154,7 +163,9 @@
                 {} $ :padding 8
               comp-md "|Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/calcit-lang/calcit-viewer ."
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ []
         |comp-container $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-container (reel)
@@ -199,7 +210,9 @@
                     {} (:bottom 0) (:right 8)
                   comp-reel (>> states :reel) reel $ {}
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic
         |comp-entry $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-entry (icon page current-page)
@@ -211,7 +224,9 @@
                   :on-click $ fn (e d!) (d! :page page)
                 comp-i icon 14 $ hsl 200 80 80
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic 'Dynamic 'Dynamic
         |comp-file-input $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-file-input (error)
@@ -226,7 +241,9 @@
                     {} $ :color :red
                   <> error
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic
         |comp-text-area $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defcomp comp-text-area (text error)
@@ -255,7 +272,9 @@
                       {} $ :color :red
                     <> error
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic 'Dynamic
         |on-file-change $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn on-file-change (e d!)
@@ -353,7 +372,9 @@
                             str $ -> (reel.schema/read-field child :at) dayjs (.!format "|YY MM-DD")
                             str-spaced style-date-hint css/font-normal!
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic 'Bool
         |style-date-hint $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-date-hint $ {}
@@ -445,7 +466,9 @@
                                 {} $ :class-name css/font-normal
                             comp-expr (reel.schema/read-field def-info :code) false
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'String 'Dynamic
         |style-file $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstyle style-file $ {}
@@ -564,7 +587,9 @@
                           <> |- $ {}
                             :color $ hsl 0 0 80
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic 'Dynamic 'Dynamic 'Dynamic 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.graph $ :require
@@ -601,7 +626,9 @@
                               , entry
                           [] filename $ comp-file filename file-info
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'respo.schema/Component)
+              :args $ [] 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.comp.viewer $ :require
@@ -618,7 +645,7 @@
             def dev? $ = |dev
               option:unwrap-or (get-env |mode) |release
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Bool
         |site $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def site $ {} (:dev-ui |http://localhost:8100/main.css) (:title "|Calcit Viewer") (:icon |http://cdn.tiye.me/logo/cirru.png) (:storage-key |calcit-viewer)
@@ -639,7 +666,9 @@
               when config/dev? $ js/console.log |Dispatch: op
               reset! *reel $ reel-updater updater @*reel op
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Unit)
+              :args $ [] 'Dynamic
         |main! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn main! ()
@@ -666,7 +695,7 @@
           :code $ quote
             def mount-target $ js/document.querySelector |.app
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'String
         |persist-storage! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn persist-storage! ()
@@ -687,12 +716,16 @@
                 hud! |ok~ |Ok
               hud! |error build-errors
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Unit)
+              :args $ []
         |render-app! $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defn render-app! () $ render! mount-target (comp-container @*reel) dispatch!
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Unit)
+              :args $ []
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.main $ :require
@@ -712,22 +745,22 @@
           :code $ quote
             defstruct CirruExpr (:by 'Dynamic) (:at 'Dynamic) (:data 'Dynamic)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |CirruLeaf $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CirruLeaf (:at 'Dynamic) (:by 'Dynamic) (:text 'Dynamic)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |CodeEntry $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct CodeEntry (:doc 'Dynamic) (:code 'Dynamic)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |StoreData $ %{} 'CodeEntry (:doc |)
           :code $ quote
             defstruct StoreData (:states 'Map) (:error 'Dynamic) (:calcit 'Dynamic) (:page 'Tag) (:text 'String) (:messages 'Map)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Enum
         |store $ %{} 'CodeEntry (:doc |)
           :code $ quote
             def store $ %{} StoreData
@@ -738,7 +771,7 @@
               :text |
               :messages $ {}
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Map
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote (ns app.schema)
     |app.updater $ %{} 'FileEntry
@@ -758,7 +791,9 @@
                   (:page p) (assoc store :page p)
                   (:hydrate-storage d) d
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn
+            {} (:return 'Map)
+              :args $ [] 'Map 'Dynamic 'Dynamic 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote
           ns app.updater $ :require
