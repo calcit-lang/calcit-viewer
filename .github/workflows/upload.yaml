@@ -29,7 +29,7 @@ jobs:
 
     - uses: calcit-lang/setup-calcit@d02594b15f0e9de723fe1a202a3fa62a87afe07b # v1.4.0
       with:
-        version: 0.14.17
+        version: 0.15.1
         tools: calcit,caps
 
     - name: Validate and compile to JS
