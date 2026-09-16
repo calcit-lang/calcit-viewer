@@ -845,13 +845,7 @@
             :return $ :: 'List $ :: 'List 'Dynamic
         'store $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def store
-            %{} StoreData
-              :states $ {}
-              :error nil
-              :calcit nil
-              :page :input
-              :text |
-              :messages $ {}
+            StoreData :states ({}) :error nil :calcit nil :page :input :text | :messages $ {}
           :examples $ []
           :schema $ :: 'app.schema/StoreData
       :ns $ %{} 'NsEntry (:doc |)
