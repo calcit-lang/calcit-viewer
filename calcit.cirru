@@ -601,7 +601,9 @@
                       reel.schema/read-field snapshot :files
                     <> "|no graph"
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn $ {} (:return 'Dynamic)
+            :args $ [] 'Dynamic 'Dynamic
+            :features $ #{} :js-ffi
         'comp-graph-tree $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-graph-tree (ns' def' dict footprints files)
             let
