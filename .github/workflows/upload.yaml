@@ -50,9 +50,11 @@ jobs:
     - name: Select COS prefix
       id: cos-path
       if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
         if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-          echo "prefix=${GITHUB_REPOSITORY}/pr/" >> "$GITHUB_OUTPUT"
+          echo "prefix=${GITHUB_REPOSITORY}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}/" >> "$GITHUB_OUTPUT"
         else
           echo "prefix=${GITHUB_REPOSITORY}/" >> "$GITHUB_OUTPUT"
         fi
