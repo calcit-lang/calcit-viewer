@@ -6,12 +6,12 @@
     "includeDependencies": false
   },
   "metrics": {
-    "typeNone": 6,
-    "typeNotFull": 30,
-    "schemaDynamic": 40,
+    "typeNone": 5,
+    "typeNotFull": 29,
+    "schemaDynamic": 39,
     "codeDynamic": 0,
     "codeNil": 16,
-    "unresolved": 56,
+    "unresolved": 55,
     "declaredOptional": 0,
     "deprecatedCalls": 0,
     "unsafeCoerce": 12
@@ -249,12 +249,12 @@
       "unsafeCoerce": 0
     },
     "app.comp.graph/comp-graph": {
-      "typeNone": 1,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
+      "typeNone": 0,
+      "typeNotFull": 0,
+      "schemaDynamic": 0,
       "codeDynamic": 0,
       "codeNil": 2,
-      "unresolved": 3,
+      "unresolved": 2,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0

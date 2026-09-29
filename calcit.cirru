@@ -32,7 +32,7 @@
                         rules $ if
                           = 3 $ count ns-form
                           slice
-                            option:unwrap-or (nth ns-form 2) ([])
+                            option:unwrap $ nth ns-form 2
                             , 1
                           []
                         defs $ schema/as-string-map $ reel.schema/read-field file :defs
@@ -456,7 +456,7 @@
                 :background-color $ hsl 300 0 98
               |&:hover $ {}
                 ; :background-color $ hsl 300 0 92
-                :outline $ str "|2px solid " $ hsl 200 90 70 (%some 0.5)
+                :outline $ str "|2px solid " $ hsl 200 90 70 (Option :some 0.5)
               "|&:has(.comp-expr:hover):hover" $ {}
                 :background-color $ hsl 300 0 98
                 :outline :none
@@ -601,7 +601,9 @@
                       reel.schema/read-field snapshot :files
                     <> "|no graph"
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
+            :args $ [] 'T 'U
+            :generics $ [] 'T 'U
         'comp-graph-tree $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-graph-tree (ns' def' dict footprints files)
             let
@@ -631,14 +633,14 @@
                     :border-radius |8px
                   let
                       deps $ get-in dict $ [] ns' def'
-                    if (list? deps)
+                    if (option:some? deps)
                       div
                         {} $ :style $ {}
                           :border-left $ str "|1px solid " $ hsl 0 0 90
                           :padding "|0 8px"
                           :margin "|0 8px"
-                        , & $ -> deps $ map
-                          fn (dep)
+                        , & $ -> (option:unwrap deps)
+                          map $ fn (dep)
                             if
                               = :default $ reel.schema/read-field dep :kind
                               div
