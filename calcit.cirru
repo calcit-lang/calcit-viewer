@@ -249,7 +249,8 @@
                 comp-messages
                   w-js-log $ reel.schema/read-field store :messages
                   {}
-                  fn (info d!) (d! action/clear nil)
+                  fn (info d!)
+                    d! $ :: action/clear
                 if config/dev? $ comp-inspect :store store $ {} (:bottom 0) (:right 8)
                 comp-reel (>> states :reel) reel $ {}
           :examples $ []
@@ -262,7 +263,8 @@
                 :class-name $ str-spaced css/center style-entry
                 :style $ if (= page current-page)
                   {} $ :color :white
-                :on-click $ fn (e d!) (d! :page page)
+                :on-click $ fn (e d!)
+                  d! $ :: :page page
               comp-i icon 14 $ hsl 200 80 80
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
@@ -290,16 +292,16 @@
                 :value text
                 :placeholder "|Paste calcit.cirru content here..."
                 :on-input $ fn (e d!)
-                  d! :text $ option:unwrap $ get e :value
+                  d! $ :: :text $ option:unwrap (get e :value)
               div
                 {} $ :style $ {} (:padding 8)
                 button
                   {} (:class-name css/button)
                     :on-click $ fn (e d!)
                       try
-                        d! :load/calcit $ parse-cirru-edn text
+                        d! $ :: :load/calcit $ parse-cirru-edn text
                         fn (error)
-                          d! :error $ str error
+                          d! $ :: :error $ str error
                   <> |Parse
                 div
                   {} $ :style $ {} (:color :red)
@@ -322,7 +324,7 @@
                     filename $ .-name file
                   if (not= filename |calcit.cirru)
                     do
-                      d! :error $ str "|Expected calcit.cirru , but got " filename
+                      d! $ :: :error $ str "|Expected calcit.cirru , but got " filename
                       , &unit
                     let
                         reader $ unsafe-coerce (new js/FileReader) 'app.comp.container/FileReaderHost
@@ -336,10 +338,12 @@
                               result $ .-result event-reader
                             if (js-present? result)
                               do
-                                d! :load/calcit $ parse-cirru-edn (unsafe-coerce result 'String)
+                                d! $ :: :load/calcit $ parse-cirru-edn (unsafe-coerce result 'String)
                                   {} (:CodeEntry schema/CodeEntry) (:Leaf schema/CirruLeaf) (:Expr schema/CirruExpr)
                                 , &unit
-                              do (d! :error "|Failed to read calcit.cirru") &unit
+                              do
+                                d! $ :: :error "|Failed to read calcit.cirru"
+                                , &unit
                       js-set reader :onload on-load
                       .read-as-text! reader file
                       , &unit
@@ -409,7 +413,7 @@
                   let
                       code $ format-cirru $ [] (tree->cirru expr)
                     copy! code
-                    d! action/create $ {}
+                    d! $ :: action/create $ {}
                       :text $ str "|Copied! " code
                       :token code
               ->
@@ -575,19 +579,21 @@
                     :padding "|8px 4px"
                   button $ {} (:class-name css/button) (:inner-text |Button)
                     :on-click $ fn (e d!) (; js/console.log snapshot)
-                      d! cursor $ assoc state :graph $ build-deps-graph
-                        option:unwrap-or (nth entry 0) |
-                        option:unwrap-or (nth entry 1) |
-                        reel.schema/read-field snapshot :files
-                        reel.schema/read-field snapshot :package
+                      d! $ :: :states cursor $ assoc state :graph
+                        build-deps-graph
+                          option:unwrap-or (nth entry 0) |
+                          option:unwrap-or (nth entry 1) |
+                          reel.schema/read-field snapshot :files
+                          reel.schema/read-field snapshot :package
                   =< 8 nil
                   input $ {}
                     :value $ reel.schema/read-field state :init-fn
                     :class-name css/input
                     :on-input $ fn (e d!)
-                      d! cursor $ assoc state :init-fn $ assert-type
-                        option:unwrap $ get e :value
-                        , 'String
+                      d! $ :: :states cursor $ assoc state :init-fn
+                        assert-type
+                          option:unwrap $ get e :value
+                          quote String
                 div
                   {} (:class-name css/expand)
                     :style $ {} $ :padding |8px
@@ -857,8 +863,13 @@
         %{} 'CodeEntry (:doc |)
           :code $ quote $ defn updater (store op op-id op-time)
             if
-              action/message-action? $ nth op 0
-              assoc store :messages $ update-messages (reel-schema/read-field store :messages) (nth op 0) (nth op 1) op-id op-time
+              action/message-action? $ &enum:nth op 0
+              assoc store :messages $ update-messages (reel-schema/read-field store :messages) (&enum:nth op 0)
+                if
+                  > (&enum:count op) 1
+                  &enum:nth op 1
+                  {}
+                , op-id op-time
               match op
                 (:states cursor s) (update-states store cursor s)
                 (:load/calcit data)
