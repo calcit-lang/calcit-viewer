@@ -9,8 +9,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: upload-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: upload-${{ github.repository }}-${{ github.event_name == 'pull_request' && 'pr' || github.ref }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   test:
@@ -46,6 +47,9 @@ jobs:
 
       - name: Check Calcit snapshot
         run: |
+          set -euo pipefail
+          test ! -e compact.cirru
+          test ! -e package.cirru
           calcit calcit.cirru fix --workflow strict --verify --format edn
           calcit calcit.cirru edit format
           git diff --exit-code -- calcit.cirru
@@ -88,6 +92,7 @@ jobs:
           echo "base-url=${VITE_BASE_URL}" >> "$GITHUB_OUTPUT"
           yarn compile
           yarn build
+          node --test scripts/dispatch-regression.test.mjs
 
       - name: Upload and verify static assets on COS
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
