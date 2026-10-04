@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: upload-${{ github.repository }}-${{ github.event_name == 'pull_request' && 'pr' || github.ref }}
+  group: upload-${{ github.repository }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
   queue: max
 
@@ -50,10 +50,9 @@ jobs:
           set -euo pipefail
           test ! -e compact.cirru
           test ! -e package.cirru
-          calcit calcit.cirru fix --workflow strict --verify --format edn
           calcit calcit.cirru edit format
           git diff --exit-code -- calcit.cirru
-          calcit calcit.cirru --check-only
+          calcit calcit.cirru --strict-types --check-only
           calcit calcit.cirru analyze check-public \
             --ns app.ast \
             --ns app.comp.container \
@@ -66,11 +65,6 @@ jobs:
             --ns app.schema \
             --ns app.updater \
             --summary-only --format json
-          calcit calcit.cirru analyze check-types --summary-only --format json
-          calcit calcit.cirru analyze weak-types \
-            --only schema-dynamic,unresolved-type-slot,code-dynamic \
-            --intent unresolved --summary-only --format json
-          calcit calcit.cirru analyze deprecated --summary-only
           calcit calcit.cirru analyze dynamic-methods --summary-only --format json | jq -e '.data.summary.findings == 0'
           calcit calcit.cirru analyze quality --baseline config/calcit-upgrade-baseline.json
 
@@ -78,13 +72,15 @@ jobs:
         id: asset-path
         env:
           CDN_ORIGIN: https://cos-sh.tiye.me
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            asset_prefix="${GITHUB_REPOSITORY}/pr/"
+            asset_prefix="${GITHUB_REPOSITORY}/pr/${PR_NUMBER}/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/"
           elif [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             asset_prefix="${GITHUB_REPOSITORY}/"
           else
-            asset_prefix="${GITHUB_REPOSITORY}/branches/${GITHUB_REF_NAME}/"
+            asset_prefix="${GITHUB_REPOSITORY}/branches/${GITHUB_REF_NAME}/${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}/"
           fi
           export VITE_BASE_URL="${CDN_ORIGIN}/${asset_prefix}"
           echo "VITE_BASE_URL=${VITE_BASE_URL}" >> "$GITHUB_ENV"
@@ -96,7 +92,7 @@ jobs:
 
       - name: Upload and verify static assets on COS
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: worktools/cos-upload-action@17e6d213fe9f6772a6090a13c8ba044cd6cbcb09 # v1.1.1
+        uses: worktools/cos-upload-action@06d6027dcca6413c5936e04a9b6e9f0d5ef71ba0 # v1.2.0
         with:
           source-dir: dist
           bucket: ${{ secrets.COS_BUCKET }}
