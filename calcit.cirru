@@ -3,7 +3,7 @@
   :about "|Machine-generated snapshot. Do not edit directly — changes will be overwritten. Use `calcit query` to inspect and `calcit edit`/`calcit tree` to modify. Run `calcit docs agents --contract` before mutations; use `--full` for first orientation or changed contract digest. Manual edits must follow format and schema conventions, then run `calcit edit format`."
   :package |app
   :entries $ {} $ :default
-    {} (:description |) (:init-fn 'app.main/main!) (:mode :native) (:reload-fn 'app.main/reload!) (:target :browser)
+    {} (:description |) (:init-fn 'app.main/main!) (:mode :js) (:reload-fn 'app.main/reload!) (:target :browser)
       :feature-policy $ {}
       :modules $ [] |respo.calcit/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |js-ffi/
       :type-slots $ {}
@@ -149,16 +149,13 @@
             :features $ #{} :js-ffi
         'tree->cirru $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn tree->cirru (x)
-            if (&struct:matches? x schema/CirruLeaf) (reel.schema/read-field x :text)
-              ->
-                schema/as-string-map $ reel.schema/read-field x :data
-                &map:to-list
-                schema/sort-string-map-entries
-                map $ fn (entry)
-                  tree->cirru $ last entry
+            decode-map-as
+              &cirru-quote:to-list $ decode-map-as x 'CirruQuote
+              :: 'List 'Dynamic
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'String)
+          :schema $ :: 'Fn $ {}
             :args $ [] 'Dynamic
+            :return $ :: 'List 'Dynamic
         'unify-rule $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn unify-rule (rule)
             -> rule
@@ -398,44 +395,25 @@
                 :class-name $ str-spaced style-expr |comp-expr
                 :style $ if last?
                   {} $ :display :inline-block
-                  if
-                    every?
-                      ->
-                        schema/as-string-map $ reel.schema/read-field expr :data
-                        &map:to-list
-                      fn (entry)
-                        if-let
-                          node $ last entry
-                          &struct:matches? node schema/CirruLeaf
-                          , false
+                  if (every? expr string?)
                     {} (:display :inline-block) (:border-width "|0 0 1px 0") (:margin "|0 4px")
+                    {}
                 :on-click $ fn (e d!)
                   let
-                      code $ format-cirru $ [] (tree->cirru expr)
+                      code $ format-cirru $ [] expr
                     copy! code
                     d! $ :: action/create $ {}
                       :text $ str "|Copied! " code
                       :token code
-              ->
-                schema/as-string-map $ reel.schema/read-field expr :data
-                &map:to-list
-                schema/sort-string-map-entries
-                map-indexed $ fn (idx entry)
-                  let-sugar
-                        [] k child
-                        , entry
-                    [] k $ if (&struct:matches? child schema/CirruExpr)
-                      comp-expr child $ = idx $ dec
-                        count $ reel.schema/read-field expr :data
-                      div
-                        {} $ :class-name $ str-spaced css/column style-leaf
-                        <> $ reel.schema/read-field child :text
-                        <>
-                          str $ format-time $ reel.schema/read-field child :at
-                          str-spaced style-date-hint css/font-normal!
+              map-indexed expr $ fn (idx child)
+                [] idx $ if (list? child)
+                  comp-expr child $ = idx $ dec (count expr)
+                  div
+                    {} $ :class-name $ str-spaced css/column style-leaf
+                    <> $ decode-map-as child 'String
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Dynamic 'Bool
+            :args $ [] (:: 'List 'Dynamic) 'Bool
         'format-time $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn format-time (value)
             ->
@@ -490,50 +468,52 @@
       :defs $ {}
         'comp-file $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-file (filename file-info)
-            div
-              {} $ :class-name $ str-spaced css/row style-file
-              <> filename
-              =< 16 nil
-              div ({})
-                div
-                  {} (:class-name css/column)
-                    :style $ {}
-                      :border-left $ str "|1px solid " $ hsl 0 0 80
-                      :padding-left 8
+            let
+                ns-info $ reel-schema/read-field file-info :ns
+                defs $ schema/as-string-map $ reel-schema/read-field file-info :defs
+              div
+                {} $ :class-name $ str-spaced css/row style-file
+                <> filename
+                =< 16 nil
+                div ({})
                   div
-                    {} $ :class-name css/row
-                    <> |ns $ {} $ :color (hsl 0 0 70)
-                    =< 8 nil
-                    comp-md-block
-                      option:unwrap-or
-                        get-in file-info $ [] :ns :doc
-                        , |
-                      {} $ :class-name css/font-normal
-                  comp-expr
-                    get-in file-info $ [] :ns :code
-                    , false
-                list->
-                  {} $ :style $ {}
-                    :border-left $ str "|1px solid " $ hsl 0 0 70
-                    :padding-left 16
-                    :margin-bottom 2
-                  ->
-                    schema/as-string-map $ reel.schema/read-field file-info :defs
-                    &map:to-list
-                    map $ fn (entry)
-                      let-sugar
-                            [] def-name def-info
-                            , entry
-                        [] def-name $ div
-                          {} $ :class-name css/column
-                          div
-                            {} $ :class-name css/row
-                            <> def-name $ {} (:white-space :nowrap)
-                              :color $ hsl 0 0 70
-                            =< 8 nil
-                            comp-md-block (reel.schema/read-field def-info :doc)
-                              {} $ :class-name css/font-normal
-                          comp-expr (reel.schema/read-field def-info :code) false
+                    {} (:class-name css/column)
+                      :style $ {}
+                        :border-left $ str "|1px solid " $ hsl 0 0 80
+                        :padding-left 8
+                    div
+                      {} $ :class-name css/row
+                      <> |ns $ {} $ :color (hsl 0 0 70)
+                      =< 8 nil
+                      comp-md-block
+                        decode-map-as (reel-schema/read-field ns-info :doc) 'String
+                        {} $ :class-name css/font-normal
+                    comp-expr
+                      tree->cirru $ reel-schema/read-field ns-info :code
+                      , false
+                  list->
+                    {} $ :style $ {}
+                      :border-left $ str "|1px solid " $ hsl 0 0 70
+                      :padding-left 16
+                      :margin-bottom 2
+                    -> defs (&map:to-list)
+                      map $ fn (entry)
+                        let-sugar
+                              [] def-name def-info
+                              , entry
+                          [] def-name $ div
+                            {} $ :class-name css/column
+                            div
+                              {} $ :class-name css/row
+                              <> def-name $ {} (:white-space :nowrap)
+                                :color $ hsl 0 0 70
+                              =< 8 nil
+                              comp-md-block
+                                decode-map-as (reel-schema/read-field def-info :doc) 'String
+                                {} $ :class-name css/font-normal
+                            comp-expr
+                              tree->cirru $ reel-schema/read-field def-info :code
+                              , false
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
             :args $ [] 'String 'Dynamic
@@ -558,6 +538,7 @@
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
             app.schema :as schema
+            app.ast :refer $ tree->cirru
     'app.comp.graph $ %{} 'FileEntry
       :defs $ {}
         'comp-graph $ %{} 'CodeEntry (:doc |)
@@ -832,11 +813,13 @@
           :schema $ :: 'Enum
         'as-string-map $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn as-string-map (x)
-            unsafe-coerce x $ :: 'Map 'String 'Dynamic
+            filter-map-kv
+              decode-map-as x $ :: 'Map 'Symbol 'Dynamic
+              fn (k v)
+                MapEntryDecision :keep (to-string k) v
           :examples $ []
           :schema $ :: 'Fn $ {}
             :args $ [] 'Dynamic
-            :features $ #{} :js-ffi
             :return $ :: 'Map 'String 'Dynamic
         'sort-string-map-entries $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn sort-string-map-entries (xs)
