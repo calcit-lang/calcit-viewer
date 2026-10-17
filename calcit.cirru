@@ -10,143 +10,176 @@
   :files $ {}
     'app.ast $ %{} 'FileEntry
       :defs $ {}
-        'RegExpHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait RegExpHost
-            .test! $ :: 'Fn $ {}
-              :args $ [] 'app.ast/RegExpHost 'String
-              :return 'Bool
+        'ImportRule $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defenum ImportRule (:alias 'String 'String) (:refer 'String 'String) (:default 'String 'String)
           :examples $ []
-          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-            :names $ {} $ :test! |test
-          :schema $ :: 'Trait
+          :schema $ :: 'EnumDef
+        'Reference $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defenum Reference (:def 'String 'String) (:default 'String)
+          :examples $ []
+          :schema $ :: 'EnumDef
         'build-deps-graph $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn build-deps-graph (entry-ns entry-def files pkg) (; println entry-ns entry-def pkg) (; js/console.log files)
-            let
-                ns-deps-map $ -> files $ filter-map-kv
-                  fn (ns' file)
-                    hint-fn $ {}
-                      :args $ [] 'String 'Dynamic
-                      :return $ :: 'MapEntryDecision 'String 'Dynamic
-                    let
-                        ns-form $ tree->cirru $ get-in file ([] :ns :code)
-                        rules $ if
-                          = 3 $ count ns-form
-                          slice
-                            option:unwrap $ nth ns-form 2
-                            , 1
+          :code $ quote $ defn build-deps-graph (entry-ns entry-def files pkg)
+            filter-map-kv files $ fn (ns-name file)
+              let
+                  ns-info $ reel-schema/read-field file :ns
+                  ns-form $ tree->cirru $ reel-schema/read-field ns-info :code
+                  rules $ mapcat (slice ns-form 2)
+                    fn (clause)
+                      if (list? clause)
+                        if
+                          = |:require $ .unwrap-or (first clause) nil
+                          slice clause 1
                           []
-                        defs $ schema/as-string-map $ reel.schema/read-field file :defs
-                      ; js/console.log |entry ns' ns-form
-                      %:: MapEntryDecision :keep ns' $ let
-                          results $ map rules $ fn (rule)
-                            parse-rule $ unify-rule rule
-                          ns-dict $ merge ({}) & $ -> results
-                            filter $ fn (paired)
-                              = :ns $ option:unwrap-or (get paired 0) :none
-                            map last
-                          defs-dict $ merge ({}) & $ -> results
-                            filter $ fn (paired)
-                              = :def $ option:unwrap-or (get paired 0) :none
-                            map last
-                          defaults-dict $ merge ({}) & $ -> results
-                            filter $ fn (paired)
-                              = :default $ option:unwrap-or (get paired 0) :none
-                            map last
-                          defs-deps $ -> defs $ filter-map-kv
-                            fn (k entry)
-                              hint-fn $ {}
-                                :args $ [] 'String 'Dynamic
-                                :return $ :: 'MapEntryDecision 'String 'Dynamic
-                              %:: MapEntryDecision :keep k $ match-references
-                                tree->cirru $ reel.schema/read-field entry :code
-                                , ns-dict defs-dict defaults-dict (keys defs) ns'
-                        , defs-deps
-              , ns-deps-map
+                        []
+                  results $ mapcat rules $ fn (rule)
+                    parse-rule $ decode-map-as rule $ :: 'List 'Dynamic
+                  ns-dict $ fold results ({})
+                    fn (dict rule)
+                      hint-fn $ {}
+                        :args $ [] (:: 'Map 'String 'String) 'app.ast/ImportRule
+                        :return $ :: 'Map 'String 'String
+                      match rule
+                        (:alias namespace alias) (assoc dict alias namespace)
+                        _ dict
+                  defs-dict $ fold results ({})
+                    fn (dict rule)
+                      hint-fn $ {}
+                        :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
+                        :return $ :: 'Map 'String 'app.ast/Reference
+                      match rule
+                        (:refer namespace name)
+                          assoc dict name $ Reference :def namespace name
+                        _ dict
+                  defaults-dict $ fold results ({})
+                    fn (dict rule)
+                      hint-fn $ {}
+                        :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
+                        :return $ :: 'Map 'String 'app.ast/Reference
+                      match rule
+                        (:default package alias)
+                          assoc dict alias $ Reference :default package
+                        _ dict
+                  defs $ schema/as-string-map $ reel-schema/read-field file :defs
+                MapEntryDecision :keep ns-name $ filter-map-kv defs $ fn (name entry)
+                  MapEntryDecision :keep name $ match-references
+                    tree->cirru $ reel-schema/read-field entry :code
+                    , ns-dict defs-dict defaults-dict (keys defs) ns-name $ keys files
           :examples $ []
           :schema $ :: 'Fn $ {}
             :args $ [] 'String 'String (:: 'Map 'String 'Dynamic) 'String
-            :return $ :: 'Map 'String 'Dynamic
+            :return $ :: 'Map 'String $ :: 'Map 'String (:: 'List 'app.ast/Reference)
+          :tests $ [] $ %{} 'TestEntry (:name |current-canonical-snapshot)
+            :code $ quote $ let
+                source $ match
+                  .read-text $ fs:path |calcit.cirru
+                  (:ok text) text
+                  (:err message) (raise message)
+                snapshot $ parse-cirru-edn source
+                files $ schema/as-string-map $ reel-schema/read-field snapshot :files
+                graph $ build-deps-graph |app.main |main! files |app
+                dispatch-refs $ .unwrap $ get-in graph ([] |app.main |dispatch!)
+                reel-refs $ .unwrap $ get-in graph ([] |app.main |*reel)
+              assert= true $ contains? graph |app.ast
+              assert= true $ .includes? dispatch-refs $ Reference :def |app.updater |updater
+              assert= true $ .includes? reel-refs $ Reference :def |app.schema |store
         'flatten-form $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn flatten-form (xs)
-            if (list? xs) (mapcat xs flatten-form) ([] xs)
+            if (list? xs) (mapcat xs flatten-form)
+              [] $ decode-map-as xs 'String
           :examples $ []
           :schema $ :: 'Fn $ {}
             :args $ [] 'Dynamic
-            :return $ :: 'List 'Dynamic
+            :return $ :: 'List 'String
         'match-references $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns)
-            let
-                tokens $ -> form (slice 2) (flatten-form)
-                  filter $ fn (x)
-                    cond
-                        starts-with? x |:
-                        , false
-                      (starts-with? x |.) false
-                      (starts-with? x ||) false
-                      (starts-with? x "|\"") false
-                      (number-token? x) false
-                      true true
-                  map $ fn (x)
-                    -> x (strip-prefix |~@) (strip-prefix |~) (strip-prefix |@)
-                  distinct
-                  map $ fn (x)
-                    cond
-                        contains? current-defs x
-                        {} (:kind :def) (:ns current-ns) (:def x)
-                      (contains? defs-dict x) (get defs-dict x)
-                      (contains? defaults-dict x) (get defaults-dict x)
-                      (includes? x |/)
-                        let[] (ns-part def-part) (split x |/)
-                          if (contains? defs-dict ns-part)
-                            {} (:kind :def)
-                              :ns $ reel.schema/read-field (get ns-dict ns-part) :ns
-                              :def x
-                      true nil
-                  filter some?
-              ; js/console.log |tokens tokens
-              , tokens
+          :code $ quote $ defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns known-namespaces)
+            -> form (slice 2) (flatten-form)
+              filter $ fn (x)
+                not $ or (starts-with? x |:) (starts-with? x |.) (starts-with? x ||) (starts-with? x "|\"")
+              map $ fn (x)
+                -> x (strip-prefix |~@) (strip-prefix |~) (strip-prefix |@)
+              distinct
+              mapcat $ fn (x)
+                cond
+                    contains? current-defs x
+                    [] $ Reference :def current-ns x
+                  (contains? defs-dict x)
+                    [] $ .unwrap $ get defs-dict x
+                  (contains? defaults-dict x)
+                    [] $ .unwrap $ get defaults-dict x
+                  (includes? x |/)
+                    let
+                        parts $ split x |/
+                        ns-part $ .unwrap $ first parts
+                        def-part $ .unwrap $ nth parts 1
+                      match (get ns-dict ns-part)
+                        (:some namespace)
+                          [] $ Reference :def namespace def-part
+                        (:none)
+                          match (get defaults-dict ns-part)
+                            (:some reference) ([] reference)
+                            (:none)
+                              if
+                                or (contains? known-namespaces ns-part) (.contains-value? ns-dict ns-part)
+                                [] $ Reference :def ns-part def-part
+                                []
+                  true $ []
           :examples $ []
           :schema $ :: 'Fn $ {}
-            :args $ [] 'Dynamic (:: 'Map 'String 'Dynamic) (:: 'Map 'String 'Dynamic) (:: 'Map 'String 'Dynamic) (:: 'Set 'String) 'String
-            :return $ :: 'List 'Dynamic
-        'number-token? $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn number-token? (x)
-            let
-                pattern $ unsafe-coerce pattern-number 'app.ast/RegExpHost
-              .test! pattern x
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Bool)
-            :args $ [] 'String
-            :features $ #{} :js-ffi
+            :args $ [] (:: 'List 'Dynamic) (:: 'Map 'String 'String) (:: 'Map 'String 'app.ast/Reference) (:: 'Map 'String 'app.ast/Reference) (:: 'Set 'String) 'String $ :: 'Set 'String
+            :return $ :: 'List 'app.ast/Reference
+          :tests $ [] $ %{} 'TestEntry (:name |alias-refer-default-and-qualified)
+            :code $ quote $ assert=
+              [] (Reference :def |lib.core |run) (Reference :def |lib.core |picked) (Reference :default |dayjs) (Reference :def |app.main |local) (Reference :def |pkg.ns |direct)
+              match-references
+                [] |defn |start ([])
+                  [] |alias/run |picked |day/format |local |pkg.ns/direct |42 |:tag ||text |missing
+                {} $ |alias |lib.core
+                {} $ |picked $ Reference :def |lib.core |picked
+                {} $ |day $ Reference :default |dayjs
+                #{} |local
+                , |app.main $ #{} |pkg.ns
         'parse-rule $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn parse-rule (rule) (; println |rule rule)
-            case-default
-              option:unwrap-or (nth rule 1) |:unknown
-              , nil
-                |:as $ [] :ns $ {}
-                    nth rule 2
-                    {} (:kind :ns)
-                      :alias $ nth rule 2
-                      :ns $ nth rule 0
-                |:refer $ [] :def $ ->
-                  option:unwrap-or (nth rule 2) ([])
-                  map $ fn (def-name)
-                    [] def-name $ {} (:kind :def) (:def def-name)
-                      :ns $ nth rule 0
-                  pairs-map
-                |:default $ [] :default $ &{} (nth rule 2)
-                  {} (:kind :default)
-                    :package $ nth rule 0
-                    :alias $ nth rule 2
+          :code $ quote $ defn parse-rule (rule)
+            let
+                module $ decode-map-as
+                  .unwrap $ first rule
+                  , 'String
+                npm? $ starts-with? module ||
+                source $ if npm? (strip-prefix module ||) module
+              mapcat
+                range 1 (count rule) 2
+                fn (idx)
+                  let
+                      mode $ decode-map-as
+                        .unwrap $ nth rule idx
+                        , 'String
+                      payload $ .unwrap $ nth rule (inc idx)
+                    match mode
+                      |:as $ [] $ if npm?
+                        ImportRule :default source $ decode-map-as payload 'String
+                        ImportRule :alias source $ decode-map-as payload 'String
+                      |:refer $ map
+                        decode-map-as payload $ :: 'List 'String
+                        fn (name)
+                          if npm? (ImportRule :default source name) (ImportRule :refer source name)
+                      |:default $ [] $ ImportRule :default source (decode-map-as payload 'String)
+                      _ $ raise $ str |Unsupported-import-mode: mode
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Dynamic)
-            :args $ [] 'Dynamic
-        'pattern-number $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ def pattern-number (new js/RegExp "|^\\d+(\\.\\d+)?$")
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Dynamic)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ :: 'Fn $ {}
+            :args $ [] $ :: 'List 'Dynamic
+            :return $ :: 'List 'app.ast/ImportRule
+          :tests $ [] $ %{} 'TestEntry (:name |multiple-options-and-npm)
+            :code $ quote $ do
+              assert=
+                [] (ImportRule :alias |lib.core |lib) (ImportRule :refer |lib.core |pick) (ImportRule :refer |lib.core |drop)
+                parse-rule $ [] |lib.core |:as |lib |:refer $ [] |pick |drop
+              assert=
+                [] (ImportRule :default |dayjs |day) (ImportRule :default |dayjs |format)
+                parse-rule $ [] ||dayjs |:as |day |:refer $ [] |format
+              assert=
+                [] $ ImportRule :default |pkg |api
+                parse-rule $ [] ||pkg |:default |api
         'tree->cirru $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn tree->cirru (x)
             decode-map-as
@@ -156,15 +189,6 @@
           :schema $ :: 'Fn $ {}
             :args $ [] 'Dynamic
             :return $ :: 'List 'Dynamic
-        'unify-rule $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn unify-rule (rule)
-            -> rule
-              filter $ fn (x) (not= x |[])
-              map $ fn (x)
-                if (list? x) (unify-rule x) x
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Dynamic)
-            :args $ [] 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.ast
           :require (app.schema :as schema) (reel.schema :as reel-schema)
@@ -544,14 +568,21 @@
         'comp-graph $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-graph (states snapshot)
             let
-                cursor $ reel.schema/read-field states :cursor
-                configs $ reel.schema/read-field snapshot :configs
-                state $ or (reel.schema/read-field states :data)
-                  {} (:graph nil)
-                    :init-fn $ reel.schema/read-field configs :init-fn
-                entry $ split
-                  assert-type (reel.schema/read-field state :init-fn) 'String
-                  , |/
+                cursor $ decode-map-as (reel-schema/read-field states :cursor) (:: 'List 'Dynamic)
+                entries $ decode-map-as (reel-schema/read-field snapshot :entries) (:: 'Map 'Tag 'Dynamic)
+                config $ .unwrap $ get entries :default
+                initial-entry $ to-string $ decode-map-as (reel-schema/read-field config :init-fn) 'Symbol
+                raw-state $ reel-schema/read-field states :data
+                state $ if (nil? raw-state)
+                  {} (:graph nil) (:init-fn initial-entry)
+                  decode-map-as raw-state $ :: 'Map 'Tag 'Dynamic
+                init-fn $ decode-map-as (reel-schema/read-field state :init-fn) 'String
+                entry $ split init-fn |/
+                entry-ns $ .unwrap-or (first entry) |
+                entry-def $ .unwrap-or (nth entry 1) |
+                files $ schema/as-string-map $ reel-schema/read-field snapshot :files
+                package $ decode-map-as (reel-schema/read-field snapshot :package) 'String
+                graph $ reel-schema/read-field state :graph
               div
                 {} $ :class-name $ str-spaced css/expand css/column
                 div
@@ -559,90 +590,90 @@
                     :border-bottom $ str "|1px solid " $ hsl 0 0 90
                     :padding "|8px 4px"
                   button $ {} (:class-name css/button) (:inner-text |Button)
-                    :on-click $ fn (e d!) (; js/console.log snapshot)
-                      d! $ :: :states cursor $ assoc state :graph
-                        build-deps-graph
-                          option:unwrap-or (nth entry 0) |
-                          option:unwrap-or (nth entry 1) |
-                          reel.schema/read-field snapshot :files
-                          reel.schema/read-field snapshot :package
+                    :on-click $ fn (e d!)
+                      d! $ :: :states cursor $ assoc state :graph (build-deps-graph entry-ns entry-def files package)
+                      , &unit
                   =< 8 nil
-                  input $ {}
-                    :value $ reel.schema/read-field state :init-fn
-                    :class-name css/input
+                  input $ {} (:value init-fn) (:class-name css/input)
                     :on-input $ fn (e d!)
                       d! $ :: :states cursor $ assoc state :init-fn
-                        assert-type
-                          option:unwrap $ get e :value
-                          quote String
+                        decode-map-as
+                          .unwrap $ get e :value
+                          , 'String
+                      , &unit
                 div
                   {} (:class-name css/expand)
                     :style $ {} $ :padding |8px
-                  if
-                    some? $ reel.schema/read-field state :graph
-                    comp-graph-tree
-                      option:unwrap-or (nth entry 0) |
-                      option:unwrap-or (nth entry 1) |
-                      reel.schema/read-field state :graph
+                  if (non-nil? graph)
+                    comp-graph-tree entry-ns entry-def
+                      decode-map-as graph $ :: 'Map 'String $ :: 'Map 'String (:: 'List 'app.ast/Reference)
                       #{}
-                      reel.schema/read-field snapshot :files
+                      , files
                     <> "|no graph"
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'T 'U
-            :generics $ [] 'T 'U
+            :args $ [] (:: 'Map 'Dynamic 'Dynamic) 'Dynamic
         'comp-graph-tree $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-graph-tree (ns' def' dict footprints files)
+          :code $ quote $ defcomp comp-graph-tree (ns-name def-name dict footprints files)
             let
-                path $ str ns' |/ def'
+                path $ str ns-name |/ def-name
+                doc $ -> (get files ns-name)
+                  .and-then $ fn (file)
+                    get
+                      schema/as-string-map $ reel-schema/read-field file :defs
+                      , def-name
+                  .map $ fn (entry)
+                    decode-map-as (reel-schema/read-field entry :doc) 'String
+                  .unwrap-or |
               div
                 {} $ :class-name css/row
                 div
                   {} $ :class-name css/column
                   div
                     {} $ :style $ {} (:margin "|0px 0") (:line-height |20px)
-                    <> (str ns' |/)
+                    <> (str ns-name |/)
                       {}
                         :color $ hsl 0 0 70
                         :line-height |14px
                         :font-size |12px
-                    <> def' $ {} (:line-height |20px) (:font-family ui/font-normal)
-                  if-let
-                    doc $ get-in files $ [] ns' :defs def' :doc
-                    comp-md-block doc $ {} (:class-name css/font-normal)
-                      :style $ {} $ :color (hsl 0 0 50)
-                    comp-md-block | $ {}
+                    <> def-name $ {} (:line-height |20px) (:font-family ui/font-normal)
+                  comp-md-block doc $ {} (:class-name css/font-normal)
+                    :style $ {} $ :color (hsl 0 0 50)
                 if (contains? footprints path)
                   <> |Looped $ {} (:display :inline-block) (:margin "|0 4px")
                     :background-color $ hsl 40 80 60
                     :padding "|0 6px"
                     :color :white
                     :border-radius |8px
-                  let
-                      deps $ get-in dict $ [] ns' def'
-                    if (option:some? deps)
+                  match
+                    get-in dict $ [] ns-name def-name
+                    (:some deps)
                       div
                         {} $ :style $ {}
                           :border-left $ str "|1px solid " $ hsl 0 0 90
                           :padding "|0 8px"
                           :margin "|0 8px"
-                        , & $ -> (option:unwrap deps)
-                          map $ fn (dep)
-                            if
-                              = :default $ reel.schema/read-field dep :kind
+                        , & $ map deps $ fn (dep)
+                          match dep
+                            (:default package)
                               div
                                 {} $ :style $ {}
                                   :color $ hsl 200 80 60
                                   :line-height |20px
                                   :text-decoration :underline
-                                <> $ reel.schema/read-field dep :package
-                              comp-graph-tree (reel.schema/read-field dep :ns) (reel.schema/read-field dep :def) dict (include footprints path) files
+                                <> package
+                            (:def namespace name)
+                              comp-graph-tree namespace name dict (include footprints path) files
+                    (:none)
                       div
                         {} $ :style $ {} (:padding "|0 8px") (:line-height |20px)
                         <> |- $ {} $ :color (hsl 0 0 80)
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String 'String (:: 'Map 'String 'Dynamic) (:: 'Set 'String) (:: 'Map 'String 'Dynamic)
+            :args $ [] 'String 'String
+              :: 'Map 'String $ :: 'Map 'String $ :: 'List 'app.ast/Reference
+              :: 'Set 'String
+              :: 'Map 'String 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.graph
           :require
@@ -655,6 +686,7 @@
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
             respo-ui.core :as ui
+            app.schema :as schema
     'app.comp.viewer $ %{} 'FileEntry
       :defs $ {} $ 'comp-viewer
         %{} 'CodeEntry (:doc |)

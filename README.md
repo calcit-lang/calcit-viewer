@@ -34,8 +34,18 @@ CI 保留 canonical source、严格入口、全部项目公开定义、零动态
 
 原配对 0.27.0 的 8 项 dispatch 回归通过，但真实加载当前仓库的 Snapshot 会在
 渲染阶段失败；空 Map 导入测试不能证明现代 Snapshot 可用。新分支的表达式、文件
-和 schema 范围 15 个公开定义已通过严格检查；完整应用仍有 8 个失败定义，依赖图、
-import 规则分析、状态/宿主边界及完整运行时验收尚未完成，不声称修复已经闭环。
+和 schema 范围 15 个公开定义已通过严格检查。依赖分析及图组件的 9 个公开定义也已
+通过，Calcit 自带的 3 项业务回放验证了多选项 import、alias/refer/npm/完整 namespace
+引用及当前仓库的真实 Snapshot 依赖边；没有增加独立测试脚本或框架。
+
+图已改读 `entries.default.init-fn`，修正 alias 查错字典、Option 泄漏和定义名未拆分
+的问题；用 ImportRule/Reference Enum 表达真实关系，保留循环标记。旧 `unify-rule`
+桥梁和数字正则过滤已删除：数字不会解析成合法定义引用，无需 JS RegExp 宿主。
+依赖图仍是源码 token 引用图，不宣称等同编译器消除遮蔽/quote 后的精确调用图。
+
+完整应用目前仍有 4 个失败定义，导入/错误展示、updater 和剩余状态/宿主边界尚未
+完成。新图缓存使用 Reference Enum，存储恢复必须同步处理名义身份/旧缓存，不能
+把本地 native 回放当作浏览器及恢复验收；没有放宽预算或声称整个迁移已闭环。
 
 ### Workflow
 
