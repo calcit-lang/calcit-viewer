@@ -15,13 +15,13 @@
     "vite": "8.3.0"
   },
   "scripts": {
-    "compile": "calcit calcit.cirru js",
+    "compile": "calcit calcit.cirru",
     "build": "vite build",
     "release": "yarn compile && yarn build",
     "dev": "vite"
   },
   "dependencies": {
-    "@calcit/procs": "0.27.0",
+    "@calcit/procs": "0.30.1-alpha.4",
     "cirru-color": "^0.2.4",
     "copy-text-to-clipboard": "^3.2.1",
     "copy-to-clipboard": "^3.3.3",
