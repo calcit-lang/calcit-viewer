@@ -1,16 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import * as clt from '../js-out/calcit.core.mjs';
 import { store } from '../js-out/app.schema.mjs';
 import { updater } from '../js-out/app.updater.mjs';
 import { comp_entry, comp_text_area, on_file_change } from '../js-out/app.comp.container.mjs';
 import * as action from '../js-out/respo-message.action.mjs';
-import { component_$q_, component_tree } from '../js-out/respo.util.detect.mjs';
+import { component_$q_, component_tree, render_node_value } from '../js-out/respo.util.detect.mjs';
+import { make_string } from '../js-out/respo.render.html.mjs';
+import { comp_viewer } from '../js-out/app.comp.viewer.mjs';
 
-const t = clt.init_tags(['click', 'input', 'event', 'children', 'some', 'text', 'page', 'about', 'input', 'upload', 'states', 'graph', 'data', 'value', 'error', 'messages', 'token', 'load/calcit', 'calcit', 'viewer']);
+const t = clt.init_tags(['click', 'input', 'event', 'children', 'node', 'some', 'none', 'text', 'page', 'about', 'input', 'upload', 'states', 'graph', 'data', 'value', 'error', 'messages', 'token', 'load/calcit', 'hydrate-storage', 'calcit', 'viewer']);
 const map = clt._$n__$M_, list = clt._$L_, op = clt._$o__$o_;
 const field = (v, k) => clt.option_$o_unwrap(clt.get(v, k));
 const nth = (v, i) => clt.option_$o_unwrap(clt.nth(v, i));
+const none = field(store, t.error);
+const source = readFileSync(new URL('../calcit.cirru', import.meta.url), 'utf8');
+const snapshot = clt.parse_cirru_edn(source);
+function fileEvent(name) {
+  const event = new Event('change');
+  Object.defineProperty(event, 'target', { value: { files: { item: () => ({ name }) } } });
+  return map(t.event, event);
+}
 function handler(node, tag) {
   if (component_$q_(node)) return handler(clt.option_$o_unwrap(component_tree(node)), tag);
   const event = clt.get(node, t.event);
@@ -22,7 +33,9 @@ function handler(node, tag) {
   if (clt._$n_enum_$o_nth(children, 0) === t.some) {
     const pairs = clt.option_$o_unwrap(children);
     for (let i = 0; i < clt.count(pairs); i++) {
-      const h = handler(nth(nth(pairs, i), 1), tag);
+      const child = field(nth(pairs, i), t.node);
+      if (clt._$n_enum_$o_nth(child, 0) === t.none) continue;
+      const h = handler(render_node_value(clt.option_$o_unwrap(child)), tag);
       if (h) return h;
     }
   }
@@ -39,17 +52,21 @@ test('navigation dispatch round-trips through the Enum updater', () => {
 });
 test('text input and valid import dispatch one Enum', () => {
   let next;
-  handler(comp_text_area('', null), t.input)(map(t.value, 'source'), dispatchTo(store, v => { next = v; }));
+  handler(comp_text_area('', none), t.input)(map(t.value, 'source'), dispatchTo(store, v => { next = v; }));
   assert.equal(field(next, t.text), 'source');
-  const source = clt.format_cirru_edn(map());
-  handler(comp_text_area(source, null), t.click)(null, dispatchTo(store, v => { next = v; }));
+  handler(comp_text_area(source, none), t.click)(null, dispatchTo(store, v => { next = v; }));
   assert.equal(field(next, t.page), t.viewer);
+  assert.equal(clt._$n__$e_(clt.option_$o_unwrap(field(next, t.calcit)), snapshot), true);
+  assert.match(make_string(comp_viewer(snapshot)), /app.main/);
 });
-test('invalid text dispatches an error without changing the page', () => {
+test('invalid imports and malformed restored snapshots do not enter the viewer', () => {
   let next;
-  handler(comp_text_area('not valid cirru edn', null), t.click)(null, dispatchTo(store, v => { next = v; }));
-  assert.equal(typeof field(next, t.error), 'string');
+  handler(comp_text_area('not valid cirru edn', none), t.click)(null, dispatchTo(store, v => { next = v; }));
+  assert.equal(typeof clt.option_$o_unwrap(field(next, t.error)), 'string');
   assert.equal(field(next, t.page), t.input);
+  const malformed = clt.assoc(clt.assoc(store, t.page, t.viewer), t.calcit, clt._PCT_some(map()));
+  assert.throws(() => updater(store, op(t['hydrate-storage'], malformed), 'restore', 1));
+  assert.equal(field(store, t.page), t.input);
 });
 test('message create and payload-free clear use Enum tag/payload, not List Option', () => {
   const created = updater(store, op(action.create, map(t.text, 'fixture', t.token, 'token')), 'create', 1);
@@ -64,26 +81,32 @@ test('state operation keeps exactly one store wrapper', () => {
 });
 test('wrong filename dispatches one error Enum', () => {
   let next;
-  on_file_change(map(t.event, { target: { files: { item: () => ({ name: 'wrong.txt' }) } } }), dispatchTo(store, v => { next = v; }));
-  assert.match(field(next, t.error), /Expected calcit.cirru/);
+  on_file_change(fileEvent('wrong.txt'), dispatchTo(store, v => { next = v; }));
+  assert.match(clt.option_$o_unwrap(field(next, t.error)), /Expected calcit.cirru/);
 });
 
-for (const successful of [true, false]) {
-  test(`FileReader ${successful ? 'load' : 'missing-result'} dispatches one Enum`, () => {
+for (const mode of ['load', 'missing-result', 'error']) {
+  test(`FileReader ${mode} dispatches one Enum`, () => {
     const saved = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
     let next;
     try {
       globalThis.FileReader = class {
+        constructor() {
+          this.result = null;
+          this.onload = null;
+          this.onerror = null;
+        }
         readAsText() {
-          this.result = successful ? clt.format_cirru_edn(map()) : null;
-          this.onload({ target: this });
+          if (mode === 'error') return this.onerror(new Event('error'));
+          this.result = mode === 'load' ? source : null;
+          this.onload(new Event('load'));
         }
       };
-      on_file_change(map(t.event, { target: { files: { item: () => ({ name: 'calcit.cirru' }) } } }), dispatchTo(store, v => { next = v; }));
-      if (successful) {
+      on_file_change(fileEvent('calcit.cirru'), dispatchTo(store, v => { next = v; }));
+      if (mode === 'load') {
         assert.equal(field(next, t.page), t.viewer);
-        assert.equal(clt.count(field(next, t.calcit)), 0);
-      } else assert.match(field(next, t.error), /Failed to read/);
+        assert.equal(clt._$n__$e_(clt.option_$o_unwrap(field(next, t.calcit)), snapshot), true);
+      } else assert.match(clt.option_$o_unwrap(field(next, t.error)), /Failed to read/);
     } finally {
       if (saved) Object.defineProperty(globalThis, 'FileReader', saved);
       else delete globalThis.FileReader;
