@@ -6,24 +6,24 @@
     "includeDependencies": false
   },
   "metrics": {
-    "typeNone": 5,
-    "typeNotFull": 29,
-    "schemaDynamic": 39,
+    "typeNone": 0,
+    "typeNotFull": 15,
+    "schemaDynamic": 20,
     "codeDynamic": 0,
-    "codeNil": 16,
-    "unresolved": 55,
+    "codeNil": 9,
+    "unresolved": 29,
     "declaredOptional": 0,
     "deprecatedCalls": 0,
-    "unsafeCoerce": 12
+    "unsafeCoerce": 0
   },
   "definitions": {
     "app.ast/build-deps-graph": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 2,
+      "schemaDynamic": 1,
       "codeDynamic": 0,
       "codeNil": 0,
-      "unresolved": 2,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -31,10 +31,10 @@
     "app.ast/flatten-form": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 2,
+      "schemaDynamic": 1,
       "codeDynamic": 0,
       "codeNil": 0,
-      "unresolved": 2,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -42,43 +42,21 @@
     "app.ast/match-references": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 5,
+      "schemaDynamic": 1,
       "codeDynamic": 0,
-      "codeNil": 1,
-      "unresolved": 6,
+      "codeNil": 0,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
-    },
-    "app.ast/number-token?": {
-      "typeNone": 0,
-      "typeNotFull": 0,
-      "schemaDynamic": 0,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 0,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 1
     },
     "app.ast/parse-rule": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 2,
-      "codeDynamic": 0,
-      "codeNil": 1,
-      "unresolved": 3,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.ast/pattern-number": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 0,
+      "schemaDynamic": 1,
       "codeDynamic": 0,
       "codeNil": 0,
-      "unresolved": 0,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -94,57 +72,13 @@
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
     },
-    "app.ast/unify-rule": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 2,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 2,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.comp.container/comp-container": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 1,
-      "unresolved": 2,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.comp.container/comp-entry": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 3,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 3,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
     "app.comp.container/comp-file-input": {
       "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
+      "typeNotFull": 0,
+      "schemaDynamic": 0,
       "codeDynamic": 0,
       "codeNil": 1,
-      "unresolved": 2,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.comp.container/comp-text-area": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 2,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 2,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -158,65 +92,10 @@
       "unresolved": 0,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
-      "unsafeCoerce": 6
-    },
-    "app.comp.container/style-entry": {
-      "typeNone": 1,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
       "unsafeCoerce": 0
     },
     "app.comp.expr/comp-expr": {
       "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.comp.expr/format-time": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 0,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 0,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 1
-    },
-    "app.comp.expr/style-date-hint": {
-      "typeNone": 1,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.comp.expr/style-expr": {
-      "typeNone": 1,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.comp.expr/style-leaf": {
-      "typeNone": 1,
       "typeNotFull": 1,
       "schemaDynamic": 1,
       "codeDynamic": 0,
@@ -237,24 +116,13 @@
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
     },
-    "app.comp.file/style-file": {
-      "typeNone": 1,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
     "app.comp.graph/comp-graph": {
       "typeNone": 0,
-      "typeNotFull": 0,
-      "schemaDynamic": 0,
+      "typeNotFull": 1,
+      "schemaDynamic": 3,
       "codeDynamic": 0,
       "codeNil": 2,
-      "unresolved": 2,
+      "unresolved": 5,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -262,10 +130,10 @@
     "app.comp.graph/comp-graph-tree": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 2,
+      "schemaDynamic": 1,
       "codeDynamic": 0,
       "codeNil": 0,
-      "unresolved": 2,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -275,30 +143,8 @@
       "typeNotFull": 1,
       "schemaDynamic": 1,
       "codeDynamic": 0,
-      "codeNil": 4,
-      "unresolved": 5,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.config/site": {
-      "typeNone": 0,
-      "typeNotFull": 0,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.main/*reel": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 1,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 1,
+      "codeNil": 3,
+      "unresolved": 4,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
@@ -314,51 +160,18 @@
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
     },
-    "app.main/main!": {
+    "app.schema/hydrate-store": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 0,
+      "schemaDynamic": 1,
       "codeDynamic": 0,
       "codeNil": 0,
-      "unresolved": 0,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 2
-    },
-    "app.main/persist-storage!": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 0,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 0,
+      "unresolved": 1,
       "declaredOptional": 0,
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
     },
-    "app.main/reload!": {
-      "typeNone": 0,
-      "typeNotFull": 0,
-      "schemaDynamic": 0,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 0,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 1
-    },
-    "app.schema/as-string-map": {
-      "typeNone": 0,
-      "typeNotFull": 1,
-      "schemaDynamic": 0,
-      "codeDynamic": 0,
-      "codeNil": 0,
-      "unresolved": 0,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 1
-    },
-    "app.schema/sort-string-map-entries": {
+    "app.schema/validate-snapshot": {
       "typeNone": 0,
       "typeNotFull": 1,
       "schemaDynamic": 2,
@@ -369,23 +182,12 @@
       "deprecatedCalls": 0,
       "unsafeCoerce": 0
     },
-    "app.schema/store": {
-      "typeNone": 0,
-      "typeNotFull": 0,
-      "schemaDynamic": 0,
-      "codeDynamic": 0,
-      "codeNil": 2,
-      "unresolved": 2,
-      "declaredOptional": 0,
-      "deprecatedCalls": 0,
-      "unsafeCoerce": 0
-    },
-    "app.updater/updater": {
+    "app.schema/without-graph-cache": {
       "typeNone": 0,
       "typeNotFull": 1,
-      "schemaDynamic": 3,
+      "schemaDynamic": 4,
       "codeDynamic": 0,
-      "codeNil": 1,
+      "codeNil": 0,
       "unresolved": 4,
       "declaredOptional": 0,
       "deprecatedCalls": 0,

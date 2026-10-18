@@ -23,14 +23,14 @@
             filter-map-kv files $ fn (ns-name file)
               let
                   ns-info $ reel-schema/read-field file :ns
-                  ns-form $ tree->cirru $ reel-schema/read-field ns-info :code
+                  ns-form $ tree->cirru $ decode-map-as (reel-schema/read-field ns-info :code) 'CirruQuote
                   rules $ mapcat (slice ns-form 2)
                     fn (clause)
                       if (list? clause)
-                        if
-                          = |:require $ .unwrap-or (first clause) nil
-                          slice clause 1
-                          []
+                        match (first clause)
+                          (:some head)
+                            if (= |:require head) (slice clause 1) ([])
+                          (:none) ([])
                         []
                   results $ mapcat rules $ fn (rule)
                     parse-rule $ decode-map-as rule $ :: 'List 'Dynamic
@@ -57,13 +57,13 @@
                         :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
                         :return $ :: 'Map 'String 'app.ast/Reference
                       match rule
-                        (:default package alias)
-                          assoc dict alias $ Reference :default package
+                        (:default package-name alias)
+                          assoc dict alias $ Reference :default package-name
                         _ dict
-                  defs $ schema/as-string-map $ reel-schema/read-field file :defs
+                  defs $ schema/as-string-map $ decode-map-as (reel-schema/read-field file :defs) (:: 'Map 'Symbol 'Dynamic)
                 MapEntryDecision :keep ns-name $ filter-map-kv defs $ fn (name entry)
                   MapEntryDecision :keep name $ match-references
-                    tree->cirru $ reel-schema/read-field entry :code
+                    tree->cirru $ decode-map-as (reel-schema/read-field entry :code) 'CirruQuote
                     , ns-dict defs-dict defaults-dict (keys defs) ns-name $ keys files
           :examples $ []
           :schema $ :: 'Fn $ {}
@@ -76,7 +76,7 @@
                   (:ok text) text
                   (:err message) (raise message)
                 snapshot $ parse-cirru-edn source
-                files $ schema/as-string-map $ reel-schema/read-field snapshot :files
+                files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
                 graph $ build-deps-graph |app.main |main! files |app
                 dispatch-refs $ .unwrap $ get-in graph ([] |app.main |dispatch!)
                 reel-refs $ .unwrap $ get-in graph ([] |app.main |*reel)
@@ -182,12 +182,10 @@
                 parse-rule $ [] ||pkg |:default |api
         'tree->cirru $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn tree->cirru (x)
-            decode-map-as
-              &cirru-quote:to-list $ decode-map-as x 'CirruQuote
-              :: 'List 'Dynamic
+            decode-map-as (&cirru-quote:to-list x) (:: 'List 'Dynamic)
           :examples $ []
           :schema $ :: 'Fn $ {}
-            :args $ [] 'Dynamic
+            :args $ [] 'CirruQuote
             :return $ :: 'List 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.ast
@@ -200,7 +198,8 @@
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
           :schema $ :: 'Trait
         'FileInputHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait FileInputHost (:files 'app.comp.container/FileListHost)
+          :code $ quote $ deftrait FileInputHost
+            :files $ :: 'JsNullish 'app.comp.container/FileListHost
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
           :schema $ :: 'Trait
@@ -215,15 +214,16 @@
           :schema $ :: 'Trait
         'FileReaderHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileReaderHost
-            :result $ :: 'JsNullish 'String
+            :result $ :: 'JsNullish 'JsObject
             :onload 'Dynamic
+            :onerror 'Dynamic
             .read-as-text! $ :: 'Fn $ {}
               :args $ [] 'app.comp.container/FileReaderHost 'app.comp.container/FileHost
               :return 'Unit
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
             :names $ {} $ :read-as-text! |readAsText
-            :writable $ #{} :onload
+            :writable $ #{} :onerror :onload
           :schema $ :: 'Trait
         'comp-about $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-about ()
@@ -236,12 +236,12 @@
         'comp-container $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-container (reel)
             let
-                store $ reel.schema/read-field reel :store
-                states $ reel.schema/read-field store :states
+                store $ :store reel
+                states $ :states store
               div
                 {} $ :class-name $ str-spaced css/global css/fullscreen css/row
                 let
-                    page $ reel.schema/read-field store :page
+                    page $ :page store
                   div
                     {} $ :style $ {}
                       :background-color $ hsl 200 30 24
@@ -251,32 +251,40 @@
                     comp-entry :monitor :viewer page
                     comp-entry :info :about page
                     comp-entry :map :graph page
-                case-default (reel.schema/read-field store :page) (<> "|Unknown route")
+                match (:page store)
                   :viewer $ div
                     {} (:class-name css/expand)
                       :style $ {} (:padding 16) (:overflow :auto)
-                    if
-                      some? $ reel.schema/read-field store :error
-                      <> (reel.schema/read-field store :error)
-                        {} $ :color :red
-                      if
-                        some? $ reel.schema/read-field store :calcit
-                        comp-viewer $ reel.schema/read-field store :calcit
-                        <> |Nothing
-                  :textarea $ comp-text-area (reel.schema/read-field store :text) (reel.schema/read-field store :error)
-                  :input $ comp-file-input $ reel.schema/read-field store :error
+                    match (:error store)
+                      (:some message)
+                        <> message $ {} $ :color :red
+                      (:none)
+                        match (:calcit store)
+                          (:some snapshot)
+                            try (comp-viewer snapshot)
+                              fn (message)
+                                <> message $ {} $ :color :red
+                          (:none) (<> |Nothing)
+                  :textarea $ comp-text-area (:text store) (:error store)
+                  :input $ comp-file-input $ :error store
                   :about $ comp-about
-                  :graph $ comp-graph (>> states :graph) (reel.schema/read-field store :calcit)
-                comp-messages
-                  w-js-log $ reel.schema/read-field store :messages
-                  {}
+                  :graph $ match (:calcit store)
+                    (:some snapshot)
+                      try
+                        comp-graph (>> states :graph) snapshot
+                        fn (message)
+                          <> message $ {} $ :color :red
+                    (:none) (<> |Nothing)
+                  _ $ <> "|Unknown route"
+                comp-messages (:messages store) ({})
                   fn (info d!)
                     d! $ :: action/clear
-                if config/dev? $ comp-inspect :store store $ {} (:bottom 0) (:right 8)
-                comp-reel (>> states :reel) reel $ {}
+                    , &unit
+                when config/dev? $ comp-inspect :store store $ {} (:bottom 0) (:right 8)
+                comp-typed-reel (>> states :reel) reel $ {}
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Dynamic
+            :args $ [] $ :: 'reel.typed/State 'Enum 'app.schema/StoreData
         'comp-entry $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-entry (icon page current-page)
             div
@@ -289,7 +297,7 @@
               comp-i icon 14 $ hsl 200 80 80
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Dynamic 'Dynamic 'Dynamic
+            :args $ [] 'Tag 'Tag 'Tag
         'comp-file-input $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-file-input (error)
             div
@@ -299,10 +307,10 @@
               input $ {} (:type |file) (:on-change on-file-change)
               div
                 {} $ :style $ {} (:color :red)
-                <> error
+                <> $ .unwrap-or error |
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Dynamic
+            :args $ [] $ :: 'Option 'String
         'comp-text-area $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-text-area (text error)
             div
@@ -313,62 +321,70 @@
                 :value text
                 :placeholder "|Paste calcit.cirru content here..."
                 :on-input $ fn (e d!)
-                  d! $ :: :text $ option:unwrap (get e :value)
+                  d! $ :: :text $ decode-map-as
+                    .unwrap $ get e :value
+                    , 'String
+                  , &unit
               div
                 {} $ :style $ {} (:padding 8)
                 button
                   {} (:class-name css/button)
                     :on-click $ fn (e d!)
                       try
-                        d! $ :: :load/calcit $ parse-cirru-edn text
-                        fn (error)
-                          d! $ :: :error $ str error
+                        do
+                          d! $ :: :load/calcit $ parse-cirru-edn text
+                          , &unit
+                        fn (message)
+                          d! $ :: :error message
+                          , &unit
                   <> |Parse
                 div
                   {} $ :style $ {} (:color :red)
-                  <> error
+                  <> $ .unwrap-or error |
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Dynamic 'Dynamic
+            :args $ [] 'String $ :: 'Option 'String
         'on-file-change $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn on-file-change (e d!)
+          :code $ quote $ defn on-file-change (e dispatch)
             let
-                event-host $ unsafe-coerce
-                  option:unwrap $ get e :event
+                d! $ if (fn? dispatch) dispatch $ raise "|Expected dispatch callback"
+                event $ decode-map-as e $ :: 'Map 'Tag 'Dynamic
+                event-host $ js-cast
+                  .unwrap $ get event :event
                   , 'js-ffi.browser/EventHost
-                target $ unsafe-coerce (.-target event-host) 'app.comp.container/FileInputHost
-                files $ .-files target
-                maybe-file $ .item! files 0
-              if (js-present? maybe-file)
+                target $ js-cast (.-target event-host) 'app.comp.container/FileInputHost
+                raw-files $ .-files target
+              when (js-present? raw-files)
                 let
-                    file $ unsafe-coerce maybe-file 'app.comp.container/FileHost
-                    filename $ .-name file
-                  if (not= filename |calcit.cirru)
-                    do
-                      d! $ :: :error $ str "|Expected calcit.cirru , but got " filename
-                      , &unit
+                    files $ js-cast raw-files 'app.comp.container/FileListHost
+                    maybe-file $ .item! files 0
+                  when (js-present? maybe-file)
                     let
-                        reader $ unsafe-coerce (new js/FileReader) 'app.comp.container/FileReaderHost
-                        on-load $ fn (event)
-                          hint-fn $ {}
-                            :args $ [] 'js-ffi.browser/EventHost
-                            :return 'Unit
-                            :features $ #{} :js-ffi
-                          let
-                              event-reader $ unsafe-coerce (.-target event) 'app.comp.container/FileReaderHost
-                              result $ .-result event-reader
-                            if (js-present? result)
-                              do
-                                d! $ :: :load/calcit $ parse-cirru-edn (unsafe-coerce result 'String)
-                                  {} (:CodeEntry schema/CodeEntry) (:Leaf schema/CirruLeaf) (:Expr schema/CirruExpr)
-                                , &unit
-                              do
-                                d! $ :: :error "|Failed to read calcit.cirru"
-                                , &unit
-                      js-set reader :onload on-load
-                      .read-as-text! reader file
-                      , &unit
-                , &unit
+                        file $ js-cast maybe-file 'app.comp.container/FileHost
+                        filename $ .-name file
+                      if (not= filename |calcit.cirru)
+                        d! $ :: :error $ str "|Expected calcit.cirru , but got " filename
+                        let
+                            reader $ js-cast (new js/FileReader) 'app.comp.container/FileReaderHost
+                          js-set reader :onload $ fn (event)
+                            let
+                                result $ .-result reader
+                              if (js-present? result)
+                                try
+                                  do
+                                    d! $ :: :load/calcit $ parse-cirru-edn (expect-string |FileReader.result result)
+                                    , &unit
+                                  fn (message)
+                                    d! $ :: :error message
+                                    , &unit
+                                do
+                                  d! $ :: :error "|Failed to read calcit.cirru"
+                                  , &unit
+                          js-set reader :onerror $ fn (event)
+                            d! $ :: :error "|Failed to read calcit.cirru"
+                            , &unit
+                          .read-as-text! reader file
+            , &unit
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'Unit)
             :args $ [] 'Dynamic 'Dynamic
@@ -379,16 +395,13 @@
               :color $ hsl 0 0 60
               :cursor :pointer
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.container
           :require
             respo-ui.core :refer $ hsl
-            respo-ui.core :as ui
-            respo.core :refer $ defcomp >> <> div button textarea span input pre
+            respo.core :refer $ defcomp >> <> div button textarea input
             respo.comp.space :refer $ =<
-            reel.comp.reel :refer $ comp-reel
-            reel.schema :as reel-schema
             app.comp.viewer :refer $ comp-viewer
             respo-md.comp.md :refer $ comp-md
             feather.core :refer $ comp-i
@@ -397,21 +410,12 @@
             respo-message.comp.messages :refer $ comp-messages
             app.config :as config
             app.comp.graph :refer $ comp-graph
-            app.schema :as schema
             respo-ui.css :as css
             respo.css :refer $ defstyle
-            js-ffi.browser :as browser
+            js-ffi.contract :refer $ expect-string
+            reel.comp.reel :refer $ comp-typed-reel
     'app.comp.expr $ %{} 'FileEntry
       :defs $ {}
-        'DayjsHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait DayjsHost
-            .format! $ :: 'Fn $ {}
-              :args $ [] 'app.comp.expr/DayjsHost 'String
-              :return 'String
-          :examples $ []
-          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-            :names $ {} $ :format! |format
-          :schema $ :: 'Trait
         'comp-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-expr (expr last?)
             list->
@@ -438,21 +442,6 @@
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
             :args $ [] (:: 'List 'Dynamic) 'Bool
-        'format-time $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn format-time (value)
-            ->
-              unsafe-coerce (dayjs value) 'app.comp.expr/DayjsHost
-              .format! "|YY MM-DD"
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'String)
-            :args $ [] 'Dynamic
-            :features $ #{} :js-ffi
-        'style-date-hint $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-date-hint
-            {} $ |& $ {} (:font-size 12) (:white-space :nowrap)
-              :color $ hsl 0 0 60
-          :examples $ []
-          :schema $ :: 'Dynamic
         'style-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-expr
             {}
@@ -467,34 +456,28 @@
                 :background-color $ hsl 300 0 98
                 :outline :none
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'String
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
             {} $ |& $ {} (:display :inline-flex) (:margin-right 8)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.expr
           :require
             respo-ui.core :refer $ hsl
-            respo-ui.core :as ui
-            respo.core :refer $ defcomp <> list-> div button span input pre
-            respo.comp.space :refer $ =<
-            app.ast :refer $ tree->cirru
-            reel.schema :as reel-schema
+            respo.core :refer $ defcomp <> list-> div
             |copy-to-clipboard :default copy!
             respo-message.action :as action
-            app.schema :as schema
             respo.css :refer $ defstyle
             respo-ui.css :as css
-            |dayjs :default dayjs
     'app.comp.file $ %{} 'FileEntry
       :defs $ {}
         'comp-file $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-file (filename file-info)
             let
                 ns-info $ reel-schema/read-field file-info :ns
-                defs $ schema/as-string-map $ reel-schema/read-field file-info :defs
+                defs $ schema/as-string-map $ decode-map-as (reel-schema/read-field file-info :defs) (:: 'Map 'Symbol 'Dynamic)
               div
                 {} $ :class-name $ str-spaced css/row style-file
                 <> filename
@@ -513,31 +496,29 @@
                         decode-map-as (reel-schema/read-field ns-info :doc) 'String
                         {} $ :class-name css/font-normal
                     comp-expr
-                      tree->cirru $ reel-schema/read-field ns-info :code
+                      tree->cirru $ decode-map-as (reel-schema/read-field ns-info :code) 'CirruQuote
                       , false
                   list->
                     {} $ :style $ {}
                       :border-left $ str "|1px solid " $ hsl 0 0 70
                       :padding-left 16
                       :margin-bottom 2
-                    -> defs (&map:to-list)
-                      map $ fn (entry)
-                        let-sugar
-                              [] def-name def-info
-                              , entry
-                          [] def-name $ div
-                            {} $ :class-name css/column
-                            div
-                              {} $ :class-name css/row
-                              <> def-name $ {} (:white-space :nowrap)
-                                :color $ hsl 0 0 70
-                              =< 8 nil
-                              comp-md-block
-                                decode-map-as (reel-schema/read-field def-info :doc) 'String
-                                {} $ :class-name css/font-normal
-                            comp-expr
-                              tree->cirru $ reel-schema/read-field def-info :code
-                              , false
+                    -> defs
+                      filter-map-kv $ fn (def-name def-info)
+                        MapEntryDecision :keep def-name $ div
+                          {} $ :class-name css/column
+                          div
+                            {} $ :class-name css/row
+                            <> def-name $ {} (:white-space :nowrap)
+                              :color $ hsl 0 0 70
+                            =< 8 nil
+                            comp-md-block
+                              decode-map-as (reel-schema/read-field def-info :doc) 'String
+                              {} $ :class-name css/font-normal
+                          comp-expr
+                            tree->cirru $ decode-map-as (reel-schema/read-field def-info :code) 'CirruQuote
+                            , false
+                      &map:to-list
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
             :args $ [] 'String 'Dynamic
@@ -548,7 +529,7 @@
               :padding-left 8
               :font-family "|Source Code Pro, menlo"
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.file
           :require
@@ -580,8 +561,8 @@
                 entry $ split init-fn |/
                 entry-ns $ .unwrap-or (first entry) |
                 entry-def $ .unwrap-or (nth entry 1) |
-                files $ schema/as-string-map $ reel-schema/read-field snapshot :files
-                package $ decode-map-as (reel-schema/read-field snapshot :package) 'String
+                files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
+                package-name $ decode-map-as (reel-schema/read-field snapshot :package) 'String
                 graph $ reel-schema/read-field state :graph
               div
                 {} $ :class-name $ str-spaced css/expand css/column
@@ -591,7 +572,7 @@
                     :padding "|8px 4px"
                   button $ {} (:class-name css/button) (:inner-text |Button)
                     :on-click $ fn (e d!)
-                      d! $ :: :states cursor $ assoc state :graph (build-deps-graph entry-ns entry-def files package)
+                      d! $ :: :states cursor $ assoc state :graph (build-deps-graph entry-ns entry-def files package-name)
                       , &unit
                   =< 8 nil
                   input $ {} (:value init-fn) (:class-name css/input)
@@ -612,7 +593,7 @@
                     <> "|no graph"
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] (:: 'Map 'Dynamic 'Dynamic) 'Dynamic
+            :args $ [] (:: 'Map 'Dynamic 'Dynamic) (:: 'Map 'Tag 'Dynamic)
         'comp-graph-tree $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-graph-tree (ns-name def-name dict footprints files)
             let
@@ -620,7 +601,7 @@
                 doc $ -> (get files ns-name)
                   .and-then $ fn (file)
                     get
-                      schema/as-string-map $ reel-schema/read-field file :defs
+                      schema/as-string-map $ decode-map-as (reel-schema/read-field file :defs) (:: 'Map 'Symbol 'Dynamic)
                       , def-name
                   .map $ fn (entry)
                     decode-map-as (reel-schema/read-field entry :doc) 'String
@@ -655,13 +636,13 @@
                           :margin "|0 8px"
                         , & $ map deps $ fn (dep)
                           match dep
-                            (:default package)
+                            (:default package-name)
                               div
                                 {} $ :style $ {}
                                   :color $ hsl 200 80 60
                                   :line-height |20px
                                   :text-decoration :underline
-                                <> package
+                                <> package-name
                             (:def namespace name)
                               comp-graph-tree namespace name dict (include footprints path) files
                     (:none)
@@ -690,30 +671,27 @@
     'app.comp.viewer $ %{} 'FileEntry
       :defs $ {} $ 'comp-viewer
         %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-viewer (calcit)
-            div ({})
-              div ({}) (<> |Namespace:) (=< 8 nil)
-                <> $ reel.schema/read-field calcit :package
-              div ({}) (<> |Users:) (=< 8 nil)
-                <> $ reel.schema/read-field calcit :users
-              div ({}) (<> |Configs:) (=< 8 nil)
-                <> $ reel.schema/read-field calcit :configs
-              div
-                {} $ :style ui/row
-                <> |Files:
-                =< 16 nil
-                list-> ({})
-                  ->
-                    schema/as-string-map $ reel.schema/read-field calcit :files
-                    &map:to-list
-                    map $ fn (entry)
-                      let-sugar
-                            [] filename file-info
-                            , entry
-                        [] filename $ comp-file filename file-info
+          :code $ quote $ defcomp comp-viewer (snapshot)
+            let
+                package-name $ decode-map-as (reel-schema/read-field snapshot :package) 'String
+                entries $ decode-map-as (reel-schema/read-field snapshot :entries) (:: 'Map 'Tag 'Dynamic)
+                files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
+              div ({})
+                div ({}) (<> |Namespace:) (=< 8 nil) (<> package-name)
+                div ({}) (<> |Entries:) (=< 8 nil)
+                  <> $ format-cirru-edn entries
+                div
+                  {} $ :style ui/row
+                  <> |Files:
+                  =< 16 nil
+                  list-> ({})
+                    -> files
+                      filter-map-kv $ fn (filename file-info)
+                        MapEntryDecision :keep filename $ comp-file filename file-info
+                      &map:to-list
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Dynamic
+            :args $ [] $ :: 'Map 'Tag 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.viewer
           :require
@@ -735,65 +713,82 @@
           :code $ quote $ def site
             {} (:dev-ui |http://localhost:8100/main.css) (:title "|Calcit Viewer") (:icon |http://cdn.tiye.me/logo/cirru.png) (:storage-key |calcit-viewer)
           :examples $ []
-          :schema $ :: 'Dynamic
+          :schema $ :: 'Map 'Tag 'String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.config
     'app.main $ %{} 'FileEntry
       :defs $ {}
         '*reel $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defatom *reel
-            -> reel-schema/reel (assoc :base schema/store) (assoc :store schema/store)
+          :code $ quote $ defref *reel (typed/new-reel schema/store)
           :examples $ []
-          :schema $ :: 'Ref $ :: 'Map 'Tag 'Dynamic
+          :schema $ :: 'Ref $ :: 'reel.typed/State 'Enum 'app.schema/StoreData
         'dispatch! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn dispatch! (op)
-            reset! *reel $ reel-updater updater @*reel op
+            let
+                checked $ if (enum? op) op $ raise |Expected-Enum-operation
+              match (typed/decode-control checked)
+                (:some control)
+                  reset! *reel $ typed/apply-control updater @*reel control
+                (:none)
+                  reset! *reel $ typed/record-op updater @*reel checked (generate-id!)
+                    :timestamp $ date-now-snapshot
+            , &unit
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'Unit)
             :args $ [] 'Dynamic
         'main! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
-            if config/dev? $ load-console-formatter!
+            when config/dev? $ load-console-formatter!
             render-app!
-            add-watch *reel :changes $ fn (r p) (render-app!)
+            add-watch! *reel :changes $ fn (current previous) (render-app!)
             listen-devtools! |k dispatch!
-            js/window.addEventListener |beforeunload $ fn (event) (persist-storage!)
-            js/window.addEventListener |visibilitychange $ fn (event)
-              if
-                = |hidden $ unsafe-coerce js/document.visibilityState 'String
-                persist-storage!
-            let
-                raw $ js/localStorage.getItem $ reel-schema/read-field config/site :storage-key
-              when (js-present? raw)
-                dispatch! $ :: :hydrate-storage $ parse-cirru-edn (unsafe-coerce raw 'String)
+            browser/set-before-unload! $ fn (event) (persist-storage!)
+            browser/document-add-event-listener! |visibilitychange $ fn (event)
+              match (browser/visibility-state)
+                (:hidden) (persist-storage!)
+                _ &unit
+            match
+              browser/storage-get $ .unwrap $ get config/site :storage-key
+              (:some raw)
+                try
+                  dispatch! $ :: :hydrate-storage $ parse-cirru-edn raw
+                    {} $ :Option Option
+                  fn (message)
+                    dispatch! $ :: :text raw
+                    dispatch! $ :: :page :textarea
+                    dispatch! $ :: :error $ str "|无法恢复旧存档，原始内容已保留在草稿中，请先备份。 " message
+              (:none) &unit
             println "|App started."
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Dynamic)
+          :schema $ :: 'Fn $ {} (:return 'Unit)
             :args $ []
             :features $ #{} :js-ffi
         'mount-target $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def mount-target
-            option:unwrap $ query-selector |.app
+            narrow-element $ .unwrap $ browser/query-selector |.app
           :examples $ []
-          :schema $ :: 'js-ffi.browser/DomElementHost
+          :schema $ :: 'respo.dom/DomElement
         'persist-storage! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn persist-storage! ()
-            println "|Saved at" $ reel-schema/read-field (js-shared/date-now-snapshot) :iso
-            js/localStorage.setItem (reel-schema/read-field config/site :storage-key)
-              format-cirru-edn $ reel-schema/read-field @*reel :store
+            let
+                store $ :store @*reel
+              browser/storage-set!
+                .unwrap $ get config/site :storage-key
+                format-cirru-edn $ assoc store :states $ schema/without-graph-cache (:states store)
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Dynamic)
+          :schema $ :: 'Fn $ {} (:return 'Unit)
             :args $ []
             :features $ #{} :js-ffi
         'reload! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn reload! ()
             if (nil? build-errors)
-              do (remove-watch *reel :changes) (clear-cache!)
-                add-watch *reel :changes $ fn (reel prev) (render-app!)
-                reset! *reel $ unsafe-coerce (refresh-reel @*reel schema/store updater) (:: 'Map 'Tag 'Dynamic)
+              do (remove-watch! *reel :changes) (clear-cache!)
+                add-watch! *reel :changes $ fn (current previous) (render-app!)
+                reset! *reel $ typed/refresh updater @*reel schema/store
                 hud! |ok~ |Ok
               hud! |error build-errors
+            , &unit
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'Unit)
             :args $ []
@@ -807,99 +802,177 @@
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.main
           :require
-            respo.core :refer $ render! clear-cache! realize-ssr!
+            respo.core :refer $ render! clear-cache!
             app.comp.container :refer $ comp-container
             app.updater :refer $ updater
             app.schema :as schema
             reel.util :refer $ listen-devtools!
-            reel.core :refer $ reel-updater refresh-reel
-            reel.schema :as reel-schema
+            reel.typed :as typed
             app.config :as config
             |./calcit.build-errors :default build-errors
             |bottom-tip :default hud!
-            js-ffi.browser :refer $ query-selector
-            js-ffi.shared :as js-shared
+            js-ffi.browser :as browser
+            respo.ffi.browser :refer $ narrow-element
+            js-ffi.shared :refer $ date-now-snapshot
     'app.schema $ %{} 'FileEntry
       :defs $ {}
-        'CirruExpr $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstruct CirruExpr (:by 'Dynamic) (:at 'Dynamic) (:data 'Dynamic)
-          :examples $ []
-          :schema $ :: 'Enum
-        'CirruLeaf $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstruct CirruLeaf (:at 'Dynamic) (:by 'Dynamic) (:text 'Dynamic)
-          :examples $ []
-          :schema $ :: 'Enum
-        'CodeEntry $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstruct CodeEntry (:doc 'Dynamic) (:code 'Dynamic)
-          :examples $ []
-          :schema $ :: 'Enum
         'StoreData $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstruct StoreData
             :states $ :: 'Map 'Dynamic 'Dynamic
-            :error 'Dynamic
-            :calcit 'Dynamic
+            :error $ :: 'Option 'String
+            :calcit $ :: 'Option $ :: 'Map 'Tag 'Dynamic
             :page 'Tag
             :text 'String
-            :messages $ :: 'Map 'Dynamic 'Dynamic
+            :messages $ :: 'Map 'String 'Dynamic
           :examples $ []
-          :schema $ :: 'Enum
+          :schema $ :: 'StructDef
         'as-string-map $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn as-string-map (x)
-            filter-map-kv
-              decode-map-as x $ :: 'Map 'Symbol 'Dynamic
-              fn (k v)
-                MapEntryDecision :keep (to-string k) v
+            filter-map-kv x $ fn (k v)
+              MapEntryDecision :keep (to-string k) v
+          :examples $ []
+          :schema $ :: 'Fn $ {}
+            :args $ [] $ :: 'Map 'Symbol 'V
+            :generics $ [] 'V
+            :return $ :: 'Map 'String 'V
+        'hydrate-store $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn hydrate-store (data)
+            let
+                fields $ if (struct? data)
+                  struct-match data
+                    StoreData checked $ .to-map checked
+                    _ other $ raise "|Expected StoreData archive"
+                  decode-map-as data $ :: 'Map 'Tag 'Dynamic
+                without-error-nil $ if
+                  nil? $ reel-schema/read-field fields :error
+                  dissoc fields :error
+                  , fields
+                without-calcit-nil $ if
+                  nil? $ reel-schema/read-field fields :calcit
+                  dissoc without-error-nil :calcit
+                  , without-error-nil
+                checked $ decode-map-as without-calcit-nil 'app.schema/StoreData
+              assoc checked :states $ without-graph-cache $ :states checked
+          :examples $ []
+          :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
+            :args $ [] 'Dynamic
+          :tests $ [] $ %{} 'TestEntry (:name |legacy-nil-and-derived-cache)
+            :code $ quote $ let
+                archive "|%{} 'StoreData (:states ({} (:graph ({} (:data ({} (:init-fn |custom/run) (:graph ({})))))) (:other ({} (:data |keep))))) (:error nil) (:calcit nil) (:page :input) (:text |draft) (:messages ({}))"
+                restored $ hydrate-store $ parse-cirru-edn archive
+                states $ :states restored
+              assert= true $ .none? $ :error restored
+              assert= true $ .none? $ :calcit restored
+              assert= |draft $ :text restored
+              assert= |custom/run $ .unwrap $ get-in states ([] :graph :data :init-fn)
+              assert= true $ .none? $ get-in states ([] :graph :data :graph)
+              assert= |keep $ .unwrap $ get-in states ([] :other :data)
+        'store $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ def store
+            StoreData :states ({}) :error (Option :none) :calcit (Option :none) :page :input :text | :messages $ {}
+          :examples $ []
+          :schema $ :: 'app.schema/StoreData
+        'validate-snapshot $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn validate-snapshot (data)
+            let
+                snapshot $ decode-map-as data $ :: 'Map 'Tag 'Dynamic
+              decode-map-as (reel-schema/read-field snapshot :package) 'String
+              decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
+              let
+                  entries $ decode-map-as (reel-schema/read-field snapshot :entries) (:: 'Map 'Tag 'Dynamic)
+                  default-entry $ decode-map-as (reel-schema/read-field entries :default) (:: 'Map 'Tag 'Dynamic)
+                decode-map-as (reel-schema/read-field default-entry :init-fn) 'Symbol
+              , snapshot
           :examples $ []
           :schema $ :: 'Fn $ {}
             :args $ [] 'Dynamic
-            :return $ :: 'Map 'String 'Dynamic
-        'sort-string-map-entries $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn sort-string-map-entries (xs)
-            sort xs $ fn (a b)
-              hint-fn $ {}
-                :args $ [] (:: List Dynamic) (:: List Dynamic)
-                :return Number
-              &compare
-                option:unwrap $ first a
-                option:unwrap $ first b
+            :return $ :: 'Map 'Tag 'Dynamic
+        'without-graph-cache $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn without-graph-cache (states)
+            match (get states :graph)
+              (:none) states
+              (:some raw-branch)
+                let
+                    branch $ decode-map-as raw-branch $ :: 'Map 'Dynamic 'Dynamic
+                  match (get branch :data)
+                    (:none) states
+                    (:some raw-data)
+                      if (nil? raw-data) states $ assoc states :graph $ assoc branch :data
+                        dissoc
+                          decode-map-as raw-data $ :: 'Map 'Tag 'Dynamic
+                          , :graph
           :examples $ []
           :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'List (:: 'List 'Dynamic)
-            :return $ :: 'List $ :: 'List 'Dynamic
-        'store $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ def store
-            StoreData :states ({}) :error nil :calcit nil :page :input :text | :messages $ {}
-          :examples $ []
-          :schema $ :: 'app.schema/StoreData
+            :args $ [] $ :: 'Map 'Dynamic 'Dynamic
+            :return $ :: 'Map 'Dynamic 'Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.schema
+          :require $ reel.schema :as reel-schema
     'app.updater $ %{} 'FileEntry
       :defs $ {} $ 'updater
         %{} 'CodeEntry (:doc |)
           :code $ quote $ defn updater (store op op-id op-time)
             if
               action/message-action? $ &enum:nth op 0
-              assoc store :messages $ update-messages (reel-schema/read-field store :messages) (&enum:nth op 0)
-                if
-                  > (&enum:count op) 1
-                  &enum:nth op 1
-                  {}
-                , op-id op-time
+              assoc store :messages $ decode-map-as
+                update-messages (:messages store) (&enum:nth op 0)
+                  if
+                    > (&enum:count op) 1
+                    &enum:nth op 1
+                    {}
+                  , op-id op-time
+                :: 'Map 'String 'Dynamic
               match op
-                (:states cursor s) (update-states store cursor s)
+                (:states cursor data)
+                  assoc store :states $ decode-map-as
+                    update-state-tree (:states store)
+                      decode-map-as cursor $ :: 'List 'Dynamic
+                      , data
+                    :: 'Map 'Dynamic 'Dynamic
                 (:load/calcit data)
-                  -> store (assoc :calcit data) (assoc :error nil) (assoc :page :viewer)
-                (:text t) (assoc store :text t)
-                (:error e) (assoc store :error e)
-                (:page p) (assoc store :page p)
-                (:hydrate-storage d) d
+                  struct-with store
+                    :calcit $ Option :some $ schema/validate-snapshot data
+                    :error $ Option :none
+                    :page :viewer
+                    :states $ schema/without-graph-cache $ :states store
+                (:text text)
+                  assoc store :text $ decode-map-as text 'String
+                (:error message)
+                  assoc store :error $ Option :some $ decode-map-as message 'String
+                (:page page)
+                  assoc store :page $ decode-map-as page 'Tag
+                (:hydrate-storage data) (schema/hydrate-store data)
+                _ store
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
-            :args $ [] 'app.schema/StoreData 'Dynamic 'Dynamic 'Dynamic
+            :args $ [] 'app.schema/StoreData 'Enum 'String 'Number
+          :tests $ [] $ %{} 'TestEntry (:name |canonical-snapshot-store-roundtrip)
+            :code $ quote $ let
+                source $ match
+                  .read-text $ fs:path |calcit.cirru
+                  (:ok text) text
+                  (:err message) (raise message)
+                snapshot $ parse-cirru-edn source
+                loaded $ updater schema/store (:: :load/calcit snapshot) |load 1
+                cached $ updater loaded
+                  :: :states ([] :graph)
+                    {} (:init-fn |custom/run)
+                      :graph $ {} $ :stale :cache
+                  , |graph 2
+                restored $ updater cached
+                  :: :hydrate-storage $ parse-cirru-edn (format-cirru-edn cached)
+                    {} $ :Option Option
+                  , |restore 3
+              assert= snapshot $ .unwrap $ :calcit loaded
+              assert= (:calcit loaded) (:calcit restored)
+              assert= :viewer $ :page restored
+              assert= true $ .none? $ :error restored
+              assert= |custom/run $ .unwrap $ get-in (:states restored) ([] :graph :data :init-fn)
+              assert= true $ .none? $ get-in (:states restored) ([] :graph :data :graph)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.updater
           :require
-            respo.cursor :refer $ update-states
+            respo.cursor :refer $ update-state-tree
             respo-message.action :as action
             respo-message.updater :refer $ update-messages
-            reel.schema :as reel-schema
+            app.schema :as schema
