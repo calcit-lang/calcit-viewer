@@ -10,7 +10,7 @@ import { component_$q_, component_tree, render_node_value } from '../js-out/resp
 import { make_string } from '../js-out/respo.render.html.mjs';
 import { comp_viewer } from '../js-out/app.comp.viewer.mjs';
 
-const t = clt.init_tags(['click', 'input', 'event', 'children', 'node', 'some', 'none', 'text', 'page', 'about', 'input', 'upload', 'states', 'graph', 'data', 'value', 'error', 'messages', 'token', 'load/calcit', 'calcit', 'viewer']);
+const t = clt.init_tags(['click', 'input', 'event', 'children', 'node', 'some', 'none', 'text', 'page', 'about', 'input', 'upload', 'states', 'graph', 'data', 'value', 'error', 'messages', 'token', 'load/calcit', 'hydrate-storage', 'calcit', 'viewer']);
 const map = clt._$n__$M_, list = clt._$L_, op = clt._$o__$o_;
 const field = (v, k) => clt.option_$o_unwrap(clt.get(v, k));
 const nth = (v, i) => clt.option_$o_unwrap(clt.nth(v, i));
@@ -59,11 +59,14 @@ test('text input and valid import dispatch one Enum', () => {
   assert.equal(clt._$n__$e_(clt.option_$o_unwrap(field(next, t.calcit)), snapshot), true);
   assert.match(make_string(comp_viewer(snapshot)), /app.main/);
 });
-test('invalid text dispatches an error without changing the page', () => {
+test('invalid imports and malformed restored snapshots do not enter the viewer', () => {
   let next;
   handler(comp_text_area('not valid cirru edn', none), t.click)(null, dispatchTo(store, v => { next = v; }));
   assert.equal(typeof clt.option_$o_unwrap(field(next, t.error)), 'string');
   assert.equal(field(next, t.page), t.input);
+  const malformed = clt.assoc(clt.assoc(store, t.page, t.viewer), t.calcit, clt._PCT_some(map()));
+  assert.throws(() => updater(store, op(t['hydrate-storage'], malformed), 'restore', 1));
+  assert.equal(field(store, t.page), t.input);
 });
 test('message create and payload-free clear use Enum tag/payload, not List Option', () => {
   const created = updater(store, op(action.create, map(t.text, 'fixture', t.token, 'token')), 'create', 1);

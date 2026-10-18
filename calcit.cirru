@@ -852,7 +852,9 @@
                   dissoc without-error-nil :calcit
                   , without-error-nil
                 checked $ decode-map-as without-calcit-nil 'app.schema/StoreData
-              assoc checked :states $ without-graph-cache $ :states checked
+              assoc
+                assoc checked :states $ without-graph-cache $ :states checked
+                , :calcit $ .map (:calcit checked) validate-snapshot
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
             :args $ [] 'Dynamic
@@ -867,6 +869,11 @@
               assert= |custom/run $ .unwrap $ get-in states ([] :graph :data :init-fn)
               assert= true $ .none? $ get-in states ([] :graph :data :graph)
               assert= |keep $ .unwrap $ get-in states ([] :other :data)
+              assert= true $ try
+                do
+                  hydrate-store $ assoc store :calcit $ Option :some ({})
+                  , false
+                fn (message) true
         'store $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def store
             StoreData :states ({}) :error (Option :none) :calcit (Option :none) :page :input :text | :messages $ {}
