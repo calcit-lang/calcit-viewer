@@ -18,6 +18,7 @@ CI 检查 canonical source、全部定义、完整 strict、零动态方法/弃�
 
 前端 `dist` 使用 COS Action 1.2.0 的 `public-base-url` 内置校验，
 没有额外 CDN 校验脚本。PR 按 number/run/attempt 隔离上传资源、各自排队，
+fork 与 Dependabot PR 保留完整门禁和构建，但不上传 COS 预览；不为上传扩大密钥权限。
 不取消正在上传的任务。生产 COS 前缀和原服务器 `dist/*` →
 `/web-assets/repo/${repository}` 保持不变，PR 不执行生产服务器同步。
 

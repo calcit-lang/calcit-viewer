@@ -83,7 +83,8 @@ jobs:
           node --test scripts/dispatch-regression.test.mjs
 
       - name: Upload and verify static assets on COS
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        # Dependabot PRs do not receive ordinary Actions deployment secrets.
+        if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
         uses: worktools/cos-upload-action@v1.2.0
         with:
           source-dir: dist
