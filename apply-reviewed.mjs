@@ -28,8 +28,11 @@ const restore=structuredClone(old[10]);
 assert.equal(restore[0],'match');assert.equal(restore[2][0][0],':some');assert.equal(restore[3][0][0],':none');
 const attempt=restore[2][1];assert.equal(attempt[0],'try');assert.equal(attempt.length,3);
 assert.equal(attempt[1][0],'dispatch!');assert.equal(attempt[2][0],'fn');assert.deepEqual(attempt[2][1],['message']);assert.equal(attempt[2].length,5);
-attempt[1]=['do',attempt[1],'true'];attempt[2].push('false');restore[3][1]='true';
-const body=['let',[['restored?',restore]],old[5],old[6],old[7],['when','restored?',old[8],old[9]],old[11]];
+// The old installed watch rendered synchronously from hydrate dispatch inside
+// this try. Retain that catch scope, but do not install persistence beforehand.
+attempt[1]=['do',attempt[1],old[5],'true'];
+attempt[2].push(old[5],'false');restore[3][1]=['do',old[5],'true'];
+const body=['let',[['restored?',restore]],old[6],old[7],['when','restored?',old[8],old[9]],old[11]];
 main.code=[...old.slice(0,5),body];
 for(let i=11;i>=6;i--)ops.push(['tree','delete',main.id,'--path','@'+i]);
 ops.push(['tree','replace',main.id,'--path','@5','--input-format','json-ast','--code',JSON.stringify(body),'--expect','quote $ render-app!']);
