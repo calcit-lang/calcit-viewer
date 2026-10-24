@@ -1,0 +1,69 @@
+name: Temporary official Viewer formal migration
+on:
+  push:
+    branches: [prepare/viewer-formal031]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Enable Corepack
+        run: |
+          corepack enable
+          corepack prepare yarn@4.18.0 --activate
+      - uses: calcit-lang/setup-calcit@v1.5.0
+        with:
+          tools: calcit,caps
+          caps-version: "0.1.1"
+          deps-file: deps.cirru
+      - name: Install coherent released graph
+        run: |
+          set -euo pipefail
+          caps --strict --ci
+          yarn install --immutable
+          caps verify --toolchain
+          git diff --quiet -- deps.cirru package.json yarn.lock .yarnrc.yml
+      - name: Original actual assertions before source edits
+        run: |
+          set -euo pipefail
+          mkdir -p acceptance
+          calcit --check-only --all-defs
+          calcit test --list --format json > acceptance/test-list-before.json
+          calcit test --require-match --summary-only
+          yarn compile
+          node --test scripts/dispatch-regression.test.mjs
+      - name: Official guarded atomic source transaction
+        run: node apply-reviewed.mjs
+      - name: Full final gates and original assertions
+        run: |
+          set -euo pipefail
+          calcit calcit.cirru edit format
+          calcit --check-only --all-defs
+          calcit fix --workflow strict --verify --format json | tee acceptance/strict.json | jq -e '.data.workflow.status == "passed" and .diagnostics == []'
+          calcit analyze weak-types --only dynamic-method --summary-only --format json | tee acceptance/dynamic-method.json | jq -e '.data.summary.findings == 0'
+          calcit analyze weak-types --only deprecated-call --summary-only --format json | tee acceptance/deprecated.json | jq -e '.data.summary.calls == 0'
+          calcit analyze quality --baseline config/calcit-upgrade-baseline.json
+          git diff --quiet -- config/calcit-upgrade-baseline.json scripts/dispatch-regression.test.mjs
+          calcit test --list --format json > acceptance/test-list-after.json
+          calcit test --require-match --summary-only
+          yarn release
+          node --test scripts/dispatch-regression.test.mjs
+          cp calcit.cirru acceptance/snapshot.cirru
+          cp -R dist acceptance/dist
+      - name: Save official evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: viewer-formal-evidence
+          path: acceptance/
+          if-no-files-found: error
+          retention-days: 7
