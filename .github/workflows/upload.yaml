@@ -16,6 +16,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -38,13 +39,13 @@ jobs:
           corepack prepare yarn@4.18.0 --activate
           yarn --version
 
-      # Current Respo modules still request preceding compatible releases, so
-      # strict Caps resolution rejects the highest SemVer set selected here.
       - name: Install and validate dependencies
         run: |
-          caps --ci
+          set -euo pipefail
+          caps --strict --ci
           yarn install --immutable
           caps verify --toolchain
+          git diff --quiet -- deps.cirru package.json yarn.lock .yarnrc.yml
 
       - name: Check Calcit snapshot
         run: |
@@ -52,9 +53,11 @@ jobs:
           test ! -e compact.cirru
           test ! -e package.cirru
           calcit calcit.cirru edit format
-          git diff --exit-code -- calcit.cirru
+          git diff --quiet -- calcit.cirru
           calcit calcit.cirru --check-only --all-defs
-          calcit calcit.cirru fix --workflow strict --verify
+          report="$(calcit calcit.cirru fix --workflow strict --verify --format json)"
+          printf '%s\n' "$report"
+          jq -e '.data.workflow.status == "passed" and .diagnostics == []' <<< "$report"
           calcit calcit.cirru analyze weak-types --only dynamic-method --summary-only --format json | jq -e '.data.summary.findings == 0'
           calcit calcit.cirru analyze weak-types --only deprecated-call --summary-only --format json | jq -e '.data.summary.calls == 0'
           calcit calcit.cirru analyze quality --baseline config/calcit-upgrade-baseline.json
@@ -83,6 +86,7 @@ jobs:
           node --test scripts/dispatch-regression.test.mjs
 
       - name: Upload and verify static assets on COS
+        timeout-minutes: 10
         # Dependabot PRs do not receive ordinary Actions deployment secrets.
         if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
         uses: worktools/cos-upload-action@v1.2.0
