@@ -6,7 +6,13 @@ Calcit Viewer
 
 Demo http://repo.calcit-lang.org/calcit-viewer/ .
 
-### 开发与部署
+### 本轮使用者影响
+
+继续使用配对正式 Calcit/procs 0.30.1，本轮依赖图不变。仅将 import rule 与表达式列表的
+两处 `count` 改为已知 List 的 `.len`；引用分析、渲染顺序、复制行为、存档保护和实际 `hud!`
+均不改变。原 5 项原生／9 项 JS 测试及质量预算保留，不增加验证脚本，不合并或部署。
+
+### 开发与部署（既有迁移记录）
 
 本分支正在从 `0.30.1-alpha.4` 迁移到配对的正式 Calcit/procs `0.30.1`，
 仍使用 `calcit.cirru` / `deps.cirru`。本地完整类型、业务测试和基础浏览器验收已通过；
