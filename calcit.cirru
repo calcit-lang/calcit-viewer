@@ -706,7 +706,7 @@
       :defs $ {}
         'dev? $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def dev?
-            = |dev $ option:unwrap-or (get-env |mode) |release
+            = |dev $ .unwrap-or (get-env |mode) |release
           :examples $ []
           :schema $ :: 'Bool
         'site $ %{} 'CodeEntry (:doc |)
@@ -740,26 +740,33 @@
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
             when config/dev? $ load-console-formatter!
-            render-app!
-            add-watch! *reel :changes $ fn (current previous) (render-app!)
-            listen-devtools! |k dispatch!
-            browser/set-before-unload! $ fn (event) (persist-storage!)
-            browser/document-add-event-listener! |visibilitychange $ fn (event)
-              match (browser/visibility-state)
-                (:hidden) (persist-storage!)
-                _ &unit
-            match
-              browser/storage-get $ .unwrap $ get config/site :storage-key
-              (:some raw)
-                try
-                  dispatch! $ :: :hydrate-storage $ parse-cirru-edn raw
-                    {} $ :Option Option
-                  fn (message)
-                    dispatch! $ :: :text raw
-                    dispatch! $ :: :page :textarea
-                    dispatch! $ :: :error $ str "|无法恢复旧存档，原始内容已保留在草稿中，请先备份。 " message
-              (:none) &unit
-            println "|App started."
+            let
+                restored? $ match
+                  browser/storage-get $ .unwrap $ get config/site :storage-key
+                  (:some raw)
+                    try
+                      do
+                        dispatch! $ :: :hydrate-storage $ parse-cirru-edn raw
+                          {} $ :Option Option
+                        render-app!
+                        , true
+                      fn (message)
+                        dispatch! $ :: :text raw
+                        dispatch! $ :: :page :textarea
+                        dispatch! $ :: :error $ str "|无法恢复旧存档，原始内容已保留在草稿中，请先备份。 " message
+                        render-app!
+                        , false
+                  (:none)
+                    do (render-app!) true
+              add-watch! *reel :changes $ fn (current previous) (render-app!)
+              listen-devtools! |k dispatch!
+              when restored?
+                browser/set-before-unload! $ fn (event) (persist-storage!)
+                browser/document-add-event-listener! |visibilitychange $ fn (event)
+                  match (browser/visibility-state)
+                    (:hidden) (persist-storage!)
+                    _ &unit
+              println "|App started."
           :examples $ []
           :schema $ :: 'Fn $ {} (:return 'Unit)
             :args $ []
