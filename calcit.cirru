@@ -148,7 +148,7 @@
                 npm? $ starts-with? module ||
                 source $ if npm? (strip-prefix module ||) module
               mapcat
-                range 1 (count rule) 2
+                range 1 (.len rule) 2
                 fn (idx)
                   let
                       mode $ decode-map-as
@@ -435,7 +435,7 @@
                       :token code
               map-indexed expr $ fn (idx child)
                 [] idx $ if (list? child)
-                  comp-expr child $ = idx $ dec (count expr)
+                  comp-expr child $ = idx $ dec (.len expr)
                   div
                     {} $ :class-name $ str-spaced css/column style-leaf
                     <> $ decode-map-as child 'String
