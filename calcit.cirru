@@ -95,7 +95,8 @@
           :code $ quote $ defstyle style-expr
             {}
               |& $ {} (:display :block) (:padding "|0 0 0 10px") (:margin "|1px 0") (:border-left "|1px solid hsl(0, 0%, 86%)") (:border-radius |4px)
-              |&:hover $ {} $ :background-color "|hsla(200, 80%, 60%, 0.06)"
+              |&:hover $ {} $ :background-color "|hsla(200, 80%, 60%, 0.08)"
+              "|&:has([class*=style-expr]:hover)" $ {} $ :background-color :transparent
           :examples $ []
           :schema $ quote String
         'style-flat $ %{} 'CodeEntry (:doc |)
