@@ -64,7 +64,7 @@ test('invalid imports and malformed restored snapshots do not enter the viewer',
   handler(comp_text_area('not valid cirru edn', none), t.click)(null, dispatchTo(store, v => { next = v; }));
   assert.equal(typeof clt.option_$o_unwrap(field(next, t.error)), 'string');
   assert.equal(field(next, t.page), t.input);
-  const malformed = clt.assoc(clt.assoc(store, t.page, t.viewer), t.calcit, clt._PCT_some(map()));
+  const malformed = clt.assoc(clt.assoc(store, t.page, t.viewer), t.calcit, clt._PCT__$o__$o_(clt.Option, clt.newTag('some'), map()));
   assert.throws(() => updater(store, op(t['hydrate-storage'], malformed), 'restore', 1));
   assert.equal(field(store, t.page), t.input);
 });

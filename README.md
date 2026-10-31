@@ -1,102 +1,49 @@
+# Calcit Viewer
 
-Calcit Viewer
-----
+读取 canonical `calcit.cirru` 的源码与引用图。
+Demo: http://repo.calcit-lang.org/calcit-viewer/ 。
 
-> a simple viewer to read `calcit.cirru`.
+### 使用者影响：Calcit 0.32.1
 
-Demo http://repo.calcit-lang.org/calcit-viewer/ .
+开发与 CI 配对正式 Calcit / `@calcit/procs` **0.32.1**，需要重新安装依赖、生成 JS 并刷新页面，不跨 HMR 保留旧 Store 或回调。使用实际已发布 Reel 0.7.0、Feather 0.5.0、Markdown 0.5.0、UI 0.9.0、Respo 0.17.1、JS-FFI 0.2.9；Message 仍为 0.1.0-alpha.4，传递 Router 为 0.9.0-alpha.4，如实保留尚无对应正式版的依赖。
 
-### 本轮使用者影响
+项目版本保持 0.1.3，不发布 tag/npm，也不合并或部署生产。文本/文件导入、引用图、复制和真实 `hud!` 保留。源码数据仍为 FileEntry/NsEntry/CodeEntry 与 quoted AST；不伪造旧逐叶编辑时间，引用图仍是源码 token 图，不声称等同消除遮蔽/quote 后的编译器调用图。
 
-继续使用配对正式 Calcit/procs 0.30.1，本轮依赖图不变。仅将 import rule 与表达式列表的
-两处 `count` 改为已知 List 的 `.len`；引用分析、渲染顺序、复制行为、存档保护和实际 `hud!`
-均不改变。原 5 项原生／9 项 JS 测试及质量预算保留，不增加验证脚本，不合并或部署。
+### 迁移与存档合同
 
-### 开发与部署（既有迁移记录）
+- 官方 formatter 转换 11 处旧类型形式。引用图的已知两层 Map 改为两次 `get` 与 Option 连接，避免把当前 `get-in` 的 Result 当作 Option；缺失引用继续显示占位，不以 Dynamic 掩盖 List 类型。
+- 入口派发保留开放 Enum、原 `enum?` 守卫及 Reel control/业务处理；Fn 参数从 Dynamic 收紧为 Enum。现有 CLI 的 type-slot 需定义路径，因此显式 Enum schema 的 `DispatchOp` 代表值只用来绑定槽，不会被派发，也不是业务名义类型或默认事件。不使用 `:dynamic` 或新增强转。
+- 旧 `StoreData` 存档按 wire 数据恢复：同名 Struct 先取字段，再经过原完整字段校验、嵌套 Snapshot 验证及派生缓存清理，构造本地 StoreData。名称仅作格式标记，不等同名义来源；错误名称、错误字段和坏 Snapshot 仍拒绝。原 Map 输入继续受检，不通过改写原测试为本地实例来掩盖兼容问题。
+- 保留 `calcit-viewer` 存储键、草稿、页面与自定义入口；旧 nil 的 error/calcit 转为 Option，派生图缓存重算。恢复失败仍展示原文和错误，并暂停本会话自动保存，避免覆盖原档；新编辑也不会自动保存，请先备份。不会自动清空或删除存档。
 
-本分支正在从 `0.30.1-alpha.4` 迁移到配对的正式 Calcit/procs `0.30.1`，
-仍使用 `calcit.cirru` / `deps.cirru`。本地完整类型、业务测试和基础浏览器验收已通过；
-前述验收属于旧 alpha 候选，不等于本轮正式图验收。正式 CI、原测试与浏览器需重新确认，
-不以版本声明或旧绿色检查代替；本轮尚未合并或部署。
-运行 `yarn release` 先生成 JS 再构建前端；`VITE_BASE_URL` 决定资源地址。
-CI 检查 canonical source、全部定义、完整 strict、零动态方法/弃用调用、
-收紧后的既有质量预算、原生附着测试及 Enum dispatch 回归。
-不新增改写规则、证明特性或验证框架，不重复输出无失败条件的类型清单。
+### 开发与验证
 
-前端 `dist` 使用 COS Action 1.2.0 的 `public-base-url` 内置校验，
-没有额外 CDN 校验脚本。PR 按 number/run/attempt 隔离上传资源、各自排队，
-fork 与 Dependabot PR 保留完整门禁和构建，但不上传 COS 预览；不为上传扩大密钥权限。
-不取消正在上传的任务。生产 COS 前缀和原服务器 `dist/*` →
-`/web-assets/repo/${repository}` 保持不变，PR 不执行生产服务器同步。
+使用 Node.js 24、Yarn 4.18.0、Caps 0.1.1。新解析出的 npm 版本须已发布至少 60 分钟，无单包例外；已有 immutable 锁版本不重新计算年龄。
 
-正式图使用严格 Caps 安装及工具链检查；Actions 保留精确正式 tag，接受 tag 可移动风险。
-只有 4 个逐项审阅并获得授权的真实入口迁移边界预算；其余定义只收紧、不放宽。
+```sh
+caps --strict --ci
+yarn install --immutable
+caps verify --toolchain
+calcit --check-only --all-defs
+calcit fix --workflow strict --verify --format edn
+calcit analyze quality --baseline config/calcit-upgrade-baseline.json
+calcit test --require-match
+yarn release
+node --test scripts/dispatch-regression.test.mjs
+```
 
-正式依赖图采用 Reel 0.6.42、Feather 0.4.31、Markdown 0.4.60、Message 0.0.39、
-UI 0.8.1、Respo 0.16.126 和 js-ffi 0.2.6。不是从较新 0.31 main 取源码或回退它们。
-Node 24 / Yarn 4.18 / Vite 8.3.3；移除旧 alpha 的包预批准，不增加新的安装例外。
-本地仅允许官方只读 query/tree 视图；不执行 Caps 或编译器 check/build/codegen/源码写入。
-源码变更和完整门禁由官方 Linux 0.30.1 CI 执行，保留真实 `hud!` 和全部原测试。
+只维护 calcit.cirru/deps.cirru；不恢复 compact/package，不提交 js-out。原质量预算与全部断言保留，unsafe/typeNone/deprecated 上限仍为 0。原 5 项原生测试只同步当前 Result/get API，原 9 项 JS 测试只同步命名 Option 构造；不减少测试或新增验证脚本。
 
-### 0.30.1 源码迁移进行中
+外部 Snapshot/存档和异构 UI 状态仍有真实 Dynamic，不能把 unsafe=0 宣称为完全类型闭合。原生/Node 验收不代替真实浏览器导入、剪贴板或全部历史存档兼容验证。
 
-用户需要注意：目标输入是当前 canonical Snapshot 的 FileEntry/NsEntry/CodeEntry
-和 quoted AST，不再把代码当作旧编辑器的带时间戳 Leaf/Expr 树。当前格式没有逐叶
-编辑时间，表达式展示不再伪造该日期。原复制表达式和消息操作保留。
+### 前端部署
 
-已将表达式输入改为受检 CirruQuote → List，namespace/定义的 Symbol 名称转换为
-展示用 String，文件渲染不再通过 `get-in` 穿透 Struct 字段。没有新增并行启动器、
-测试框架或 COS 校验脚本。
+`VITE_BASE_URL` 指定资源地址。原 COS action v1.2.0 只上传 `dist/`，用 `public-base-url` 内置 verify，不加独立校验脚本。PR 使用 number/run/attempt 隔离前缀、分别排队；fork 与 Dependabot 仍检查构建但不上传。
 
-原配对 0.27.0 的 8 项 dispatch 回归通过，但真实加载当前仓库的 Snapshot 会在
-渲染阶段失败；空 Map 导入测试不能证明现代 Snapshot 可用。本轮保留原业务断言，
-改用真实 canonical Snapshot 和原生 Event fixture，并补齐既有 FileReader 测试组的
-error 分支，共 9 项通过；Calcit 自带 5 项附着测试覆盖 import/引用分析和旧存档/当前
-Snapshot 往返，没有新增独立验证脚本或框架。
-
-图已改读 `entries.default.init-fn`，修正 alias 查错字典、Option 泄漏和定义名未拆分
-的问题；用 ImportRule/Reference Enum 表达真实关系，保留循环标记。旧 `unify-rule`
-桥梁和数字正则过滤已删除：数字不会解析成合法定义引用，无需 JS RegExp 宿主。
-依赖图仍是源码 token 引用图，不宣称等同编译器消除遮蔽/quote 后的精确调用图。
-
-Store 使用真实 Struct 与 Option，Reel 使用 typed API。当前 Snapshot 原始元数据完整
-保留，Symbol→String helper 的值类型 V 真实透传，不用自由泛型掩盖异构数据。
-FileReader 按真实可空宿主结果检查 String，读取/解析失败显示错误。
-
-升级后请完整刷新页面，不跨热重载保留旧回调或 Store。继续使用原 `calcit-viewer`
-存储键：旧 nil 的 error/calcit 转为 Option；保留草稿、页面和自定义入口，只移除派生
-图缓存以重新计算。不能恢复的原始存档保留为草稿并提示先备份，不静默丢弃。
-
-本轮修复恢复失败后的离页保存风险：先恢复再首次渲染，失败仍显示原文草稿和错误，
-但不启用该会话的自动保存，避免原始存档在离页或刷新时被改写。该会话的新编辑也不会
-自动保存，请先备份原文后重新载入；不自动清空存档，不宣称提供完整恢复/重置 UI。
-正常恢复或原本没有存档时，保留原保存逻辑及派生图缓存清理格式。隔离坏存档验收仍待授权。
-
-[正式准备 CI 40121545917](https://github.com/calcit-lang/calcit-viewer/actions/runs/40121545917)
-已通过严格依赖安装/工具链配对、全定义检查、完整 strict（诊断为空）、零动态方法/弃用调用、
-原质量预算及修改前后各 5/5 原生、9/9 JS 原测试和构建。44 个本地定义和全部附着断言、
-元数据与配置逐项受保护；真实 HUD 和存档输出格式未改。最终 PR CI/COS、正式图浏览器导入、
-图展示/刷新恢复及坏存档专项验收仍须分别确认，准备 CI 不替代这些证据。
-
-此前 alpha.4 的全部 345 个定义、完整 strict、5/5 原生测试、9/9 JS 业务测试和生产构建通过。
-当时真实浏览器通过文件选择导入本仓库 calcit.cirru、源码展示、依赖图/循环、自定义入口、
-刷新恢复（保留入口和 Snapshot、清除派生缓存）。这不是所有历史格式的完整兼容承诺。
-
-基线按授权全局收紧：unsafe/typeNone/deprecated 为 0；typeNotFull 29→15、
-schemaDynamic 39→20、unresolved 55→29、codeNil 16→9。四个边界是图 UI 状态、
-Snapshot 校验、存档恢复与派生缓存清理；外部 Snapshot/异构 UI 数据仍如实保留 Dynamic。
-既有质量基线仅作过渡门禁，不扩展编译器硬编码迁移系统。
-
-发现并反馈上游 [JS 保留字绑定](https://github.com/calcit-lang/calcit/issues/2156) 和
-[时钟后端支持合同](https://github.com/calcit-lang/calcit/issues/2159)。消费者局部变量
-使用合法名称；操作时间使用正式 js-ffi DateSnapshot.timestamp，保留 epoch 毫秒语义，
-不改成单调时钟或伪造 0/nil。根 npm dayjs 仍被正式 respo-ui 使用，不能因删除本项目
-旧日期展示而误删；lock 同步到兼容范围内正式 patch。
+原生产 COS 前缀、rsync 源 `dist/*` 与 `/web-assets/repo/${repository}` 目标不变，只有 main push 同步服务器，不部署后端。Actions 使用既有精确正式 tag，接受 tag 可移动风险，不增加忽略配置或密钥权限。
 
 ### Workflow
 
-Workflow https://github.com/calcit-lang/respo-calcit-workflow
-
-### License
+https://github.com/calcit-lang/respo-calcit-workflow
 
 MIT

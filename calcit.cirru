@@ -6,18 +6,18 @@
     {} (:description |) (:init-fn 'app.main/main!) (:mode :js) (:reload-fn 'app.main/reload!) (:target :browser)
       :feature-policy $ {}
       :modules $ [] |respo.calcit/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |js-ffi/
-      :type-slots $ {}
+      :type-slots $ {} $ :dispatch-op |app.schema/DispatchOp
   :files $ {}
     'app.ast $ %{} 'FileEntry
       :defs $ {}
         'ImportRule $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defenum ImportRule (:alias 'String 'String) (:refer 'String 'String) (:default 'String 'String)
           :examples $ []
-          :schema $ :: 'EnumDef
+          :schema $ quote EnumDef
         'Reference $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defenum Reference (:def 'String 'String) (:default 'String)
           :examples $ []
-          :schema $ :: 'EnumDef
+          :schema $ quote EnumDef
         'build-deps-graph $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn build-deps-graph (entry-ns entry-def files pkg)
             filter-map-kv files $ fn (ns-name file)
@@ -36,26 +36,20 @@
                     parse-rule $ decode-map-as rule $ :: 'List 'Dynamic
                   ns-dict $ fold results ({})
                     fn (dict rule)
-                      hint-fn $ {}
-                        :args $ [] (:: 'Map 'String 'String) 'app.ast/ImportRule
-                        :return $ :: 'Map 'String 'String
+                      hint-fn $ Fn (Map String String) app.ast/ImportRule $ -> (Map String String)
                       match rule
                         (:alias namespace alias) (assoc dict alias namespace)
                         _ dict
                   defs-dict $ fold results ({})
                     fn (dict rule)
-                      hint-fn $ {}
-                        :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
-                        :return $ :: 'Map 'String 'app.ast/Reference
+                      hint-fn $ Fn (Map String app.ast/Reference) app.ast/ImportRule $ -> (Map String app.ast/Reference)
                       match rule
                         (:refer namespace name)
                           assoc dict name $ Reference :def namespace name
                         _ dict
                   defaults-dict $ fold results ({})
                     fn (dict rule)
-                      hint-fn $ {}
-                        :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
-                        :return $ :: 'Map 'String 'app.ast/Reference
+                      hint-fn $ Fn (Map String app.ast/Reference) app.ast/ImportRule $ -> (Map String app.ast/Reference)
                       match rule
                         (:default package-name alias)
                           assoc dict alias $ Reference :default package-name
@@ -66,9 +60,8 @@
                     tree->cirru $ decode-map-as (reel-schema/read-field entry :code) 'CirruQuote
                     , ns-dict defs-dict defaults-dict (keys defs) ns-name $ keys files
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'String 'String (:: 'Map 'String 'Dynamic) 'String
-            :return $ :: 'Map 'String $ :: 'Map 'String (:: 'List 'app.ast/Reference)
+          :schema $ quote $ Fn String String (Map String Dynamic) String
+            -> $ Map String $ Map String (List app.ast/Reference)
           :tests $ [] $ %{} 'TestEntry (:name |current-canonical-snapshot)
             :code $ quote $ let
                 source $ match
@@ -78,8 +71,12 @@
                 snapshot $ parse-cirru-edn source
                 files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
                 graph $ build-deps-graph |app.main |main! files |app
-                dispatch-refs $ .unwrap $ get-in graph ([] |app.main |dispatch!)
-                reel-refs $ .unwrap $ get-in graph ([] |app.main |*reel)
+                dispatch-refs $ .unwrap $ get
+                  .unwrap $ get graph |app.main
+                  , |dispatch!
+                reel-refs $ .unwrap $ get
+                  .unwrap $ get graph |app.main
+                  , |*reel
               assert= true $ contains? graph |app.ast
               assert= true $ .includes? dispatch-refs $ Reference :def |app.updater |updater
               assert= true $ .includes? reel-refs $ Reference :def |app.schema |store
@@ -88,9 +85,8 @@
             if (list? xs) (mapcat xs flatten-form)
               [] $ decode-map-as xs 'String
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'Dynamic
-            :return $ :: 'List 'String
+          :schema $ quote $ Fn Dynamic
+            -> $ List String
         'match-references $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns known-namespaces)
             -> form (slice 2) (flatten-form)
@@ -125,9 +121,8 @@
                                 []
                   true $ []
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] (:: 'List 'Dynamic) (:: 'Map 'String 'String) (:: 'Map 'String 'app.ast/Reference) (:: 'Map 'String 'app.ast/Reference) (:: 'Set 'String) 'String $ :: 'Set 'String
-            :return $ :: 'List 'app.ast/Reference
+          :schema $ quote $ Fn (List Dynamic) (Map String String) (Map String app.ast/Reference) (Map String app.ast/Reference) (Set String) String (Set String)
+            -> $ List app.ast/Reference
           :tests $ [] $ %{} 'TestEntry (:name |alias-refer-default-and-qualified)
             :code $ quote $ assert=
               [] (Reference :def |lib.core |run) (Reference :def |lib.core |picked) (Reference :default |dayjs) (Reference :def |app.main |local) (Reference :def |pkg.ns |direct)
@@ -166,9 +161,8 @@
                       |:default $ [] $ ImportRule :default source (decode-map-as payload 'String)
                       _ $ raise $ str |Unsupported-import-mode: mode
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'List 'Dynamic
-            :return $ :: 'List 'app.ast/ImportRule
+          :schema $ quote $ Fn (List Dynamic)
+            -> $ List app.ast/ImportRule
           :tests $ [] $ %{} 'TestEntry (:name |multiple-options-and-npm)
             :code $ quote $ do
               assert=
@@ -184,9 +178,8 @@
           :code $ quote $ defn tree->cirru (x)
             decode-map-as (&cirru-quote:to-list x) (:: 'List 'Dynamic)
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'CirruQuote
-            :return $ :: 'List 'Dynamic
+          :schema $ quote $ Fn CirruQuote
+            -> $ List Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.ast
           :require (app.schema :as schema) (reel.schema :as reel-schema)
@@ -196,43 +189,39 @@
           :code $ quote $ deftrait FileHost (:name 'String)
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-          :schema $ :: 'Trait
+          :schema $ quote Trait
         'FileInputHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileInputHost
-            :files $ :: 'JsNullish 'app.comp.container/FileListHost
+            :files $ quote $ JsNullish app.comp.container/FileListHost
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-          :schema $ :: 'Trait
+          :schema $ quote Trait
         'FileListHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileListHost
-            .item! $ :: 'Fn $ {}
-              :args $ [] 'app.comp.container/FileListHost 'Number
-              :return $ :: 'JsNullish 'app.comp.container/FileHost
+            .item! $ quote $ Fn app.comp.container/FileListHost Number
+              -> $ JsNullish app.comp.container/FileHost
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
             :names $ {} $ :item! |item
-          :schema $ :: 'Trait
+          :schema $ quote Trait
         'FileReaderHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileReaderHost
-            :result $ :: 'JsNullish 'JsObject
+            :result $ quote $ JsNullish JsObject
             :onload 'Dynamic
             :onerror 'Dynamic
-            .read-as-text! $ :: 'Fn $ {}
-              :args $ [] 'app.comp.container/FileReaderHost 'app.comp.container/FileHost
-              :return 'Unit
+            .read-as-text! $ quote $ Fn app.comp.container/FileReaderHost app.comp.container/FileHost (-> Unit)
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
             :names $ {} $ :read-as-text! |readAsText
             :writable $ #{} :onerror :onload
-          :schema $ :: 'Trait
+          :schema $ quote Trait
         'comp-about $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-about ()
             div
               {} $ :style $ {} (:padding 8)
               comp-md "|Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/calcit-lang/calcit-viewer ." $ {}
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ []
+          :schema $ quote $ Fn (-> respo.schema/Component)
         'comp-container $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-container (reel)
             let
@@ -283,8 +272,7 @@
                 when config/dev? $ comp-inspect :store store $ {} (:bottom 0) (:right 8)
                 comp-typed-reel (>> states :reel) reel $ {}
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] $ :: 'reel.typed/State 'Enum 'app.schema/StoreData
+          :schema $ quote $ Fn (reel.typed/State Enum app.schema/StoreData) (-> respo.schema/Component)
         'comp-entry $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-entry (icon page current-page)
             div
@@ -296,8 +284,7 @@
                   d! $ :: :page page
               comp-i icon 14 $ hsl 200 80 80
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Tag 'Tag 'Tag
+          :schema $ quote $ Fn Tag Tag Tag (-> respo.schema/Component)
         'comp-file-input $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-file-input (error)
             div
@@ -309,8 +296,7 @@
                 {} $ :style $ {} (:color :red)
                 <> $ .unwrap-or error |
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] $ :: 'Option 'String
+          :schema $ quote $ Fn (Option String) (-> respo.schema/Component)
         'comp-text-area $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-text-area (text error)
             div
@@ -342,8 +328,7 @@
                   {} $ :style $ {} (:color :red)
                   <> $ .unwrap-or error |
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String $ :: 'Option 'String
+          :schema $ quote $ Fn String (Option String) (-> respo.schema/Component)
         'on-file-change $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn on-file-change (e dispatch)
             let
@@ -386,16 +371,14 @@
                           .read-as-text! reader file
             , &unit
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ [] 'Dynamic 'Dynamic
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn Dynamic Dynamic (-> Unit) (:features :js-ffi)
         'style-entry $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-entry
             {} $ |& $ {} (:font-size 28) (:width 48) (:height 48)
               :color $ hsl 0 0 60
               :cursor :pointer
           :examples $ []
-          :schema $ :: 'String
+          :schema $ quote String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.container
           :require
@@ -440,8 +423,7 @@
                     {} $ :class-name $ str-spaced css/column style-leaf
                     <> $ decode-map-as child 'String
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] (:: 'List 'Dynamic) 'Bool
+          :schema $ quote $ Fn (List Dynamic) Bool (-> respo.schema/Component)
         'style-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-expr
             {}
@@ -456,12 +438,12 @@
                 :background-color $ hsl 300 0 98
                 :outline :none
           :examples $ []
-          :schema $ :: 'String
+          :schema $ quote String
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
             {} $ |& $ {} (:display :inline-flex) (:margin-right 8)
           :examples $ []
-          :schema $ :: 'String
+          :schema $ quote String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.expr
           :require
@@ -520,8 +502,7 @@
                             , false
                       &map:to-list
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String 'Dynamic
+          :schema $ quote $ Fn String Dynamic (-> respo.schema/Component)
         'style-file $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-file
             {} $ |& $ {}
@@ -529,7 +510,7 @@
               :padding-left 8
               :font-family "|Source Code Pro, menlo"
           :examples $ []
-          :schema $ :: 'String
+          :schema $ quote String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.file
           :require
@@ -592,8 +573,7 @@
                       , files
                     <> "|no graph"
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] (:: 'Map 'Dynamic 'Dynamic) (:: 'Map 'Tag 'Dynamic)
+          :schema $ quote $ Fn (Map Dynamic Dynamic) (Map Tag Dynamic) (-> respo.schema/Component)
         'comp-graph-tree $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-graph-tree (ns-name def-name dict footprints files)
             let
@@ -627,7 +607,8 @@
                     :color :white
                     :border-radius |8px
                   match
-                    get-in dict $ [] ns-name def-name
+                    .and-then (get dict ns-name)
+                      fn (defs) (get defs def-name)
                     (:some deps)
                       div
                         {} $ :style $ {}
@@ -650,11 +631,11 @@
                         {} $ :style $ {} (:padding "|0 8px") (:line-height |20px)
                         <> |- $ {} $ :color (hsl 0 0 80)
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String 'String
-              :: 'Map 'String $ :: 'Map 'String $ :: 'List 'app.ast/Reference
-              :: 'Set 'String
-              :: 'Map 'String 'Dynamic
+          :schema $ quote $ Fn String String
+            Map String $ Map String $ List app.ast/Reference
+            Set String
+            Map String Dynamic
+            -> respo.schema/Component
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.graph
           :require
@@ -690,8 +671,7 @@
                         MapEntryDecision :keep filename $ comp-file filename file-info
                       &map:to-list
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] $ :: 'Map 'Tag 'Dynamic
+          :schema $ quote $ Fn (Map Tag Dynamic) (-> respo.schema/Component)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.comp.viewer
           :require
@@ -708,12 +688,12 @@
           :code $ quote $ def dev?
             = |dev $ .unwrap-or (get-env |mode) |release
           :examples $ []
-          :schema $ :: 'Bool
+          :schema $ quote Bool
         'site $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def site
             {} (:dev-ui |http://localhost:8100/main.css) (:title "|Calcit Viewer") (:icon |http://cdn.tiye.me/logo/cirru.png) (:storage-key |calcit-viewer)
           :examples $ []
-          :schema $ :: 'Map 'Tag 'String
+          :schema $ quote $ Map Tag String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.config
     'app.main $ %{} 'FileEntry
@@ -721,7 +701,7 @@
         '*reel $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defref *reel (typed/new-reel schema/store)
           :examples $ []
-          :schema $ :: 'Ref $ :: 'reel.typed/State 'Enum 'app.schema/StoreData
+          :schema $ quote $ Ref (reel.typed/State Enum app.schema/StoreData)
         'dispatch! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn dispatch! (op)
             let
@@ -734,8 +714,7 @@
                     :timestamp $ date-now-snapshot
             , &unit
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ [] 'Dynamic
+          :schema $ quote $ Fn Enum (-> Unit)
         'main! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
@@ -768,14 +747,12 @@
                     _ &unit
               println "|App started."
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
         'mount-target $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def mount-target
             narrow-element $ .unwrap $ browser/query-selector |.app
           :examples $ []
-          :schema $ :: 'respo.dom/DomElement
+          :schema $ quote respo.dom/DomElement
         'persist-storage! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn persist-storage! ()
             let
@@ -784,9 +761,7 @@
                 .unwrap $ get config/site :storage-key
                 format-cirru-edn $ assoc store :states $ schema/without-graph-cache (:states store)
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
         'reload! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn reload! ()
             if (nil? build-errors)
@@ -797,15 +772,12 @@
               hud! |error build-errors
             , &unit
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
         'render-app! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn render-app! ()
             render! mount-target (comp-container @*reel) dispatch!
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
+          :schema $ quote $ Fn (-> Unit)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.main
           :require
@@ -823,32 +795,38 @@
             js-ffi.shared :refer $ date-now-snapshot
     'app.schema $ %{} 'FileEntry
       :defs $ {}
+        'DispatchOp $ %{} 'CodeEntry
+          :doc "|Respo 的真实入口是开放 Enum；此代表值只为现有 CLI 的路径式 type-slot 配置提供显式 Enum schema，不会被派发，不是业务名义类型或默认事件。运行时仍保留原 enum? 守卫和受检业务解码。"
+          :code $ quote $ def DispatchOp
+            :: :states ([]) ({})
+          :examples $ []
+          :schema $ quote Enum
         'StoreData $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstruct StoreData
-            :states $ :: 'Map 'Dynamic 'Dynamic
-            :error $ :: 'Option 'String
-            :calcit $ :: 'Option $ :: 'Map 'Tag 'Dynamic
+            :states $ quote $ Map Dynamic Dynamic
+            :error $ quote $ Option String
+            :calcit $ quote $ Option (Map Tag Dynamic)
             :page 'Tag
             :text 'String
-            :messages $ :: 'Map 'String 'Dynamic
+            :messages $ quote $ Map String Dynamic
           :examples $ []
-          :schema $ :: 'StructDef
+          :schema $ quote StructDef
         'as-string-map $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn as-string-map (x)
             filter-map-kv x $ fn (k v)
               MapEntryDecision :keep (to-string k) v
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'Map 'Symbol 'V
-            :generics $ [] 'V
-            :return $ :: 'Map 'String 'V
+          :schema $ quote $ Fn (Map Symbol V)
+            -> $ Map String V
+            :generics V
         'hydrate-store $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn hydrate-store (data)
             let
                 fields $ if (struct? data)
-                  struct-match data
-                    StoreData checked $ .to-map checked
-                    _ other $ raise "|Expected StoreData archive"
+                  if
+                    = (&struct:get-name data) :StoreData
+                    &struct:to-map data
+                    raise "|Expected StoreData archive"
                   decode-map-as data $ :: 'Map 'Tag 'Dynamic
                 without-error-nil $ if
                   nil? $ reel-schema/read-field fields :error
@@ -863,8 +841,7 @@
                 assoc checked :states $ without-graph-cache $ :states checked
                 , :calcit $ .map (:calcit checked) validate-snapshot
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
-            :args $ [] 'Dynamic
+          :schema $ quote $ Fn Dynamic (-> app.schema/StoreData)
           :tests $ [] $ %{} 'TestEntry (:name |legacy-nil-and-derived-cache)
             :code $ quote $ let
                 archive "|%{} 'StoreData (:states ({} (:graph ({} (:data ({} (:init-fn |custom/run) (:graph ({})))))) (:other ({} (:data |keep))))) (:error nil) (:calcit nil) (:page :input) (:text |draft) (:messages ({}))"
@@ -873,9 +850,13 @@
               assert= true $ .none? $ :error restored
               assert= true $ .none? $ :calcit restored
               assert= |draft $ :text restored
-              assert= |custom/run $ .unwrap $ get-in states ([] :graph :data :init-fn)
-              assert= true $ .none? $ get-in states ([] :graph :data :graph)
-              assert= |keep $ .unwrap $ get-in states ([] :other :data)
+              assert= (Result :ok |custom/run)
+                get-in states $ [] :graph :data :init-fn
+              assert=
+                Result :err $ PathError :missing
+                get-in states $ [] :graph :data :graph
+              assert= (Result :ok |keep)
+                get-in states $ [] :other :data
               assert= true $ try
                 do
                   hydrate-store $ assoc store :calcit $ Option :some ({})
@@ -885,7 +866,7 @@
           :code $ quote $ def store
             StoreData :states ({}) :error (Option :none) :calcit (Option :none) :page :input :text | :messages $ {}
           :examples $ []
-          :schema $ :: 'app.schema/StoreData
+          :schema $ quote app.schema/StoreData
         'validate-snapshot $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn validate-snapshot (data)
             let
@@ -898,9 +879,8 @@
                 decode-map-as (reel-schema/read-field default-entry :init-fn) 'Symbol
               , snapshot
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'Dynamic
-            :return $ :: 'Map 'Tag 'Dynamic
+          :schema $ quote $ Fn Dynamic
+            -> $ Map Tag Dynamic
         'without-graph-cache $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn without-graph-cache (states)
             match (get states :graph)
@@ -916,9 +896,8 @@
                           decode-map-as raw-data $ :: 'Map 'Tag 'Dynamic
                           , :graph
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'Map 'Dynamic 'Dynamic
-            :return $ :: 'Map 'Dynamic 'Dynamic
+          :schema $ quote $ Fn (Map Dynamic Dynamic)
+            -> $ Map Dynamic Dynamic
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.schema
           :require $ reel.schema :as reel-schema
@@ -958,8 +937,7 @@
                 (:hydrate-storage data) (schema/hydrate-store data)
                 _ store
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
-            :args $ [] 'app.schema/StoreData 'Enum 'String 'Number
+          :schema $ quote $ Fn app.schema/StoreData Enum String Number (-> app.schema/StoreData)
           :tests $ [] $ %{} 'TestEntry (:name |canonical-snapshot-store-roundtrip)
             :code $ quote $ let
                 source $ match
@@ -981,8 +959,11 @@
               assert= (:calcit loaded) (:calcit restored)
               assert= :viewer $ :page restored
               assert= true $ .none? $ :error restored
-              assert= |custom/run $ .unwrap $ get-in (:states restored) ([] :graph :data :init-fn)
-              assert= true $ .none? $ get-in (:states restored) ([] :graph :data :graph)
+              assert= (Result :ok |custom/run)
+                get-in (:states restored) ([] :graph :data :init-fn)
+              assert=
+                Result :err $ PathError :missing
+                get-in (:states restored) ([] :graph :data :graph)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.updater
           :require
