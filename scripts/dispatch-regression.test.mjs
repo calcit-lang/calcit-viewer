@@ -68,6 +68,19 @@ test('invalid imports and malformed restored snapshots do not enter the viewer',
   assert.throws(() => updater(store, op(t['hydrate-storage'], malformed), 'restore', 1));
   assert.equal(field(store, t.page), t.input);
 });
+test('serialized archive restores its draft and custom entry without the graph cache', () => {
+  const initFn = clt.newTag('init-fn');
+  const graphState = map(initFn, 'custom/run', t.graph, map('derived', 'cache'));
+  const archived = clt.assoc(clt.assoc(store, t.text, '032 归档草稿 🐈'), t.states,
+    map(t.graph, map(t.data, graphState)));
+  const serialized = clt.format_cirru_edn(archived);
+  const parsed = clt.parse_cirru_edn(serialized, map(clt.newTag('Option'), clt.Option));
+  const restored = updater(store, op(t['hydrate-storage'], parsed), 'restore', 1);
+  assert.equal(field(restored, t.text), '032 归档草稿 🐈');
+  const restoredGraph = field(field(field(restored, t.states), t.graph), t.data);
+  assert.equal(field(restoredGraph, initFn), 'custom/run');
+  assert.equal(clt._$n_enum_$o_nth(clt.get(restoredGraph, t.graph), 0), t.none);
+});
 test('message create and payload-free clear use Enum tag/payload, not List Option', () => {
   const created = updater(store, op(action.create, map(t.text, 'fixture', t.token, 'token')), 'create', 1);
   assert.equal(clt.count(field(created, t.messages)), 1);

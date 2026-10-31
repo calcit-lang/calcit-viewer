@@ -32,7 +32,7 @@ yarn release
 node --test scripts/dispatch-regression.test.mjs
 ```
 
-只维护 calcit.cirru/deps.cirru；不恢复 compact/package，不提交 js-out。原质量预算与全部断言保留，unsafe/typeNone/deprecated 上限仍为 0。原 5 项原生测试只同步当前 Result/get API，原 9 项 JS 测试只同步命名 Option 构造；不减少测试或新增验证脚本。
+只维护 calcit.cirru/deps.cirru；不恢复 compact/package，不提交 js-out。原质量预算与全部断言保留，unsafe/typeNone/deprecated 上限仍为 0。原 5 项原生测试只同步当前 Result/get API，原 9 项 JS 测试保留并同步命名 Option 构造；评审指出负例不能证明恢复成功，因此在同一文件补 1 项真实序列化旧档往返，核对草稿/自定义入口保留及派生图缓存清理。合计 10 项，不新增测试框架或验证脚本。
 
 外部 Snapshot/存档和异构 UI 状态仍有真实 Dynamic，不能把 unsafe=0 宣称为完全类型闭合。原生/Node 验收不代替真实浏览器导入、剪贴板或全部历史存档兼容验证。
 
