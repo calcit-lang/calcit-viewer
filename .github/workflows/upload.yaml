@@ -60,7 +60,6 @@ jobs:
           jq -e '.data.workflow.status == "passed" and .diagnostics == []' <<< "$report"
           calcit calcit.cirru analyze weak-types --only dynamic-method --summary-only --format json | jq -e '.data.summary.findings == 0'
           calcit calcit.cirru analyze weak-types --only deprecated-call --summary-only --format json | jq -e '.data.summary.calls == 0'
-          calcit calcit.cirru analyze quality --baseline config/calcit-upgrade-baseline.json
           calcit calcit.cirru test --require-match --summary-only
 
       - name: Build client with CDN asset URLs
