@@ -15,12 +15,12 @@
           :code $ quote $ defcomp comp-code (ctx code)
             div
               {} $ :class-name style-code
-              render-expr ctx (code->tree code) ([])
+              render-expr ctx (code->tree code) ([]) false
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx CirruQuote (-> respo.schema/Component)
         'leaf-type $ %{} 'CodeEntry
           :doc "|Type shown for a leaf: the type recorded at its path, else the type of the definition it names (`macro` for macros), else for a method head the receiver's type."
-          :code $ quote $ defn leaf-type (ctx leaf path target)
+          :code $ quote $ defn leaf-type (ctx leaf path target threaded?)
             let
                 recorded $ .get (:types ctx) (path-key path)
                 last-idx $ .unwrap-or (.last path) -1
@@ -48,7 +48,7 @@
                           true $ match (:type info)
                             (:some t) (Option :some t)
                             (:none) (:schema info)
-                (and (.starts-with? leaf |.) (= last-idx 0))
+                (and (.starts-with? leaf |.) (= last-idx 0) (not threaded?))
                   -> (:types ctx)
                     .get $ path-key $ .concat (.butlast path) ([] 1)
                     .map $ fn (receiver)
@@ -56,7 +56,7 @@
                       str "|method on " receiver
                 true $ Option :none
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx String (List Number) (Option String)
+          :schema $ quote $ Fn app.types/CodeCtx String (List Number) (Option String) Bool
             -> $ Option String
         'path-key $ %{} 'CodeEntry
           :doc "|Dotted path, the same coordinates as `calcit query type-at --path`."
@@ -66,13 +66,15 @@
               , |.
           :examples $ []
           :schema $ quote $ Fn (List Number) (-> String)
-        'render-expr $ %{} 'CodeEntry (:doc "|Renders a Cirru tree node at `path`.")
-          :code $ quote $ defn render-expr (ctx tree path)
+        'render-expr $ %{} 'CodeEntry
+          :doc "|Renders a Cirru tree node at `path`. `threaded?` marks a step of a threading form such as `->`, whose receiver is not written inside it; a step hands the flag to its head leaf."
+          :code $ quote $ defn render-expr (ctx tree path threaded?)
             if (string? tree)
-              render-leaf ctx (decode-map-as tree 'String) path
+              render-leaf ctx (decode-map-as tree 'String) path threaded?
               let
                   items $ decode-map-as tree $ quote (List Dynamic)
                   t $ .get (:types ctx) (path-key path)
+                  threading? $ threading-head? $ .unwrap-or (.first items) nil
                   flat? $ not $ .any? items
                     fn (x)
                       hint-fn $ Fn Dynamic $ -> Bool
@@ -84,17 +86,19 @@
                     :title $ .unwrap-or t |
                   .map-indexed items $ fn (idx child)
                     hint-fn $ Fn Number Dynamic $ -> (List Dynamic)
-                    [] idx $ render-expr ctx child $ .concat path ([] idx)
+                    [] idx $ render-expr ctx child
+                      .concat path $ [] idx
+                      if (= idx 0) threaded? $ and threading? $ > idx 1
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) Bool (-> respo.schema/Element)
         'render-leaf $ %{} 'CodeEntry
           :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
-          :code $ quote $ defn render-leaf (ctx leaf path)
+          :code $ quote $ defn render-leaf (ctx leaf path threaded?)
             let
                 target $ if (symbol-leaf? leaf)
                   resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
                   Option :none
-                t $ leaf-type ctx leaf path target
+                t $ leaf-type ctx leaf path target threaded?
                 linked? $ match target
                   (:some id)
                     not= id $ :self ctx
@@ -124,7 +128,7 @@
                     :inner-text $ .unwrap-or t |
                   span $ {}
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx String (List Number) (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/CodeCtx String (List Number) Bool (-> respo.schema/Element)
         'style-code $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-code
             {} $ |& $ {} (:font-family "|var(--font-code)") (:font-size 13) (:line-height |20px) (:color "|var(--text)")
@@ -190,6 +194,18 @@
               assert= false $ symbol-leaf? |:tag
               assert= false $ symbol-leaf? |12
               assert= true $ symbol-leaf? |render-app!
+        'threading-head? $ %{} 'CodeEntry
+          :doc "|Whether a list head is a threading macro, which passes the previous value into each later step."
+          :code $ quote $ defn threading-head? (head)
+            and (string? head)
+              .includes? (#{} |-> |->> |%-> |->% |cond-> |some->) (decode-map-as head 'String)
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> Bool)
+          :tests $ [] $ %{} 'TestEntry (:name |threading-heads)
+            :code $ quote $ do
+              assert= true $ threading-head? |->
+              assert= false $ threading-head? |let
+              assert= false $ threading-head? $ [] |->
       :ns $ %{} 'NsEntry (:doc "|Rendering definition source with types.")
         :code $ quote $ ns app.comp.code
           :require
