@@ -1362,6 +1362,21 @@
             app.program :refer $ lookup-def split-id map-values dynamic-ratio
     'app.comp.nav $ %{} 'FileEntry
       :defs $ {}
+        'comp-entry-fn $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn comp-entry-fn (label id open?)
+            div
+              {}
+                :class-name $ str-spaced style-entry-fn $ if open? style-nav-open |
+                :title id
+                :on-click $ fn (e d!)
+                  d! $ Op :open 0 id
+              span $ {} (:class-name style-entry-label) (:inner-text label)
+              span $ {} (:class-name style-def-name)
+                :inner-text $ .unwrap-or
+                  .get (split-id id) 1
+                  , id
+          :examples $ []
+          :schema $ quote $ Fn String String Bool (-> respo.schema/Element)
         'comp-nav $ %{} 'CodeEntry
           :doc "|Namespace and definition tree with a filter; libraries are hidden unless toggled."
           :code $ quote $ defcomp comp-nav (program prefs changed toggled)
@@ -1387,6 +1402,8 @@
                       :on-click $ fn (e d!)
                         d! $ Op :toggle-libs
                     <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
+                if (.empty? query) (comp-nav-entries program open-ids)
+                  span $ {}
                 if (no-match? visible query)
                   div $ {} (:class-name style-nav-empty)
                     :inner-text $ str "|No definitions match “" query "|”"
@@ -1408,7 +1425,6 @@
                           let
                               default-open? $ or
                                 not $ .empty? query
-                                = :project $ :origin ns-info
                                 .any? defs $ fn (info)
                                   hint-fn $ Fn DefInfo $ -> Bool
                                   .includes? open-ids $ :id info
@@ -1444,8 +1460,41 @@
                   :inner-text $ head-label $ :head info
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo Bool Bool (-> respo.schema/Component)
+        'comp-nav-entries $ %{} 'CodeEntry
+          :doc "|Program entries from the Snapshot, the usual starting points, above the namespace tree."
+          :code $ quote $ defn comp-nav-entries (program open-ids)
+            let
+                entries $ :entries program
+              if (.empty? entries)
+                span $ {}
+                div
+                  {} $ :class-name style-entries
+                  div
+                    {} $ :class-name style-entries-title
+                    <> |Entries
+                  list-> ({})
+                    .map entries $ fn (entry)
+                      hint-fn $ Fn EntryInfo $ -> (List Dynamic)
+                      [] (:name entry)
+                        div
+                          {} (:class-name style-entry)
+                            :title $ if
+                              .empty? $ :description entry
+                              :name entry
+                              :description entry
+                          span $ {} (:class-name style-entry-name)
+                            :inner-text $ :name entry
+                          comp-entry-fn |init (:init-fn entry)
+                            .includes? open-ids $ :init-fn entry
+                          if
+                            = (:reload-fn entry) (:init-fn entry)
+                            span $ {}
+                            comp-entry-fn |reload (:reload-fn entry)
+                              .includes? open-ids $ :reload-fn entry
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program (Set String) (-> respo.schema/Element)
         'comp-nav-ns $ %{} 'CodeEntry
-          :doc "|A namespace header that folds its definitions; libraries start folded, namespaces with open or matching definitions stay open."
+          :doc "|A namespace header that folds its definitions; namespaces start folded, and those with open or matching definitions open."
           :code $ quote $ defn comp-nav-ns (ns-info defs open? open-ids changed)
             div ({})
               div
@@ -1524,6 +1573,38 @@
         'style-dot $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-dot
             {} $ |& $ {} (:display :inline-block) (:width 6) (:height 6) (:border-radius |50%) (:margin-right 8) (:flex-shrink 0)
+          :examples $ []
+          :schema $ quote String
+        'style-entries $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entries
+            {} $ |& $ {} (:padding "|4px 0 8px") (:margin-bottom 4) (:border-bottom "|1px solid var(--sidebar-hover)")
+          :examples $ []
+          :schema $ quote String
+        'style-entries-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entries-title
+            {} $ |& $ {} (:padding "|4px 10px") (:font-size 11) (:font-weight 600) (:letter-spacing |0.06em) (:text-transform :uppercase) (:color "|var(--sidebar-text-2)")
+          :examples $ []
+          :schema $ quote String
+        'style-entry $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entry
+            {} $ |& $ {} (:padding "|2px 0 4px")
+          :examples $ []
+          :schema $ quote String
+        'style-entry-fn $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entry-fn
+            {}
+              |& $ {} (:display :flex) (:align-items :center) (:gap 6) (:height 24) (:padding "|0 10px 0 16px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--sidebar-text)") (:border-left "|2px solid transparent") (:transition "|background-color var(--ease)")
+              |&:hover $ {} $ :background-color "|var(--sidebar-hover)"
+          :examples $ []
+          :schema $ quote String
+        'style-entry-label $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entry-label
+            {} $ |& $ {} (:font-family "|var(--font-ui)") (:font-size 10) (:padding "|0 4px") (:border-radius "|var(--radius-chip)") (:background-color "|var(--sidebar-hover)") (:color "|var(--sidebar-text-2)") (:flex-shrink 0)
+          :examples $ []
+          :schema $ quote String
+        'style-entry-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entry-name
+            {} $ |& $ {} (:display :block) (:padding "|0 10px") (:font-size 11) (:color "|var(--sidebar-text-2)")
           :examples $ []
           :schema $ quote String
         'style-filter $ %{} 'CodeEntry (:doc |)
@@ -1610,8 +1691,8 @@
           :require
             respo.core :refer $ defcomp div span <> list-> input event-value
             respo.css :refer $ defstyle
-            app.types :refer $ Op NsInfo DefInfo
-            app.program :refer $ map-values dynamic-ratio
+            app.types :refer $ Op NsInfo DefInfo EntryInfo
+            app.program :refer $ map-values dynamic-ratio split-id
     'app.comp.panel $ %{} 'FileEntry
       :defs $ {}
         'comp-def-list $ %{} 'CodeEntry
@@ -2480,6 +2561,19 @@
           :schema $ quote $ Fn (Map String V)
             -> $ List V
             :generics V
+        'name-text $ %{} 'CodeEntry
+          :doc "|Text of a name stored as a tag, symbol or string; empty for nil."
+          :code $ quote $ defn name-text (raw)
+            cond
+                nil? raw
+                , |
+              (symbol? raw)
+                .to-string $ decode-map-as raw 'Symbol
+              (tag? raw)
+                .to-string $ decode-map-as raw 'Tag
+              true $ decode-map-as raw 'String
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> String)
         'ns-imports $ %{} 'CodeEntry
           :doc "|Reads `:require` rules of an `ns` form into referred names and namespace aliases."
           :code $ quote $ defn ns-imports (ns-tree)
@@ -2542,6 +2636,42 @@
                 .get
                   .unwrap $ .get imports :aliases
                   , |config
+        'parse-entries $ %{} 'CodeEntry
+          :doc "|Program entries from a Snapshot `:entries` map or IR `:meta :entries`, `default` first."
+          :code $ quote $ defn parse-entries (raw)
+            if (nil? raw) ([])
+              let
+                  pairs $ .to-list $ decode-map-as raw
+                    quote $ Map Dynamic Dynamic
+                  entries $ .map pairs $ fn (pair)
+                    hint-fn $ Fn (List Dynamic) (-> EntryInfo)
+                    let
+                        config $ .unwrap $ .get pair 1
+                      EntryInfo :name
+                        name-text $ .unwrap $ .get pair 0
+                        , :init-fn
+                          name-text $ read-field config :init-fn
+                          , :reload-fn
+                            name-text $ read-field config :reload-fn
+                            , :description $ read-string config :description
+                .sort entries $ fn (a b)
+                  hint-fn $ Fn EntryInfo EntryInfo $ -> Number
+                  cond
+                      = (:name a) |default
+                      , -1
+                    (= (:name b) |default)
+                      , 1
+                    true $ .compare (:name a) (:name b)
+          :examples $ []
+          :schema $ quote $ Fn Dynamic
+            -> $ List app.types/EntryInfo
+          :tests $ [] $ %{} 'TestEntry (:name |entries-default-first)
+            :code $ quote $ let
+                entries $ parse-entries $ parse-cirru-edn "|{} (:test $ {} (:init-fn 'app.test/run!) (:reload-fn 'app.test/run!)) (:default $ {} (:init-fn 'app.main/main!) (:reload-fn 'app.main/reload!) (:description |App))"
+              assert= ([] |default |test)
+                .map entries $ fn (e) (:name e)
+              assert= |app.main/main! $ :init-fn $ .unwrap (.first entries)
+              assert= |App $ :description $ .unwrap (.first entries)
         'parse-ir $ %{} 'CodeEntry
           :doc "|Reads `program-ir.cirru` written by `calcit ir` (`:sources` section)."
           :code $ quote $ defn parse-ir (data)
@@ -2561,7 +2691,13 @@
                         , :defs $ .filter-map-kv defs
                           fn (def-name d)
                             MapEntryDecision :keep def-name $ parse-ir-def ns-name def-name d
-              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users $ collect-users namespaces
+              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ let
+                  listed $ read-field meta :entries
+                if (nil? listed)
+                  {} $ |default $ {}
+                    :init-fn $ read-field configs :init-fn
+                    :reload-fn $ read-field configs :reload-fn
+                  , listed
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> app.types/Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-sources)
@@ -2629,7 +2765,7 @@
                       MapEntryDecision :keep def-name $ assoc info :deps $ source-deps bare ns-info info
               Program :package (read-string data :package) :calcit-version | :format :snapshot :init-fn
                 if (nil? raw-init) | $ .to-string $ decode-map-as raw-init 'Symbol
-                , :namespaces namespaces :users $ collect-users namespaces
+                , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ read-field data :entries
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> app.types/Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-snapshot)
@@ -2890,7 +3026,7 @@
       :ns $ %{} 'NsEntry
         :doc "|Reads `calcit ir` artifacts and Snapshots into the viewer's Program data."
         :code $ quote $ ns app.program
-          :require $ app.types :refer $ Program NsInfo DefInfo
+          :require $ app.types :refer $ Program NsInfo DefInfo EntryInfo
     'app.prompt $ %{} 'FileEntry
       :defs $ {}
         'compose-prompt $ %{} 'CodeEntry
@@ -3011,6 +3147,11 @@
             :size 'Number
           :examples $ []
           :schema $ quote StructDef
+        'EntryInfo $ %{} 'CodeEntry
+          :doc "|A program entry from the Snapshot: where it starts and reloads."
+          :code $ quote $ defstruct EntryInfo (:name 'String) (:init-fn 'String) (:reload-fn 'String) (:description 'String)
+          :examples $ []
+          :schema $ quote StructDef
         'NsInfo $ %{} 'CodeEntry
           :doc "|A namespace with its definitions; `:origin` is `:project`, `:dep` or `:core`."
           :code $ quote $ defstruct NsInfo (:name 'String) (:origin 'Tag) (:doc 'String) (:code 'CirruQuote)
@@ -3059,6 +3200,7 @@
           :code $ quote $ defstruct Program (:package 'String) (:calcit-version 'String) (:format 'Tag) (:init-fn 'String)
             :namespaces $ quote $ Map String app.types/NsInfo
             :users $ quote $ Map String (List String)
+            :entries $ quote $ List app.types/EntryInfo
           :examples $ []
           :schema $ quote StructDef
         'Store $ %{} 'CodeEntry
