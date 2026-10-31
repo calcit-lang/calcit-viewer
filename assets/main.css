@@ -157,3 +157,29 @@ body * {
     transition-duration: 1ms !important;
   }
 }
+
+/* Type tooltip on <body>, positioned by src/dom-helpers.mjs. */
+.viewer-tip {
+  position: fixed;
+  z-index: 100;
+  max-width: min(560px, 80vw);
+  padding: 4px 8px;
+  border-radius: var(--radius-float);
+  background-color: var(--tip-bg);
+  color: var(--tip-text);
+  box-shadow: var(--shadow-float);
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--ease), transform var(--ease);
+}
+
+.viewer-tip.viewer-tip-on {
+  opacity: 1;
+  transform: none;
+}

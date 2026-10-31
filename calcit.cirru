@@ -259,9 +259,8 @@
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
             {}
-              |& $ {} (:display :inline-block) (:height 22) (:line-height |22px) (:padding "|0 4px") (:margin "|0 1px") (:border-radius |4px) (:white-space :pre) (:position :relative) (:transition "|background-color var(--ease)")
+              |& $ {} (:display :inline-block) (:height 22) (:line-height |22px) (:padding "|0 4px") (:margin "|0 1px") (:border-radius |4px) (:white-space :pre) (:transition "|background-color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--surface-2)"
-              |&[data-tip]:hover::after $ {} (:content "|attr(data-tip)") (:position :absolute) (:left 0) (:top |100%) (:z-index 20) (:margin-top 4) (:padding "|4px 8px") (:border-radius "|var(--radius-float)") (:background-color "|var(--tip-bg)") (:color "|var(--tip-text)") (:box-shadow "|var(--shadow-float)") (:font-size 12) (:line-height |16px) (:white-space :pre) (:pointer-events :none) (:animation "|viewer-pop var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-leaf-long $ %{} 'CodeEntry (:doc |)
@@ -870,7 +869,7 @@
           :schema $ quote String
         'style-skeleton-panel $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-skeleton-panel
-            {} $ |& $ {} (:width 520) (:padding |16px) (:display :flex) (:flex-direction :column) (:gap 10) (:background-color "|var(--surface)") (:border-right "|1px solid var(--border)")
+            {} $ |& $ {} (:width 640) (:padding |16px) (:display :flex) (:flex-direction :column) (:gap 10) (:background-color "|var(--surface)") (:border-right "|1px solid var(--border)")
           :examples $ []
           :schema $ quote String
         'style-spinner $ %{} 'CodeEntry (:doc |)
@@ -1766,6 +1765,7 @@
                     {}
                       :data-panel $ str idx
                       :class-name $ str-spaced style-panel (if changed? style-panel-changed |) (if active? style-panel-active |)
+                      :style $ {} $ :width (panel-width info)
                     comp-panel-header idx id (:head info) changed?
                     comp-signature info
                     if
@@ -1841,6 +1841,29 @@
                     span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo (-> respo.schema/Component)
+        'panel-width $ %{} 'CodeEntry
+          :doc "|Panel width in pixels from the longest line of the formatted source: 640 by default, narrower only for clearly short code, wider up to 880 for long lines."
+          :code $ quote $ defn panel-width (info)
+            let
+                longest $ foldl
+                  .split
+                    format-cirru $ [] $ code->tree (:source info)
+                    , &newline
+                  , 0 $ fn (acc line)
+                    hint-fn $ Fn Number String $ -> Number
+                    if
+                      > (.len line) acc
+                      .len line
+                      , acc
+                estimate $ + 96 $ * 8.6 longest
+              cond
+                  < longest 36
+                  , 480
+                (< estimate 640) 640
+                (> estimate 880) 880
+                true $ .round estimate
+          :examples $ []
+          :schema $ quote $ Fn app.types/DefInfo (-> Number)
         'style-badge $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-badge
             {} $ |& $ {} (:font-size 11) (:padding "|0 6px") (:margin-left 8) (:border-radius "|var(--radius-chip)") (:color "|var(--text-2)") (:background-color "|var(--surface-2)") (:font-family "|var(--font-code)") (:flex-shrink 0)
@@ -1890,7 +1913,7 @@
           :schema $ quote String
         'style-panel $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-panel
-            {} $ |& $ {} (:width 520) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:border-top "|2px solid transparent") (:animation "|viewer-enter var(--ease-enter)") (:transition "|border-color var(--ease)")
+            {} $ |& $ {} (:width 640) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:border-top "|2px solid transparent") (:animation "|viewer-enter var(--ease-enter)") (:transition "|border-color var(--ease)")
           :examples $ []
           :schema $ quote String
         'style-panel-active $ %{} 'CodeEntry (:doc |)
@@ -2311,6 +2334,7 @@
             restore-cached! dispatch!
             check-resumable! dispatch!
             listen-keys on-key!
+            install-tooltips
             browser/set-before-unload! $ fn (event) (persist-prefs!)
             browser/document-add-event-listener! |visibilitychange $ fn (event) (persist-prefs!)
             println "|App started."
@@ -2411,7 +2435,7 @@
             app.updater :as updater
             app.types :refer $ Op
             app.loader :refer $ restore-cached! check-resumable!
-            |../src/dom-helpers.mjs :refer $ reveal-panel listen-keys focus-later
+            |../src/dom-helpers.mjs :refer $ reveal-panel listen-keys focus-later install-tooltips
             app.config :as config
             js-ffi.browser :as browser
             |./calcit.build-errors :default build-errors
