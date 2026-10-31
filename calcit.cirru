@@ -196,6 +196,15 @@
                                   .includes? (:changed store) id
                                   :inline-types? prefs
                     (:none) (comp-welcome)
+                  match (:program store)
+                    (:some program)
+                      if (:prompt-open? prefs)
+                        comp-prompt
+                          compose-prompt program prefs $ :file-name store
+                          , prefs $ :copied-at store
+                        span $ {}
+                    (:none)
+                      span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
         'comp-toolbar $ %{} 'CodeEntry (:doc |)
@@ -223,6 +232,9 @@
                           , "| updated"
                 (:none)
                   span $ {}
+              span $ {} (:class-name style-tab) (:inner-text "|Prompt…")
+                :on-click $ fn (e d!)
+                  d! $ Op :toggle-prompt
               div
                 {} (:class-name style-toggle)
                   :on-click $ fn (e d!)
@@ -377,6 +389,8 @@
             app.comp.nav :refer $ comp-nav
             app.comp.panel :refer $ comp-panel
             app.comp.graph :refer $ comp-call-tree comp-sunburst
+            app.comp.prompt :refer $ comp-prompt
+            app.prompt :refer $ compose-prompt
     'app.comp.graph $ %{} 'FileEntry
       :defs $ {}
         'arc-path $ %{} 'CodeEntry
@@ -1137,6 +1151,86 @@
             app.types :refer $ Op CodeCtx
             app.program :refer $ lookup-def split-id ns-imports code->tree
             app.comp.code :refer $ comp-code
+    'app.comp.prompt $ %{} 'FileEntry
+      :defs $ {}
+        'comp-prompt $ %{} 'CodeEntry
+          :doc "|Drawer for writing a question; the composed prompt is previewed and copied to the clipboard."
+          :code $ quote $ defcomp comp-prompt (text prefs copied-at)
+            div
+              {} $ :class-name style-drawer
+              div
+                {} $ :class-name style-drawer-side
+                textarea $ {} (:class-name style-question)
+                  :value $ :prompt-draft prefs
+                  :placeholder "|Ask about the open definitions…"
+                  :on-input $ fn (e d!)
+                    d! $ Op :prompt-draft $ event-value e
+                div
+                  {} $ :class-name style-drawer-actions
+                  span $ {} (:class-name style-copy) (:inner-text "|Copy prompt")
+                    :on-click $ fn (e d!) (browser/clipboard-write-text! text)
+                      d! $ Op :copied $ shared/now-ms
+                  span $ {} (:class-name style-option)
+                    :inner-text $ if (:prompt-source? prefs) "|☑ Include source" "|☐ Include source"
+                    :on-click $ fn (e d!)
+                      d! $ Op :toggle-prompt-source
+                  if (> copied-at 0)
+                    span $ {} (:class-name style-copied) (:inner-text |Copied)
+                    span $ {}
+                  span $ {} (:class-name style-option) (:inner-text |Close)
+                    :on-click $ fn (e d!)
+                      d! $ Op :toggle-prompt
+              pre $ {} (:class-name style-preview) (:inner-text text)
+          :examples $ []
+          :schema $ quote $ Fn String app.types/Prefs Number (-> respo.schema/Component) (:features :js-ffi)
+        'style-copied $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-copied
+            {} $ |& $ {} (:font-size 12) (:color "|hsl(140, 50%, 40%)")
+          :examples $ []
+          :schema $ quote String
+        'style-copy $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-copy
+            {} $ |& $ {} (:padding "|2px 12px") (:border-radius |4px) (:background-color "|hsl(210, 80%, 50%)") (:color :white) (:cursor :pointer) (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-drawer $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-drawer
+            {} $ |& $ {} (:height 280) (:flex-shrink 0) (:display :flex) (:border-top "|1px solid hsl(0, 0%, 85%)") (:background-color :white)
+          :examples $ []
+          :schema $ quote String
+        'style-drawer-actions $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-drawer-actions
+            {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 12) (:padding-top 8)
+          :examples $ []
+          :schema $ quote String
+        'style-drawer-side $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-drawer-side
+            {} $ |& $ {} (:width 420) (:display :flex) (:flex-direction :column) (:padding 12) (:border-right "|1px solid hsl(0, 0%, 90%)")
+          :examples $ []
+          :schema $ quote String
+        'style-option $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-option
+            {} $ |& $ {} (:font-size 12) (:cursor :pointer) (:color "|hsl(0, 0%, 35%)") (:user-select :none)
+          :examples $ []
+          :schema $ quote String
+        'style-preview $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-preview
+            {} $ |& $ {} (:flex 1) (:margin 0) (:padding 12) (:overflow :auto) (:font-size 12) (:line-height |17px) (:color "|hsl(0, 0%, 30%)") (:white-space :pre-wrap) (:font-family "|Source Code Pro, Menlo, monospace")
+          :examples $ []
+          :schema $ quote String
+        'style-question $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-question
+            {} $ |& $ {} (:flex 1) (:resize :none) (:padding 8) (:font-size 13) (:border "|1px solid hsl(0, 0%, 85%)") (:border-radius |4px) (:outline :none) (:font-family :inherit)
+          :examples $ []
+          :schema $ quote String
+      :ns $ %{} 'NsEntry (:doc "|Prompt drawer.")
+        :code $ quote $ ns app.comp.prompt
+          :require
+            respo.core :refer $ defcomp div span pre textarea event-value
+            respo.css :refer $ defstyle
+            app.types :refer $ Op
+            js-ffi.browser :as browser
+            js-ffi.shared :as shared
     'app.config $ %{} 'FileEntry
       :defs $ {}
         'dev? $ %{} 'CodeEntry (:doc |)
@@ -1871,6 +1965,100 @@
         :doc "|Reads `calcit ir` artifacts and Snapshots into the viewer's Program data."
         :code $ quote $ ns app.program
           :require $ app.types :refer $ Program NsInfo DefInfo
+    'app.prompt $ %{} 'FileEntry
+      :defs $ {}
+        'compose-prompt $ %{} 'CodeEntry
+          :doc "|Markdown prompt from the user's question and the open panels, for pasting into an AI agent."
+          :code $ quote $ defn compose-prompt (program prefs file-name)
+            let
+                question $ .trim $ :prompt-draft prefs
+                stack $ :stack prefs
+                sections $ .map stack $ fn (id)
+                  hint-fn $ Fn String $ -> String
+                  match (lookup-def program id)
+                    (:some info)
+                      def-section info $ :prompt-source? prefs
+                    (:none) (str "|### `" id "|`\n\nNot found in the loaded file.\n")
+                first-id $ .unwrap-or (.first stack) |ns/def
+              .join-string
+                []
+                  if (.empty? question) "|(Write your question here.)" question
+                  , | "|## Context" |
+                    str "|- Project: `" (:package program) "|`, read from `" file-name "|`" $ if
+                      = :ir $ :format program
+                      str "| (calcit ir, Calcit " (:calcit-version program) "|)"
+                      , "| (Snapshot, declared schemas only)"
+                    str "|- Entry: `" (:init-fn program) "|`"
+                    str "|- Open definitions, from the starting point inward: " $ if (.empty? stack) |none $ .join-string
+                      .map stack $ fn (id) (str "|`" id "|`")
+                      , "| → "
+                    , | (.join-string sections &newline) "|## Useful commands" | "|```bash" (str "|calcit query def '" first-id |') (str "|calcit query context '" first-id "|' --format edn") (str "|calcit query type-at '" first-id "|' --path <path>") (str "|calcit query usages '" first-id |') "|```"
+                , &newline
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program app.types/Prefs String (-> String)
+          :tests $ [] $ %{} 'TestEntry (:name |prompt-from-open-panels)
+            :code $ quote $ let
+                program $ parse-program $ parse-cirru-edn sample-ir
+                prefs $ Prefs :stack ([] |app.main/main! |app.main/double) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? true :prompt-draft "|Why is n Dynamic?" :prompt-source? true
+                text $ compose-prompt program prefs |program-ir.cirru
+              assert= true $ .starts-with? text "|Why is n Dynamic?"
+              assert= true $ .includes? text "|`app.main/main!` → `app.main/double`"
+              assert= true $ .includes? text "|- type at `3.1`: `Dynamic`"
+              assert= true $ .includes? text "|defn double (n)"
+              assert= false $ .includes?
+                compose-prompt program (assoc prefs :prompt-source? false) |program-ir.cirru
+                , "|defn double (n)"
+        'def-section $ %{} 'CodeEntry
+          :doc "|Markdown for one definition: signature, doc, Dynamic spots and optionally the source."
+          :code $ quote $ defn def-section (info with-source?)
+            let
+                dynamic-paths $ -> (:types info)
+                  .filter-kv $ fn (path t) (.includes? t |Dynamic)
+                  .keys
+                  .to-list
+                  .sort $ fn (a b)
+                    hint-fn $ Fn String String $ -> Number
+                    .compare a b
+              ->
+                []
+                  str "|### `" (:id info) "|`\n"
+                  str "|- schema: `"
+                    .unwrap-or (:schema info) |none
+                    , "|`"
+                  match (:type info)
+                    (:some t)
+                      if
+                        = (:type info) (:schema info)
+                        , | $ str "|\n- compiler type: `" t "|`"
+                    (:none) |
+                  if
+                    .empty? $ :doc info
+                    , | $ str "|- doc: " $ :doc info
+                  .join-string
+                    .map dynamic-paths $ fn (path)
+                      str "|- type at `" path "|`: `"
+                        .unwrap-or
+                          .get (:types info) path
+                          , |
+                        , "|`"
+                    , &newline
+                  if with-source?
+                    str "|\n```cirru\n"
+                      .trim $ format-cirru $ []
+                        code->tree $ :source info
+                      , "|\n```"
+                    , |
+                .filter $ fn (line)
+                  not $ .empty? line
+                .join-string &newline
+          :examples $ []
+          :schema $ quote $ Fn app.types/DefInfo Bool (-> String)
+      :ns $ %{} 'NsEntry
+        :doc "|Composes prompts to paste into an AI agent; nothing is sent from the viewer."
+        :code $ quote $ ns app.prompt
+          :require
+            app.types :refer $ Prefs
+            app.program :refer $ lookup-def code->tree parse-program sample-ir
     'app.types $ %{} 'FileEntry
       :defs $ {}
         'CodeCtx $ %{} 'CodeEntry
@@ -1906,6 +2094,10 @@
         'Op $ %{} 'CodeEntry (:doc "|Store operations.")
           :code $ quote $ defenum Op (:load 'app.types/Program 'String 'Number) (:error 'String) (:open 'Number 'String) (:close 'Number) (:filter 'String) (:toggle-libs) (:toggle-inline-types) (:restore 'app.types/Prefs) (:watching 'String) (:stop-watching) (:view 'Tag) (:focus 'String) (:toggle-node 'String)
             :zoom $ quote $ Option String
+            :prompt-draft 'String
+            :toggle-prompt
+            :toggle-prompt-source
+            :copied 'Number
             :resumable 'String
           :examples $ []
           :schema $ quote EnumDef
@@ -1916,6 +2108,9 @@
             :show-libs? 'Bool
             :inline-types? 'Bool
             :view 'Tag
+            :prompt-open? 'Bool
+            :prompt-draft 'String
+            :prompt-source? 'Bool
           :examples $ []
           :schema $ quote StructDef
         'Program $ %{} 'CodeEntry
@@ -1938,6 +2133,7 @@
             :resumable $ quote $ Option String
             :expanded $ quote $ Set String
             :zoom $ quote $ Option String
+            :copied-at 'Number
           :examples $ []
           :schema $ quote StructDef
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
@@ -1970,7 +2166,7 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true
           :examples $ []
           :schema $ quote app.types/Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
@@ -2040,6 +2236,15 @@
                   .exclude (:expanded store) key
                   .include (:expanded store) key
               (:zoom target) (assoc store :zoom target)
+              (:prompt-draft text)
+                update-prefs store $ fn (prefs) (assoc prefs :prompt-draft text)
+              (:toggle-prompt)
+                update-prefs store $ fn (prefs)
+                  assoc prefs :prompt-open? $ not $ :prompt-open? prefs
+              (:toggle-prompt-source)
+                update-prefs store $ fn (prefs)
+                  assoc prefs :prompt-source? $ not $ :prompt-source? prefs
+              (:copied time) (assoc store :copied-at time)
               (:resumable file-name)
                 if
                   .some? $ :watching store
