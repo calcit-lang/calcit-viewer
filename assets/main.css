@@ -27,6 +27,19 @@
   --radius-float: 6px;
   --shadow-float: 0 6px 24px rgb(0 0 0 / 0.18);
   --ease: 120ms ease-out;
+  --ease-enter: 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  --code-plain: #475569;
+  --code-head: #b45309;
+  --code-tag: #6366f1;
+  --code-string: #15803d;
+  --code-number: #be123c;
+  --code-literal: #9333ea;
+  --code-guide: #cbd5e1;
+  --scrollbar-thumb: rgb(100 116 139 / 0.35);
+  --scrollbar-thumb-hover: rgb(100 116 139 / 0.6);
+  --sidebar-scrollbar-thumb: rgb(255 255 255 / 0.16);
+  --skeleton: #e8ebf0;
+  --skeleton-shine: #f4f6f9;
   color-scheme: light;
 }
 
@@ -51,6 +64,17 @@
     --tip-bg: #f2f4f8;
     --tip-text: #1d2330;
     --shadow-float: 0 6px 24px rgb(0 0 0 / 0.5);
+    --code-plain: #a3b1c2;
+    --code-head: #f2b65a;
+    --code-tag: #9d9df0;
+    --code-string: #6fcf7d;
+    --code-number: #f07178;
+    --code-literal: #c792ea;
+    --code-guide: #364152;
+    --scrollbar-thumb: rgb(148 163 184 / 0.25);
+    --scrollbar-thumb-hover: rgb(148 163 184 / 0.45);
+    --skeleton: #262a33;
+    --skeleton-shine: #2f3440;
     color-scheme: dark;
   }
 }
@@ -69,20 +93,67 @@ body * {
   box-sizing: border-box;
 }
 
+/* Scrollbars follow the theme: thin, transparent track, a thumb that darkens on hover. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background-color: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--text-3) 40%, transparent);
-  border-radius: 4px;
+  background-color: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-corner {
-  background-color: transparent;
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Shared motion; disabled when the system asks for reduced motion. */
+@keyframes viewer-enter {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes viewer-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes viewer-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes viewer-shine {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes viewer-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes viewer-flash {
+  from { background-color: color-mix(in srgb, var(--ok) 16%, transparent); }
+  to { background-color: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

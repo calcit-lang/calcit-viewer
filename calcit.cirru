@@ -10,14 +10,73 @@
   :files $ {}
     'app.comp.code $ %{} 'FileEntry
       :defs $ {}
+        'child-modes $ %{} 'CodeEntry
+          :doc "|Layout of each child, as the Calcit editor decides it: leaves are inline; a list with more than 6 items or any nested list is a block; otherwise it follows the previous sibling, staying inline after inline items and turning into a block once lists start to nest."
+          :code $ quote $ defn child-modes (items)
+            let
+                many? $ fn (x size)
+                  hint-fn $ Fn Dynamic Number $ -> Bool
+                  if (list? x)
+                    let
+                        xs $ decode-map-as x $ quote (List Dynamic)
+                      or
+                        > (.len xs) size
+                        .any? xs $ fn (y)
+                          hint-fn $ Fn Dynamic $ -> Bool
+                          list? y
+                    , false
+              .rest $ foldl items ([] :inline)
+                fn (acc child)
+                  hint-fn $ Fn (List Tag) Dynamic $ -> (List Tag)
+                  let
+                      prev $ .unwrap-or (.last acc) :inline
+                      mode $ cond
+                          not $ list? child
+                          , :inline
+                        (many? child 6) :block
+                        (= prev :inline) :inline-block
+                        (= prev :inline-block)
+                          if (many? child 2) :block :inline-block
+                        true :block
+                    .concat acc $ [] mode
+          :examples $ []
+          :schema $ quote $ Fn (List Dynamic)
+            -> $ List Tag
+          :tests $ [] $ %{} 'TestEntry (:name |editor-layout-modes)
+            :code $ quote $ do
+              assert= ([] :inline :inline :inline-block)
+                child-modes $ [] |defn |f $ [] |a |b
+              assert= ([] :inline :block :block)
+                child-modes $ [] |let
+                  [] $ [] |a |1
+                  [] |+ |a |1
+              assert= ([] :inline :block)
+                child-modes $ [] |do $ [] |a |b |c |d |e |f |g
         'comp-code $ %{} 'CodeEntry
           :doc "|Source of one definition as nested blocks; hover shows inferred types, clicking a resolved symbol opens it in the next panel."
           :code $ quote $ defcomp comp-code (ctx code)
             div
               {} $ :class-name style-code
-              render-expr ctx (code->tree code) ([]) false
+              render-expr ctx (code->tree code) ([]) false :block false
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx CirruQuote (-> respo.schema/Component)
+        'leaf-class $ %{} 'CodeEntry
+          :doc "|Syntax colour of a leaf by its text, following the Calcit editor: call heads, tags, strings, numbers and literals."
+          :code $ quote $ defn leaf-class (leaf head?)
+            cond
+                or (.starts-with? leaf ||) (.starts-with? leaf "|\"")
+                , style-string
+              (.starts-with? leaf |:) style-tag
+              (includes? (#{} |true |false |nil |&unit) leaf)
+                , style-literal
+              (.includes? |0123456789 (.unwrap-or (.first leaf) |))
+                , style-number
+              (and (.starts-with? leaf |-) (.includes? |0123456789 (.unwrap-or (.get leaf 1) |)))
+                , style-number
+              head? style-head
+              true style-plain
+          :examples $ []
+          :schema $ quote $ Fn String Bool (-> String)
         'leaf-type $ %{} 'CodeEntry
           :doc "|Type shown for a leaf: the type recorded at its path, else the type of the definition it names (`macro` for macros), else for a method head the receiver's type."
           :code $ quote $ defn leaf-type (ctx leaf path target threaded?)
@@ -67,21 +126,26 @@
           :examples $ []
           :schema $ quote $ Fn (List Number) (-> String)
         'render-expr $ %{} 'CodeEntry
-          :doc "|Renders a Cirru tree node at `path`. `threaded?` marks a step of a threading form such as `->`, whose receiver is not written inside it; a step hands the flag to its head leaf."
-          :code $ quote $ defn render-expr (ctx tree path threaded?)
+          :doc "|Renders a Cirru tree node at `path`, laid out like the Calcit editor's code tree: short lists sit inline with a bottom rule, long or nested ones become blocks with a left guide, and the last list continues the line. `threaded?` marks a step of a threading form such as `->`, whose receiver is not written inside it; a step hands the flag to its head leaf."
+          :code $ quote $ defn render-expr (ctx tree path threaded? mode tail?)
             if (string? tree)
               render-leaf ctx (decode-map-as tree 'String) path threaded?
               let
                   items $ decode-map-as tree $ quote (List Dynamic)
                   t $ .get (:types ctx) (path-key path)
                   threading? $ threading-head? $ .unwrap-or (.first items) nil
-                  flat? $ not $ .any? items
-                    fn (x)
-                      hint-fn $ Fn Dynamic $ -> Bool
-                      list? x
+                  modes $ child-modes items
+                  last-idx $ dec $ .len items
                 list->
                   {}
-                    :class-name $ str-spaced style-expr (if flat? style-flat |)
+                    :class-name $ str-spaced style-expr
+                      cond
+                          .empty? items
+                          , style-expr-void
+                        tail? style-tail
+                        (and (not= mode :block) (> (.len items) 0))
+                          , style-simple
+                        true |
                       if (.some? t) style-typed |
                     :title $ .unwrap-or t |
                   .map-indexed items $ fn (idx child)
@@ -89,8 +153,10 @@
                     [] idx $ render-expr ctx child
                       .concat path $ [] idx
                       if (= idx 0) threaded? $ and threading? $ > idx 1
+                      .unwrap-or (.get modes idx) :inline
+                      and (= idx last-idx) (> idx 0) (list? child)
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) Bool (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) Bool Tag Bool (-> respo.schema/Element)
         'render-leaf $ %{} 'CodeEntry
           :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
           :code $ quote $ defn render-leaf (ctx leaf path threaded?)
@@ -103,11 +169,13 @@
                   (:some id)
                     not= id $ :self ctx
                   (:none) false
-                class-name $ str-spaced style-leaf (if linked? style-link |)
+                class-name $ str-spaced style-leaf
+                  leaf-class leaf $ = 0 $ .unwrap-or (.last path) -1
+                  if linked? style-link |
                   if
                     and (.some? t)
                       .includes? (.unwrap-or t |) |Dynamic
-                    , style-dynamic |
+                    , style-typed-dynamic |
                   if (.some? t) style-typed |
               span
                 if linked?
@@ -131,25 +199,26 @@
           :schema $ quote $ Fn app.types/CodeCtx String (List Number) Bool (-> respo.schema/Element)
         'style-code $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-code
-            {} $ |& $ {} (:font-family "|var(--font-code)") (:font-size 13) (:line-height |20px) (:color "|var(--text)")
-          :examples $ []
-          :schema $ quote String
-        'style-dynamic $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-dynamic
-            {} $ |& $ {} (:text-decoration-color "|var(--dynamic)")
+            {} $ |& $ {} (:font-family "|var(--font-code)") (:font-size 13) (:line-height |22px) (:color "|var(--code-plain)") (:padding "|4px 0 8px")
           :examples $ []
           :schema $ quote String
         'style-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-expr
             {}
-              |& $ {} (:display :block) (:padding "|0 0 0 12px") (:margin "|1px 0") (:border-left "|1px solid var(--border)") (:border-radius "|var(--radius-chip)") (:transition "|background-color var(--ease)")
-              |&:hover $ {} $ :background-color "|var(--accent-soft)"
-              "|&:has([class*=style-expr]:hover)" $ {} $ :background-color :transparent
+              |& $ {} (:display :block) (:min-height 22) (:margin "|0 0 2px 8px") (:padding-left 10) (:border-left "|1px solid var(--code-guide)") (:border-radius |8px)
+                :transition "|background-color var(--ease), border-color var(--ease)"
+              |&:hover $ {} (:background-color "|var(--accent-soft)") (:border-color "|var(--accent)")
+              "|&:has([class*=style-expr]:hover)" $ {} (:background-color :transparent) (:border-color "|var(--code-guide)")
           :examples $ []
           :schema $ quote String
-        'style-flat $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-flat
-            {} $ |& $ {} (:display :inline-block) (:margin "|1px 6px 1px 0") (:padding "|0 4px") (:border-left :none) (:border-bottom "|1px solid var(--border)")
+        'style-expr-void $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-expr-void
+            {} $ |& $ {} (:display :inline-block) (:vertical-align :top) (:width 18) (:height 16) (:min-height 16) (:margin "|3px 4px 0") (:padding 0) (:border-left :none) (:border-bottom "|1px solid var(--code-guide)") (:border-radius |6px)
+          :examples $ []
+          :schema $ quote String
+        'style-head $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-head
+            {} $ |& $ {} (:color "|var(--code-head)")
           :examples $ []
           :schema $ quote String
         'style-inline-type $ %{} 'CodeEntry (:doc |)
@@ -162,15 +231,54 @@
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
             {}
-              |& $ {} (:display :inline-block) (:margin-right 8) (:white-space :pre) (:position :relative)
-              |&[data-tip]:hover::after $ {} (:content "|attr(data-tip)") (:position :absolute) (:left 0) (:top |100%) (:z-index 20) (:margin-top 4) (:padding "|4px 8px") (:border-radius "|var(--radius-float)") (:background-color "|var(--tip-bg)") (:color "|var(--tip-text)") (:box-shadow "|var(--shadow-float)") (:font-size 12) (:line-height |16px) (:white-space :pre) (:pointer-events :none)
+              |& $ {} (:display :inline-block) (:height 22) (:line-height |22px) (:padding "|0 4px") (:margin "|0 1px") (:border-radius |4px) (:white-space :pre) (:position :relative) (:transition "|background-color var(--ease)")
+              |&:hover $ {} $ :background-color "|var(--surface-2)"
+              |&[data-tip]:hover::after $ {} (:content "|attr(data-tip)") (:position :absolute) (:left 0) (:top |100%) (:z-index 20) (:margin-top 4) (:padding "|4px 8px") (:border-radius "|var(--radius-float)") (:background-color "|var(--tip-bg)") (:color "|var(--tip-text)") (:box-shadow "|var(--shadow-float)") (:font-size 12) (:line-height |16px) (:white-space :pre) (:pointer-events :none) (:animation "|viewer-pop var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-link $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-link
             {}
-              |& $ {} (:color "|var(--accent)") (:cursor :pointer)
+              |& $ {} $ :cursor :pointer
+              "|&:not([class*=style-head])" $ {} $ :color "|var(--accent)"
               |&:hover $ {} $ :text-decoration :underline
+          :examples $ []
+          :schema $ quote String
+        'style-literal $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-literal
+            {} $ |& $ {} (:color "|var(--code-literal)")
+          :examples $ []
+          :schema $ quote String
+        'style-number $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-number
+            {} $ |& $ {} (:color "|var(--code-number)")
+          :examples $ []
+          :schema $ quote String
+        'style-plain $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-plain
+            {} $ |& $ {} (:color "|var(--code-plain)")
+          :examples $ []
+          :schema $ quote String
+        'style-simple $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-simple
+            {}
+              |& $ {} (:display :inline-block) (:vertical-align :top) (:margin "|0 2px 2px 6px") (:padding "|0 6px") (:min-width 28) (:border-left :none) (:border-bottom "|1px solid var(--code-guide)") (:border-radius |6px)
+              |&:hover $ {} $ :border-color "|var(--accent)"
+          :examples $ []
+          :schema $ quote String
+        'style-string $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-string
+            {} $ |& $ {} (:color "|var(--code-string)")
+          :examples $ []
+          :schema $ quote String
+        'style-tag $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tag
+            {} $ |& $ {} (:color "|var(--code-tag)")
+          :examples $ []
+          :schema $ quote String
+        'style-tail $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tail
+            {} $ |& $ {} (:display :inline-block) (:vertical-align :top) (:margin-left 4)
           :examples $ []
           :schema $ quote String
         'style-typed $ %{} 'CodeEntry (:doc |)
@@ -178,6 +286,11 @@
             {} $ |& $ {} (:text-decoration-line :underline) (:text-decoration-style :dotted)
               :text-decoration-color "|color-mix(in srgb, var(--type) 55%, transparent)"
               :text-underline-offset |3px
+          :examples $ []
+          :schema $ quote String
+        'style-typed-dynamic $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-typed-dynamic
+            {} $ |& $ {} (:text-decoration-color "|var(--dynamic)")
           :examples $ []
           :schema $ quote String
         'symbol-leaf? $ %{} 'CodeEntry
@@ -224,7 +337,7 @@
               (= view :sunburst) sunburst
               true panels
           :examples $ []
-          :schema $ quote $ Fn Tag respo.schema/Component respo.schema/Component respo.schema/Element (-> Dynamic)
+          :schema $ quote $ Fn Tag respo.schema/Component respo.schema/Component Dynamic (-> Dynamic)
         'comp-breadcrumb $ %{} 'CodeEntry
           :doc "|The open panels as a path; clicking a step closes the panels after it."
           :code $ quote $ defcomp comp-breadcrumb (stack active)
@@ -273,18 +386,24 @@
                       case-view (:view prefs)
                         comp-call-tree program prefs $ :expanded store
                         comp-sunburst program prefs $ :zoom store
-                        list->
-                          {} $ :class-name style-panels
-                          .map-indexed (:stack prefs)
-                            fn (idx id)
-                              hint-fn $ Fn Number String $ -> (List Dynamic)
-                              [] (str idx |: id)
-                                comp-panel program idx id
-                                  .includes? (:changed store) id
-                                  :inline-types? prefs
-                                  = idx $ :active store
-                                  .includes? (:collapsed store) id
-                    (:none) (comp-welcome)
+                        if
+                          .empty? $ :stack prefs
+                          comp-empty-stack
+                          list->
+                            {} $ :class-name style-panels
+                            .map-indexed (:stack prefs)
+                              fn (idx id)
+                                hint-fn $ Fn Number String $ -> (List Dynamic)
+                                [] (str idx |: id)
+                                  comp-panel program idx id
+                                    .includes? (:changed store) id
+                                    :inline-types? prefs
+                                    = idx $ :active store
+                                    .includes? (:collapsed store) id
+                    (:none)
+                      match (:loading store)
+                        (:some file-name) (comp-skeleton file-name)
+                        (:none) (comp-welcome)
                   match (:program store)
                     (:some program)
                       if (:prompt-open? prefs)
@@ -306,6 +425,21 @@
                     span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+        'comp-empty-stack $ %{} 'CodeEntry (:doc "|Shown when no panel is open.")
+          :code $ quote $ defcomp comp-empty-stack ()
+            div
+              {} $ :class-name style-empty
+              div
+                {} $ :class-name style-empty-title
+                <> "|No definition open"
+              div
+                {} $ :class-name style-empty-hint
+                <> "|Pick one on the left, or press ⌘K to search."
+              span $ {} (:class-name style-secondary) (:inner-text "|Search definitions")
+                :on-click $ fn (e d!)
+                  d! $ Op :palette-open
+          :examples $ []
+          :schema $ quote $ Fn (-> respo.schema/Component)
         'comp-palette $ %{} 'CodeEntry
           :doc "|Quick open: fuzzy search over definitions. Enter opens from here, Shift+Enter adds to the right, Esc closes."
           :code $ quote $ defcomp comp-palette (program query idx)
@@ -363,6 +497,26 @@
                     <> "|↑↓ select · Enter open · Shift+Enter add to the right · Esc close"
           :examples $ []
           :schema $ quote $ Fn app.types/Program String Number (-> respo.schema/Component)
+        'comp-skeleton $ %{} 'CodeEntry (:doc "|Placeholder panels while a file is being read.")
+          :code $ quote $ defcomp comp-skeleton (file-name)
+            div
+              {} $ :class-name style-panels
+              div
+                {} $ :class-name style-skeleton-panel
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} (:width |40%) (:height 18)
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |70%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |55%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |80%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |62%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |35%
+          :examples $ []
+          :schema $ quote $ Fn String (-> respo.schema/Component)
         'comp-statusbar $ %{} 'CodeEntry
           :doc "|File actions, file facts and shortcut hints along the bottom edge."
           :code $ quote $ defcomp comp-statusbar (store)
@@ -373,6 +527,14 @@
                 <> "|Open file…"
                 input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
               comp-watch store
+              match (:loading store)
+                (:some file-name)
+                  span
+                    {} $ :class-name style-status-text
+                    span $ {} $ :class-name style-spinner
+                    <> $ str "|Reading " file-name "|…"
+                (:none)
+                  span $ {}
               match (:program store)
                 (:some program)
                   span $ {} (:class-name style-status-text)
@@ -473,11 +635,30 @@
                         span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
-        'comp-welcome $ %{} 'CodeEntry (:doc |)
+        'comp-welcome $ %{} 'CodeEntry
+          :doc "|First screen: what the viewer reads, how to produce it, and the two ways to open a file."
           :code $ quote $ defcomp comp-welcome ()
             div
               {} $ :class-name style-welcome
-              comp-md-block "|Open `program-ir.cirru` to read a Calcit program with its inferred types, or a `calcit.cirru` Snapshot for source only.\n\nGenerate the IR file in your project:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nThe file is written to `js-out/program-ir.cirru`." $ {}
+              div
+                {} $ :class-name style-welcome-card
+                div
+                  {} $ :class-name style-welcome-title
+                  <> "|Calcit Viewer"
+                div
+                  {} $ :class-name style-welcome-lead
+                  <> "|Read a Calcit program with its inferred types, one definition at a time."
+                div
+                  {} $ :class-name style-welcome-actions
+                  span
+                    {} $ :class-name style-primary
+                    <> "|Open program-ir.cirru…"
+                    input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
+                  if (supports-watch)
+                    span $ {} (:class-name style-secondary) (:inner-text "|Watch a file…")
+                      :on-click $ fn (e d!) (watch! d!)
+                    span $ {}
+                comp-md-block "|Generate the file in your project, then open `js-out/program-ir.cirru`:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nA `calcit.cirru` Snapshot also opens, with declared schemas but no inferred types." $ {} $ :class-name style-welcome-md
           :examples $ []
           :schema $ quote $ Fn (-> respo.schema/Component)
         'style-app $ %{} 'CodeEntry (:doc |)
@@ -500,6 +681,21 @@
         'style-crumbs $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-crumbs
             {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 2) (:flex 1) (:min-width 0) (:overflow :hidden) (:font-family "|var(--font-code)") (:font-size 12) (:padding "|0 6px")
+          :examples $ []
+          :schema $ quote String
+        'style-empty $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-empty
+            {} $ |& $ {} (:flex 1) (:display :flex) (:flex-direction :column) (:align-items :center) (:justify-content :center) (:gap 8) (:color "|var(--text-2)") (:animation "|viewer-fade var(--ease-enter)")
+          :examples $ []
+          :schema $ quote String
+        'style-empty-hint $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-empty-hint
+            {} $ |& $ {} (:font-size 13) (:margin-bottom 8)
+          :examples $ []
+          :schema $ quote String
+        'style-empty-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-empty-title
+            {} $ |& $ {} (:font-size 15) (:font-weight 600) (:color "|var(--text)")
           :examples $ []
           :schema $ quote String
         'style-error $ %{} 'CodeEntry (:doc |)
@@ -527,7 +723,7 @@
           :schema $ quote String
         'style-palette $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-palette
-            {} $ |& $ {} (:width 560) (:max-width |90vw) (:background-color "|var(--surface)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius-float)") (:box-shadow "|var(--shadow-float)") (:overflow :hidden)
+            {} $ |& $ {} (:width 560) (:max-width |90vw) (:background-color "|var(--surface)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius-float)") (:box-shadow "|var(--shadow-float)") (:overflow :hidden) (:animation "|viewer-pop var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-palette-current $ %{} 'CodeEntry (:doc |)
@@ -550,7 +746,7 @@
         'style-palette-item $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-palette-item
             {}
-              |& $ {} (:display :flex) (:align-items :baseline) (:gap 10) (:height 28) (:padding "|0 14px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 13)
+              |& $ {} (:display :flex) (:align-items :baseline) (:gap 10) (:height 28) (:padding "|0 14px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 13) (:transition "|background-color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--surface-2)"
           :examples $ []
           :schema $ quote String
@@ -561,7 +757,7 @@
           :schema $ quote String
         'style-palette-mask $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-palette-mask
-            {} $ |& $ {} (:position :fixed) (:inset 0) (:z-index 50) (:background-color "|rgb(0 0 0 / 0.2)") (:display :flex) (:justify-content :center) (:align-items :flex-start) (:padding-top |12vh)
+            {} $ |& $ {} (:position :fixed) (:inset 0) (:z-index 50) (:background-color "|rgb(0 0 0 / 0.2)") (:display :flex) (:justify-content :center) (:align-items :flex-start) (:padding-top |12vh) (:animation "|viewer-fade var(--ease)")
           :examples $ []
           :schema $ quote String
         'style-palette-name $ %{} 'CodeEntry (:doc |)
@@ -579,11 +775,43 @@
             {} $ |& $ {} (:flex 1) (:min-height 0) (:display :flex) (:overflow-x :auto)
           :examples $ []
           :schema $ quote String
+        'style-primary $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-primary
+            {}
+              |& $ {} (:position :relative) (:overflow :hidden) (:height 30) (:padding "|0 14px") (:display :inline-flex) (:align-items :center) (:border-radius "|var(--radius)") (:background-color "|var(--accent)") (:color |#ffffff) (:cursor :pointer) (:transition "|filter var(--ease)")
+              |&:hover $ {} $ :filter "|brightness(1.08)"
+          :examples $ []
+          :schema $ quote String
         'style-search $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-search
             {}
               |& $ {} (:height 24) (:padding "|0 10px") (:display :inline-flex) (:align-items :center) (:min-width 200) (:font-size 12) (:color "|var(--text-3)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:background-color "|var(--bg)") (:cursor :pointer) (:flex-shrink 0)
               |&:hover $ {} (:border-color "|var(--accent)") (:color "|var(--text-2)")
+          :examples $ []
+          :schema $ quote String
+        'style-secondary $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-secondary
+            {}
+              |& $ {} (:height 30) (:padding "|0 14px") (:display :inline-flex) (:align-items :center) (:border-radius "|var(--radius)") (:border "|1px solid var(--border)") (:color "|var(--text)") (:cursor :pointer) (:transition "|border-color var(--ease), color var(--ease)")
+              |&:hover $ {} (:border-color "|var(--accent)") (:color "|var(--accent)")
+          :examples $ []
+          :schema $ quote String
+        'style-skeleton-line $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-skeleton-line
+            {} $ |& $ {} (:height 12) (:border-radius "|var(--radius)")
+              :background "|linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-shine) 50%, var(--skeleton) 75%)"
+              :background-size "|200% 100%"
+              :animation "|viewer-shine 1.4s linear infinite"
+          :examples $ []
+          :schema $ quote String
+        'style-skeleton-panel $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-skeleton-panel
+            {} $ |& $ {} (:width 520) (:padding |16px) (:display :flex) (:flex-direction :column) (:gap 10) (:background-color "|var(--surface)") (:border-right "|1px solid var(--border)")
+          :examples $ []
+          :schema $ quote String
+        'style-spinner $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-spinner
+            {} $ |& $ {} (:display :inline-block) (:width 10) (:height 10) (:margin-right 6) (:vertical-align |-1px) (:border "|2px solid var(--border)") (:border-top-color "|var(--accent)") (:border-radius |50%) (:animation "|viewer-spin 0.8s linear infinite")
           :examples $ []
           :schema $ quote String
         'style-status-button $ %{} 'CodeEntry (:doc |)
@@ -644,7 +872,32 @@
           :schema $ quote String
         'style-welcome $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-welcome
-            {} $ |& $ {} (:flex 1) (:padding "|40px 48px") (:max-width 680) (:color "|var(--text-2)")
+            {} $ |& $ {} (:flex 1) (:display :flex) (:align-items :center) (:justify-content :center) (:padding 24) (:animation "|viewer-fade var(--ease-enter)")
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-actions $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-actions
+            {} $ |& $ {} (:display :flex) (:gap 8) (:margin-bottom 16)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-card $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-card
+            {} $ |& $ {} (:max-width 560) (:padding "|32px 36px") (:background-color "|var(--surface)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius-float)")
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-lead $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-lead
+            {} $ |& $ {} (:color "|var(--text-2)") (:margin-bottom 20)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-md $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-md
+            {} $ |& $ {} (:color "|var(--text-2)") (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-title
+            {} $ |& $ {} (:font-size 20) (:font-weight 600) (:color "|var(--text)") (:margin-bottom 4)
           :examples $ []
           :schema $ quote String
       :ns $ %{} 'NsEntry (:doc "|Root component.")
@@ -1070,6 +1323,10 @@
                       :on-click $ fn (e d!)
                         d! $ Op :toggle-libs
                     <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
+                if (no-match? visible query)
+                  div $ {} (:class-name style-nav-empty)
+                    :inner-text $ str "|No definitions match “" query "|”"
+                  span $ {}
                 list->
                   {} $ :class-name style-nav-list
                   .map visible $ fn (ns-info)
@@ -1131,8 +1388,8 @@
                 {} (:class-name style-ns-name)
                   :on-click $ fn (e d!)
                     d! $ Op :toggle-ns $ :name ns-info
-                span $ {} (:class-name style-fold)
-                  :inner-text $ if open? "|▾" "|▸"
+                span $ {} (:inner-text "|▸")
+                  :class-name $ str-spaced style-fold $ if open? style-fold-open |
                 <> $ :name ns-info
                 if
                   = :project $ :origin ns-info
@@ -1142,7 +1399,8 @@
                 span $ {} (:class-name style-count)
                   :inner-text $ str $ .len defs
               if open?
-                list-> ({})
+                list->
+                  {} $ :class-name style-ns-defs
                   .map defs $ fn (info)
                     hint-fn $ Fn DefInfo $ -> (List Dynamic)
                     [] (:name info)
@@ -1168,6 +1426,20 @@
               true head
           :examples $ []
           :schema $ quote $ Fn String (-> String)
+        'no-match? $ %{} 'CodeEntry
+          :doc "|Whether a non-empty filter matches no definition in the visible namespaces."
+          :code $ quote $ defn no-match? (visible query)
+            and
+              not $ .empty? query
+              not $ .any? visible $ fn (ns-info)
+                hint-fn $ Fn NsInfo $ -> Bool
+                .any?
+                  map-values $ :defs ns-info
+                  fn (info)
+                    hint-fn $ Fn DefInfo $ -> Bool
+                    .includes? (:id info) query
+          :examples $ []
+          :schema $ quote $ Fn (List app.types/NsInfo) String (-> Bool)
         'style-check $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-check
             {}
@@ -1200,7 +1472,12 @@
           :schema $ quote String
         'style-fold $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-fold
-            {} $ |& $ {} (:width 10) (:color "|var(--sidebar-text-2)") (:flex-shrink 0)
+            {} $ |& $ {} (:width 10) (:color "|var(--sidebar-text-2)") (:flex-shrink 0) (:display :inline-block) (:transition "|transform var(--ease)")
+          :examples $ []
+          :schema $ quote String
+        'style-fold-open $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-fold-open
+            {} $ |& $ {} (:transform "|rotate(90deg)")
           :examples $ []
           :schema $ quote String
         'style-kind $ %{} 'CodeEntry (:doc |)
@@ -1221,13 +1498,20 @@
         'style-nav-def $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav-def
             {}
-              |& $ {} (:display :flex) (:align-items :center) (:height 22) (:padding "|0 8px 0 22px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 12) (:white-space :nowrap) (:border-left "|2px solid transparent")
+              |& $ {} (:display :flex) (:align-items :center) (:height 22) (:padding "|0 8px 0 22px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 12) (:white-space :nowrap) (:border-left "|2px solid transparent") (:transition "|background-color var(--ease), color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--sidebar-hover)"
+          :examples $ []
+          :schema $ quote String
+        'style-nav-empty $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-empty
+            {} $ |& $ {} (:padding "|12px 16px") (:font-size 12) (:color "|var(--sidebar-text-2)")
           :examples $ []
           :schema $ quote String
         'style-nav-list $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav-list
-            {} $ |& $ {} (:flex 1) (:overflow :auto) (:padding-bottom 40)
+            {}
+              |& $ {} (:flex 1) (:overflow :auto) (:padding-bottom 40) (:scrollbar-color "|var(--sidebar-scrollbar-thumb) transparent")
+              |&::-webkit-scrollbar-thumb $ {} $ :background-color "|var(--sidebar-scrollbar-thumb)"
           :examples $ []
           :schema $ quote String
         'style-nav-open $ %{} 'CodeEntry (:doc |)
@@ -1238,6 +1522,11 @@
         'style-nav-tools $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav-tools
             {} $ |& $ {} (:padding 8) (:display :flex) (:flex-direction :column) (:gap 6)
+          :examples $ []
+          :schema $ quote String
+        'style-ns-defs $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ns-defs
+            {} $ |& $ {} (:animation "|viewer-fade var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-ns-name $ %{} 'CodeEntry (:doc |)
@@ -1262,22 +1551,32 @@
     'app.comp.panel $ %{} 'FileEntry
       :defs $ {}
         'comp-def-list $ %{} 'CodeEntry
-          :doc "|Clickable list of definition ids; ids missing from the program are shown plain."
+          :doc "|Definitions as two-line cards: the namespace small and muted above, the name below; ids missing from the program are not clickable."
           :code $ quote $ defcomp comp-def-list (program title ids next-idx)
             div ({})
               div
                 {} $ :class-name style-section-title
                 <> $ str title "| (" (.len ids) "|)"
-              list->
-                {} $ :class-name style-def-list
-                .map ids $ fn (id)
-                  hint-fn $ Fn String $ -> (List Dynamic)
-                  [] id $ if
-                    .some? $ lookup-def program id
-                    span $ {} (:class-name style-ref) (:inner-text id)
-                      :on-click $ fn (e d!)
-                        d! $ Op :open next-idx id
-                    span $ {} (:class-name style-ref-missing) (:inner-text id)
+              if (.empty? ids)
+                div $ {} (:class-name style-none) (:inner-text |None)
+                list->
+                  {} $ :class-name style-def-list
+                  .map ids $ fn (id)
+                    hint-fn $ Fn String $ -> (List Dynamic)
+                    let
+                        parts $ split-id id
+                        known? $ .some? $ lookup-def program id
+                      [] id $ div
+                        {} (:title id)
+                          :class-name $ str-spaced style-ref-card $ if known? | style-ref-missing
+                          :on-click $ fn (e d!)
+                            if known?
+                              d! $ Op :open next-idx id
+                              , &unit
+                        div $ {} (:class-name style-ref-ns)
+                          :inner-text $ .unwrap-or (.get parts 0) |
+                        div $ {} (:class-name style-ref-name)
+                          :inner-text $ .unwrap-or (.get parts 1) id
           :examples $ []
           :schema $ quote $ Fn app.types/Program String (List String) Number (-> respo.schema/Component)
         'comp-panel $ %{} 'CodeEntry
@@ -1321,7 +1620,7 @@
                   div
                     {}
                       :data-panel $ str idx
-                      :class-name $ str-spaced style-panel (if changed? style-changed |) (if active? style-panel-active |)
+                      :class-name $ str-spaced style-panel (if changed? style-panel-changed |) (if active? style-panel-active |)
                     comp-panel-header idx id (:head info) changed?
                     comp-signature info
                     if
@@ -1382,7 +1681,7 @@
                     {} $ :class-name style-sig-row
                     span $ {} (:class-name style-sig-label) (:inner-text label)
                     span $ {} (:inner-text text)
-                      :class-name $ str-spaced style-sig-text $ if (.includes? text |Dynamic) style-sig-dynamic |
+                      :class-name $ str-spaced style-sig-text $ if (.includes? text |Dynamic) style-sig-text-dynamic |
               div
                 {} $ :class-name style-sig
                 match schema
@@ -1407,11 +1706,6 @@
             {} $ |& $ {} (:font-size 11) (:padding "|0 6px") (:margin-left 8) (:border-radius "|var(--radius-chip)") (:color "|var(--ok)") (:background-color "|color-mix(in srgb, var(--ok) 14%, transparent)") (:flex-shrink 0)
           :examples $ []
           :schema $ quote String
-        'style-changed $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-changed
-            {} $ |& $ {} (:box-shadow "|inset 3px 0 0 var(--ok)")
-          :examples $ []
-          :schema $ quote String
         'style-close $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-close
             {}
@@ -1421,7 +1715,7 @@
           :schema $ quote String
         'style-def-list $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-def-list
-            {} $ |& $ {} (:display :flex) (:flex-wrap :wrap) (:gap "|2px 12px") (:font-family "|var(--font-code)") (:font-size 12)
+            {} $ |& $ {} (:display :flex) (:flex-wrap :wrap) (:gap 6)
           :examples $ []
           :schema $ quote String
         'style-doc $ %{} 'CodeEntry (:doc |)
@@ -1439,6 +1733,11 @@
             {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 4) (:position :sticky) (:top 0) (:background-color "|var(--surface)") (:padding "|10px 0 8px") (:z-index 2)
           :examples $ []
           :schema $ quote String
+        'style-none $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-none
+            {} $ |& $ {} (:font-size 12) (:color "|var(--text-3)")
+          :examples $ []
+          :schema $ quote String
         'style-note $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-note
             {} $ |& $ {} (:color "|var(--text-3)") (:font-size 13)
@@ -1446,7 +1745,7 @@
           :schema $ quote String
         'style-panel $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-panel
-            {} $ |& $ {} (:width 520) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:border-top "|2px solid transparent")
+            {} $ |& $ {} (:width 520) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:border-top "|2px solid transparent") (:animation "|viewer-enter var(--ease-enter)") (:transition "|border-color var(--ease)")
           :examples $ []
           :schema $ quote String
         'style-panel-active $ %{} 'CodeEntry (:doc |)
@@ -1454,16 +1753,34 @@
             {} $ |& $ {} (:border-top-color "|var(--accent)")
           :examples $ []
           :schema $ quote String
-        'style-ref $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-ref
+        'style-panel-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-panel-changed
+            {} $ |& $ {} (:box-shadow "|inset 3px 0 0 var(--ok)") (:animation "|viewer-flash 1.2s ease-out")
+          :examples $ []
+          :schema $ quote String
+        'style-ref-card $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-card
             {}
-              |& $ {} (:color "|var(--accent)") (:cursor :pointer)
-              |&:hover $ {} $ :text-decoration :underline
+              |& $ {} (:max-width |100%) (:padding "|3px 8px") (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:cursor :pointer) (:font-family "|var(--font-code)")
+                :transition "|border-color var(--ease), background-color var(--ease)"
+              |&:hover $ {} (:border-color "|var(--accent)") (:background-color "|var(--accent-soft)")
           :examples $ []
           :schema $ quote String
         'style-ref-missing $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-ref-missing
-            {} $ |& $ {} (:color "|var(--text-3)")
+            {}
+              |& $ {} (:cursor :default) (:opacity |0.6)
+              |&:hover $ {} (:border-color "|var(--border)") (:background-color :transparent)
+          :examples $ []
+          :schema $ quote String
+        'style-ref-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-name
+            {} $ |& $ {} (:font-size 13) (:line-height |18px) (:color "|var(--accent)") (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
+          :examples $ []
+          :schema $ quote String
+        'style-ref-ns $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-ns
+            {} $ |& $ {} (:font-size 10) (:line-height |14px) (:color "|var(--text-3)") (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
           :examples $ []
           :schema $ quote String
         'style-section-title $ %{} 'CodeEntry (:doc |)
@@ -1474,11 +1791,6 @@
         'style-sig $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-sig
             {} $ |& $ {} (:margin "|0 0 8px") (:font-family "|var(--font-code)") (:font-size 12)
-          :examples $ []
-          :schema $ quote String
-        'style-sig-dynamic $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-sig-dynamic
-            {} $ |& $ {} (:color "|var(--dynamic)")
           :examples $ []
           :schema $ quote String
         'style-sig-label $ %{} 'CodeEntry (:doc |)
@@ -1496,10 +1808,15 @@
             {} $ |& $ {} (:color "|var(--type)") (:white-space :pre-wrap) (:min-width 0)
           :examples $ []
           :schema $ quote String
+        'style-sig-text-dynamic $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig-text-dynamic
+            {} $ |& $ {} (:color "|var(--dynamic)")
+          :examples $ []
+          :schema $ quote String
         'style-strip $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-strip
             {}
-              |& $ {} (:width 28) (:flex-shrink 0) (:cursor :pointer) (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:display :flex) (:justify-content :center) (:padding-top 12)
+              |& $ {} (:width 28) (:flex-shrink 0) (:cursor :pointer) (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:display :flex) (:justify-content :center) (:padding-top 12) (:animation "|viewer-fade var(--ease)") (:transition "|background-color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--surface-2)"
           :examples $ []
           :schema $ quote String
@@ -1727,6 +2044,7 @@
                         file $ js-cast maybe-file 'app.loader/FileHost
                         filename $ .-name file
                         reader $ js-cast (new js/FileReader) 'app.loader/FileReaderHost
+                      d! $ Op :loading filename
                       js-set reader :onload $ fn (event)
                         let
                             result $ .-result reader
@@ -2655,6 +2973,7 @@
             :palette-close
             :palette-query 'String
             :palette-move 'Number
+            :loading 'String
             :resumable 'String
           :examples $ []
           :schema $ quote EnumDef
@@ -2699,6 +3018,7 @@
             :collapsed $ quote $ Set String
             :palette $ quote $ Option String
             :palette-idx 'Number
+            :loading $ quote $ Option String
           :examples $ []
           :schema $ quote StructDef
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
@@ -2727,9 +3047,14 @@
                     assoc :error $ Option :none
                     assoc :file-name file-name
                     assoc :loaded-at time
+                    assoc :loading $ Option :none
                     update-prefs $ fn (prefs) (assoc prefs :stack stack)
               (:error message)
-                assoc store :error $ Option :some message
+                -> store
+                  assoc :error $ Option :some message
+                  assoc :loading $ Option :none
+              (:loading file-name)
+                assoc store :loading $ Option :some file-name
               (:open idx id)
                 update-prefs store $ fn (prefs)
                   assoc prefs :stack $ .concat
@@ -2924,7 +3249,7 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :loading (Option :none) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
           :examples $ []
           :schema $ quote app.types/Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
