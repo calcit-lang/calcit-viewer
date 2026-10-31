@@ -1844,7 +1844,7 @@
           :schema $ quote String
         'style-ref-ns $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-ref-ns
-            {} $ |& $ {} (:font-size 10) (:line-height |14px) (:color "|var(--text-3)") (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
+            {} $ |& $ {} (:font-size 10) (:line-height |14px) (:color "|var(--text-2)") (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
           :examples $ []
           :schema $ quote String
         'style-section-title $ %{} 'CodeEntry (:doc |)
