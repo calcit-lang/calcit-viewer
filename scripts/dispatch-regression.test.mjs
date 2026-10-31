@@ -10,7 +10,7 @@ import { comp_nav_def } from '../js-out/app.comp.nav.mjs';
 import { component_$q_, component_tree, render_node_value } from '../js-out/respo.util.detect.mjs';
 import { make_string } from '../js-out/respo.render.html.mjs';
 
-const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name']);
+const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name', 'namespaces', 'defs', 'types']);
 const map = clt._$n__$M_;
 const field = (v, k) => clt.option_$o_unwrap(clt.get(v, k));
 const toArray = xs => { const out = []; for (let i = 0; i < clt.count(xs); i++) out.push(clt.option_$o_unwrap(clt.nth(xs, i))); return out; };
@@ -89,6 +89,13 @@ for (const mode of ['load', 'missing-result', 'error']) {
       if (mode === 'load') {
         assert.equal(field(run.get(), t['file-name']), 'program-ir.cirru');
         assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/main!']);
+        const program = clt.option_$o_unwrap(field(run.get(), t.program));
+        const mainNs = field(field(program, t.namespaces), 'app.main');
+        assert.equal(clt.count(field(mainNs, t.defs)), 2);
+        const double = clt.option_$o_unwrap(lookup_def(program, 'app.main/double'));
+        const main = clt.option_$o_unwrap(lookup_def(program, 'app.main/main!'));
+        assert.deepEqual(field(double, t.types), map('3', 'Number', '3.1', 'Dynamic'));
+        assert.deepEqual(field(main, t.types), map('3', 'Number'));
       } else assert.match(clt.option_$o_unwrap(field(run.get(), t.error)), /Failed to read program-ir.cirru/);
     } finally {
       if (saved) Object.defineProperty(globalThis, 'FileReader', saved);
