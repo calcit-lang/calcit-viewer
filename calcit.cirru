@@ -157,7 +157,8 @@
               div
                 {} $ :class-name $ str-spaced css/global style-app
                 match (:program store)
-                  (:some program) (comp-nav program prefs)
+                  (:some program)
+                    comp-nav program prefs $ :changed store
                   (:none)
                     span $ {}
                 div
@@ -192,6 +193,7 @@
                 {} $ :class-name style-file-button
                 <> "|Open file…"
                 input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
+              comp-watch store
               match (:program store)
                 (:some program)
                   span $ {} (:class-name style-meta)
@@ -200,6 +202,11 @@
                         = :ir $ :format program
                         str "| · calcit " $ :calcit-version program
                         , "| · Snapshot, no inferred types"
+                      if
+                        .empty? $ :changed store
+                        , | $ str "| · "
+                          .len $ :changed store
+                          , "| updated"
                 (:none)
                   span $ {}
               div
@@ -209,6 +216,30 @@
                 <> $ if
                   :inline-types? $ :prefs store
                   , "|☑ Inline types" "|☐ Inline types"
+          :examples $ []
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+        'comp-watch $ %{} 'CodeEntry
+          :doc "|Watching controls; only shown where the File System Access API exists."
+          :code $ quote $ defcomp comp-watch (store)
+            if
+              not $ supports-watch
+              span $ {}
+              match (:watching store)
+                (:some file-name)
+                  span $ {} (:class-name style-watching)
+                    :inner-text $ str "|● Watching " file-name "| (click to stop)"
+                    :on-click $ fn (e d!) (stop-watch! d!)
+                (:none)
+                  span ({})
+                    span $ {} (:class-name style-watch-button) (:inner-text "|Watch file…")
+                      :on-click $ fn (e d!) (watch! d!)
+                    match (:resumable store)
+                      (:some file-name)
+                        span $ {} (:class-name style-watch-button)
+                          :inner-text $ str "|Resume watching " file-name
+                          :on-click $ fn (e d!) (resume-watch! d!)
+                      (:none)
+                        span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
         'comp-welcome $ %{} 'CodeEntry (:doc |)
@@ -263,6 +294,18 @@
             {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 12) (:padding "|6px 16px") (:border-bottom "|1px solid hsl(0, 0%, 88%)") (:background-color :white)
           :examples $ []
           :schema $ quote String
+        'style-watch-button $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-watch-button
+            {}
+              |& $ {} (:padding "|2px 10px") (:margin-right 8) (:border-radius |4px) (:border "|1px solid hsl(210, 80%, 50%)") (:color "|hsl(210, 80%, 45%)") (:cursor :pointer) (:font-size 13)
+              |&:hover $ {} $ :background-color "|hsl(210, 80%, 96%)"
+          :examples $ []
+          :schema $ quote String
+        'style-watching $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-watching
+            {} $ |& $ {} (:font-size 13) (:color "|hsl(140, 50%, 35%)") (:cursor :pointer)
+          :examples $ []
+          :schema $ quote String
         'style-welcome $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-welcome
             {} $ |& $ {} (:padding "|24px 32px") (:max-width 640) (:color "|hsl(0, 0%, 30%)")
@@ -276,14 +319,15 @@
             respo-ui.css :as css
             respo-md.comp.md :refer $ comp-md-block
             app.types :refer $ Op
-            app.loader :refer $ on-file-change
+            app.loader :refer $ on-file-change watch! resume-watch! stop-watch!
+            |../src/file-watch.mjs :refer $ supports-watch
             app.comp.nav :refer $ comp-nav
             app.comp.panel :refer $ comp-panel
     'app.comp.nav $ %{} 'FileEntry
       :defs $ {}
         'comp-nav $ %{} 'CodeEntry
           :doc "|Namespace and definition tree with a filter; libraries are hidden unless toggled."
-          :code $ quote $ defcomp comp-nav (program prefs)
+          :code $ quote $ defcomp comp-nav (program prefs changed)
             let
                 query $ .trim $ :filter prefs
                 open-ids $ .to-set $ :stack prefs
@@ -333,12 +377,14 @@
                               .map defs $ fn (info)
                                 hint-fn $ Fn DefInfo $ -> (List Dynamic)
                                 [] (:name info)
-                                  comp-nav-def info $ .includes? open-ids $ :id info
+                                  comp-nav-def info
+                                    .includes? open-ids $ :id info
+                                    .includes? changed $ :id info
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (-> respo.schema/Component)
         'comp-nav-def $ %{} 'CodeEntry
           :doc "|One definition row; the dot shows how much of its source types still mention Dynamic."
-          :code $ quote $ defcomp comp-nav-def (info open?)
+          :code $ quote $ defcomp comp-nav-def (info open? changed?)
             let
                 ratio $ dynamic-ratio info
                 color $ cond
@@ -349,7 +395,7 @@
                   true "|hsl(25, 85%, 55%)"
               div
                 {}
-                  :class-name $ str-spaced style-nav-def $ if open? style-nav-open |
+                  :class-name $ str-spaced style-nav-def (if open? style-nav-open |) (if changed? style-nav-changed |)
                   :title $ if (< ratio 0) (:id info)
                     str (:id info) &newline "|Dynamic in "
                       .round $ * 100 ratio
@@ -360,7 +406,7 @@
                   :style $ {} $ :background-color color
                 <> $ :name info
           :examples $ []
-          :schema $ quote $ Fn app.types/DefInfo Bool (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/DefInfo Bool Bool (-> respo.schema/Component)
         'style-check $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-check
             {} $ |& $ {} (:font-size 12) (:color "|hsl(0, 0%, 75%)") (:display :flex) (:align-items :center) (:gap 4) (:cursor :pointer)
@@ -379,6 +425,11 @@
         'style-nav $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav
             {} $ |& $ {} (:width 260) (:flex-shrink 0) (:display :flex) (:flex-direction :column) (:background-color "|hsl(210, 25%, 20%)") (:color "|hsl(0, 0%, 85%)")
+          :examples $ []
+          :schema $ quote String
+        'style-nav-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-changed
+            {} $ |& $ {} (:color "|hsl(140, 60%, 70%)") (:font-weight 600)
           :examples $ []
           :schema $ quote String
         'style-nav-def $ %{} 'CodeEntry (:doc |)
@@ -698,10 +749,32 @@
             :names $ {} $ :read-as-text! |readAsText
             :writable $ #{} :onerror :onload
           :schema $ quote Trait
+        'as-dispatch $ %{} 'CodeEntry
+          :doc "|Narrows the `d!` handed to Respo event handlers into a typed dispatch."
+          :code $ quote $ defn as-dispatch (dispatch)
+            fn (op)
+              hint-fn $ Fn app.types/Op $ -> Unit
+              if (fn? dispatch) (dispatch op) (raise "|Expected dispatch callback")
+              , &unit
+          :examples $ []
+          :schema $ quote $ Fn Dynamic
+            -> $ Fn app.types/Op $ -> Unit
         'cache-key $ %{} 'CodeEntry (:doc "|localStorage key for the last loaded file text.")
           :code $ quote $ def cache-key |calcit-viewer-source
           :examples $ []
           :schema $ quote String
+        'check-resumable! $ %{} 'CodeEntry
+          :doc "|Offers to resume the file watched in an earlier visit."
+          :code $ quote $ defn check-resumable! (d!)
+            stored-name $ fn (file-name)
+              hint-fn $ Fn String $ -> Unit
+              d! $ Op :resumable file-name
+            , &unit
+          :examples $ []
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
         'load-text! $ %{} 'CodeEntry
           :doc "|Parses file text into a Program and dispatches it; keeps small files for the next visit."
           :code $ quote $ defn load-text! (text file-name d!)
@@ -725,10 +798,7 @@
         'on-file-change $ %{} 'CodeEntry (:doc "|Reads the picked file with FileReader.")
           :code $ quote $ defn on-file-change (e dispatch)
             let
-                d! $ fn (op)
-                  hint-fn $ Fn app.types/Op $ -> Unit
-                  if (fn? dispatch) (dispatch op) (raise "|Expected dispatch callback")
-                  , &unit
+                d! $ as-dispatch dispatch
                 event $ decode-map-as e $ :: 'Map 'Tag 'Dynamic
                 event-host $ js-cast
                   .unwrap $ get event :event
@@ -774,6 +844,56 @@
             Fn app.types/Op $ -> Unit
             -> Unit
             :features :js-ffi
+        'resume-watch! $ %{} 'CodeEntry
+          :doc "|Resumes the stored file handle; the browser asks for read permission."
+          :code $ quote $ defn resume-watch! (dispatch)
+            let
+                d! $ as-dispatch dispatch
+              resume-watch (watch-on-text d!) (watch-on-error d!)
+                fn (file-name)
+                  hint-fn $ Fn String $ -> Unit
+                  d! $ Op :watching file-name
+              , &unit
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> Unit) (:features :js-ffi)
+        'stop-watch! $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn stop-watch! (dispatch)
+            let
+                d! $ as-dispatch dispatch
+              stop-watch
+              d! $ Op :stop-watching
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> Unit) (:features :js-ffi)
+        'watch! $ %{} 'CodeEntry
+          :doc "|Picks a file and reloads it whenever it changes on disk."
+          :code $ quote $ defn watch! (dispatch)
+            let
+                d! $ as-dispatch dispatch
+              pick-and-watch (watch-on-text d!) (watch-on-error d!)
+                fn (file-name)
+                  hint-fn $ Fn String $ -> Unit
+                  d! $ Op :watching file-name
+              , &unit
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> Unit) (:features :js-ffi)
+        'watch-on-error $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn watch-on-error (d!)
+            fn (message)
+              hint-fn $ Fn String $ -> Unit
+              d! $ Op :error $ str "|Watching failed: " message
+          :examples $ []
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> $ Fn String $ -> Unit
+        'watch-on-text $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn watch-on-text (d!)
+            fn (text file-name)
+              hint-fn $ Fn String String $ -> Unit
+              load-text! text file-name d!
+          :examples $ []
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> $ Fn String String $ -> Unit
       :ns $ %{} 'NsEntry (:doc "|Reading program files picked by the user.")
         :code $ quote $ ns app.loader
           :require
@@ -782,6 +902,7 @@
             js-ffi.browser :as browser
             js-ffi.shared :as shared
             js-ffi.contract :refer $ expect-string
+            |../src/file-watch.mjs :refer $ pick-and-watch resume-watch stop-watch stored-name
     'app.main $ %{} 'FileEntry
       :defs $ {}
         '*store $ %{} 'CodeEntry (:doc |)
@@ -802,6 +923,7 @@
             render-app!
             add-watch! *store :changes $ fn (current previous) (render-app!)
             restore-cached! dispatch!
+            check-resumable! dispatch!
             browser/set-before-unload! $ fn (event) (persist-prefs!)
             browser/document-add-event-listener! |visibilitychange $ fn (event) (persist-prefs!)
             println "|App started."
@@ -857,7 +979,7 @@
             app.comp.container :refer $ comp-container
             app.updater :as updater
             app.types :refer $ Op
-            app.loader :refer $ restore-cached!
+            app.loader :refer $ restore-cached! check-resumable!
             app.config :as config
             js-ffi.browser :as browser
             |./calcit.build-errors :default build-errors
@@ -1341,7 +1463,7 @@
           :examples $ []
           :schema $ quote StructDef
         'Op $ %{} 'CodeEntry (:doc "|Store operations.")
-          :code $ quote $ defenum Op (:load 'app.types/Program 'String 'Number) (:error 'String) (:open 'Number 'String) (:close 'Number) (:filter 'String) (:toggle-libs) (:toggle-inline-types) (:restore 'app.types/Prefs)
+          :code $ quote $ defenum Op (:load 'app.types/Program 'String 'Number) (:error 'String) (:open 'Number 'String) (:close 'Number) (:filter 'String) (:toggle-libs) (:toggle-inline-types) (:restore 'app.types/Prefs) (:watching 'String) (:stop-watching) (:resumable 'String)
           :examples $ []
           :schema $ quote EnumDef
         'Prefs $ %{} 'CodeEntry (:doc "|View preferences kept in localStorage.")
@@ -1368,6 +1490,8 @@
             :loaded-at 'Number
             :changed $ quote $ Set String
             :prefs 'app.types/Prefs
+            :watching $ quote $ Option String
+            :resumable $ quote $ Option String
           :examples $ []
           :schema $ quote StructDef
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
@@ -1400,7 +1524,7 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false
           :examples $ []
           :schema $ quote app.types/Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
@@ -1451,29 +1575,50 @@
                 update-prefs store $ fn (prefs)
                   assoc prefs :inline-types? $ not $ :inline-types? prefs
               (:restore prefs) (assoc store :prefs prefs)
+              (:watching file-name)
+                -> store
+                  assoc :watching $ Option :some file-name
+                  assoc :resumable $ Option :none
+              (:stop-watching)
+                assoc store :watching $ Option :none
+              (:resumable file-name)
+                if
+                  .some? $ :watching store
+                  , store $ assoc store :resumable $ Option :some file-name
           :examples $ []
           :schema $ quote $ Fn app.types/Store app.types/Op (-> app.types/Store)
-          :tests $ [] $ %{} 'TestEntry (:name |open-load-and-refresh)
-            :code $ quote $ let
-                program $ parse-program $ parse-cirru-edn sample-ir
-                loaded $ updater store $ Op :load program |program-ir.cirru 1
-                opened $ updater loaded $ Op :open 1 |app.main/double
-                reopened $ updater opened $ Op :open 0 |app.main/double
-                app-ns $ .unwrap $ .get (:namespaces program) |app.main
-                double $ .unwrap $ .get (:defs app-ns) |double
-                edited $ assoc program :namespaces $ .assoc (:namespaces program) |app.main
-                  assoc app-ns :defs $ .assoc (:defs app-ns) |double $ assoc double :doc |changed
-              assert= ([] |app.main/main!)
-                :stack $ :prefs loaded
-              assert= ([] |app.main/main! |app.main/double)
-                :stack $ :prefs opened
-              assert= ([] |app.main/double)
-                :stack $ :prefs reopened
-              assert= (#{}) (:changed loaded)
-              assert= (#{} |app.main/double)
-                :changed $ updater opened $ Op :load edited |program-ir.cirru 2
-              assert= ([] |app.main/main! |app.main/double)
-                :stack $ :prefs $ updater opened (Op :load edited |program-ir.cirru 2)
+          :tests $ []
+            %{} 'TestEntry (:name |watching-state)
+              :code $ quote $ let
+                  offered $ updater store $ Op :resumable |program-ir.cirru
+                  watching $ updater offered $ Op :watching |program-ir.cirru
+                assert= (Option :some |program-ir.cirru) (:resumable offered)
+                assert= (Option :none) (:resumable watching)
+                assert= (Option :some |program-ir.cirru) (:watching watching)
+                assert= watching $ updater watching $ Op :resumable |other.cirru
+                assert= (Option :none)
+                  :watching $ updater watching $ Op :stop-watching
+            %{} 'TestEntry (:name |open-load-and-refresh)
+              :code $ quote $ let
+                  program $ parse-program $ parse-cirru-edn sample-ir
+                  loaded $ updater store $ Op :load program |program-ir.cirru 1
+                  opened $ updater loaded $ Op :open 1 |app.main/double
+                  reopened $ updater opened $ Op :open 0 |app.main/double
+                  app-ns $ .unwrap $ .get (:namespaces program) |app.main
+                  double $ .unwrap $ .get (:defs app-ns) |double
+                  edited $ assoc program :namespaces $ .assoc (:namespaces program) |app.main
+                    assoc app-ns :defs $ .assoc (:defs app-ns) |double $ assoc double :doc |changed
+                assert= ([] |app.main/main!)
+                  :stack $ :prefs loaded
+                assert= ([] |app.main/main! |app.main/double)
+                  :stack $ :prefs opened
+                assert= ([] |app.main/double)
+                  :stack $ :prefs reopened
+                assert= (#{}) (:changed loaded)
+                assert= (#{} |app.main/double)
+                  :changed $ updater opened $ Op :load edited |program-ir.cirru 2
+                assert= ([] |app.main/main! |app.main/double)
+                  :stack $ :prefs $ updater opened (Op :load edited |program-ir.cirru 2)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.updater
           :require

@@ -56,7 +56,7 @@ test('clicking a definition in the navigation opens it as the first panel', () =
   const program = parse_program(clt.parse_cirru_edn(sample_ir));
   const run = collect(store);
   const info = clt.option_$o_unwrap(lookup_def(program, 'app.main/double'));
-  handler(comp_nav_def(info, false), t.click)(null, run.d);
+  handler(comp_nav_def(info, false, false), t.click)(null, run.d);
   assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/double']);
 });
 
