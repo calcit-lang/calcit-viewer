@@ -26,6 +26,20 @@ Then open `js-out/program-ir.cirru` with "Open file…". A `calcit.cirru` Snapsh
 - "Prompt…" opens a drawer: write a question and "Copy prompt" puts a Markdown prompt on the clipboard with the project, the open panels (signature, doc, spots typed `Dynamic`, optionally source) and `calcit query` commands to continue with. Nothing is sent anywhere by the viewer.
 - The last opened file and the open panels are kept in localStorage.
 
+### Shortcuts
+
+| Key | Action |
+| --- | --- |
+| ⌘K / Ctrl+K or `/` | Quick open: fuzzy search definitions; Enter opens, Shift+Enter adds to the right |
+| Esc | Close quick open, otherwise close the last panel |
+| Alt+← / Alt+→ | Back / forward through panel history |
+| `[` / `]` | Previous / next panel |
+| ⌘B / Ctrl+B | Toggle the sidebar |
+| `1` `2` `3` | Code / Call tree / Sunburst |
+| `T` | Inline types |
+
+The toolbar breadcrumb shows the open panels; click a step to close the panels after it. The ⇤ button folds a panel into a narrow strip. Colours follow the system light or dark setting; design tokens live in `assets/main.css`.
+
 ### Workflow
 
 ```bash

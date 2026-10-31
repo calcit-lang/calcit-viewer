@@ -9,12 +9,29 @@ export function reveal_panel(idx) {
   });
 }
 
-/** Call `onEscape()` when Escape is pressed outside text fields. */
-export function listen_escape(onEscape) {
+/** Focus the element matching `selector` after the next paint. */
+export function focus_later(selector) {
+  requestAnimationFrame(() => document.querySelector(selector)?.focus());
+}
+
+const PREVENTED = new Set(["mod+k", "mod+b", "/"]);
+
+/**
+ * Call `onKey(combo)` for global shortcuts, e.g. "mod+k", "alt+arrowleft", "escape", "[".
+ * Keys typed into text fields are ignored, except Escape.
+ */
+export function listen_keys(onKey) {
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
     const tag = event.target?.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
-    onEscape();
+    const typing = tag === "INPUT" || tag === "TEXTAREA";
+    const key = event.key.toLowerCase();
+    if (typing && key !== "escape") return;
+    const parts = [];
+    if (event.metaKey || event.ctrlKey) parts.push("mod");
+    if (event.altKey) parts.push("alt");
+    parts.push(key);
+    const combo = parts.join("+");
+    if (PREVENTED.has(combo)) event.preventDefault();
+    onKey(combo);
   });
 }
