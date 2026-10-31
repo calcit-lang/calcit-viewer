@@ -1,7 +1,7 @@
 {
   "packageManager": "yarn@4.18.0",
   "name": "calcit-viewer",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "App for reading calcit.edn",
   "main": "index.js",
   "repository": {
@@ -21,7 +21,7 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@calcit/procs": "0.30.1",
+    "@calcit/procs": "0.32.1",
     "cirru-color": "^0.2.4",
     "copy-text-to-clipboard": "^3.2.1",
     "copy-to-clipboard": "^3.3.3",

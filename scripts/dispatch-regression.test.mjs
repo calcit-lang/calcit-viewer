@@ -2,25 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import * as clt from '../js-out/calcit.core.mjs';
-import { store } from '../js-out/app.schema.mjs';
-import { updater } from '../js-out/app.updater.mjs';
-import { comp_entry, comp_text_area, on_file_change } from '../js-out/app.comp.container.mjs';
-import * as action from '../js-out/respo-message.action.mjs';
+import { store, updater } from '../js-out/app.updater.mjs';
+import { parse_program, lookup_def, sample_ir } from '../js-out/app.program.mjs';
+import { on_file_change, load_text_$x_ } from '../js-out/app.loader.mjs';
+import { comp_container } from '../js-out/app.comp.container.mjs';
+import { comp_nav_def } from '../js-out/app.comp.nav.mjs';
 import { component_$q_, component_tree, render_node_value } from '../js-out/respo.util.detect.mjs';
 import { make_string } from '../js-out/respo.render.html.mjs';
-import { comp_viewer } from '../js-out/app.comp.viewer.mjs';
 
-const t = clt.init_tags(['click', 'input', 'event', 'children', 'node', 'some', 'none', 'text', 'page', 'about', 'input', 'upload', 'states', 'graph', 'data', 'value', 'error', 'messages', 'token', 'load/calcit', 'hydrate-storage', 'calcit', 'viewer']);
-const map = clt._$n__$M_, list = clt._$L_, op = clt._$o__$o_;
+const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name']);
+const map = clt._$n__$M_;
 const field = (v, k) => clt.option_$o_unwrap(clt.get(v, k));
-const nth = (v, i) => clt.option_$o_unwrap(clt.nth(v, i));
-const none = field(store, t.error);
+const toArray = xs => { const out = []; for (let i = 0; i < clt.count(xs); i++) out.push(clt.option_$o_unwrap(clt.nth(xs, i))); return out; };
 const source = readFileSync(new URL('../calcit.cirru', import.meta.url), 'utf8');
-const snapshot = clt.parse_cirru_edn(source);
-function fileEvent(name) {
-  const event = new Event('change');
-  Object.defineProperty(event, 'target', { value: { files: { item: () => ({ name }) } } });
-  return map(t.event, event);
+
+
+function collect(initial) {
+  const ops = [];
+  let current = initial;
+  const d = (...args) => {
+    assert.equal(args.length, 1);
+    ops.push(args[0]);
+    current = updater(current, args[0]);
+  };
+  return { d, ops, get: () => current };
 }
 function handler(node, tag) {
   if (component_$q_(node)) return handler(clt.option_$o_unwrap(component_tree(node)), tag);
@@ -29,66 +34,43 @@ function handler(node, tag) {
     const h = clt.get(clt.option_$o_unwrap(event), tag);
     if (clt._$n_enum_$o_nth(h, 0) === t.some) return clt.option_$o_unwrap(h);
   }
-  const children = clt.get(node, t.children);
-  if (clt._$n_enum_$o_nth(children, 0) === t.some) {
-    const pairs = clt.option_$o_unwrap(children);
-    for (let i = 0; i < clt.count(pairs); i++) {
-      const child = field(nth(pairs, i), t.node);
-      if (clt._$n_enum_$o_nth(child, 0) === t.none) continue;
-      const h = handler(render_node_value(clt.option_$o_unwrap(child)), tag);
-      if (h) return h;
-    }
-  }
+  return null;
 }
-const dispatchTo = (initial, capture) => (...args) => {
-  assert.equal(args.length, 1);
-  capture(updater(initial, args[0], 'event', 1));
-};
+function fileEvent(name) {
+  const event = new Event('change');
+  Object.defineProperty(event, 'target', { value: { files: { item: () => ({ name }) } } });
+  return map(t.event, event);
+}
 
-test('navigation dispatch round-trips through the Enum updater', () => {
-  let next;
-  handler(comp_entry(t.upload, t.about, t.input), t.click)(null, dispatchTo(store, v => { next = v; }));
-  assert.equal(field(next, t.page), t.about);
+test('loading the own Snapshot opens the entry and renders the panel stack', () => {
+  const run = collect(store);
+  load_text_$x_(source, 'calcit.cirru', run.d);
+  assert.equal(run.ops.length, 1);
+  assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/main!']);
+  const html = make_string(comp_container(run.get()));
+  assert.match(html, /render-app!/);
+  assert.match(html, /app\.comp\.container/);
 });
-test('text input and valid import dispatch one Enum', () => {
-  let next;
-  handler(comp_text_area('', none), t.input)(map(t.value, 'source'), dispatchTo(store, v => { next = v; }));
-  assert.equal(field(next, t.text), 'source');
-  handler(comp_text_area(source, none), t.click)(null, dispatchTo(store, v => { next = v; }));
-  assert.equal(field(next, t.page), t.viewer);
-  assert.equal(clt._$n__$e_(clt.option_$o_unwrap(field(next, t.calcit)), snapshot), true);
-  assert.match(make_string(comp_viewer(snapshot)), /app.main/);
+
+test('clicking a definition in the navigation opens it as the first panel', () => {
+  const program = parse_program(clt.parse_cirru_edn(sample_ir));
+  const run = collect(store);
+  const info = clt.option_$o_unwrap(lookup_def(program, 'app.main/double'));
+  handler(comp_nav_def(info, false), t.click)(null, run.d);
+  assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/double']);
 });
-test('invalid imports and malformed restored snapshots do not enter the viewer', () => {
-  let next;
-  handler(comp_text_area('not valid cirru edn', none), t.click)(null, dispatchTo(store, v => { next = v; }));
-  assert.equal(typeof clt.option_$o_unwrap(field(next, t.error)), 'string');
-  assert.equal(field(next, t.page), t.input);
-  const malformed = clt.assoc(clt.assoc(store, t.page, t.viewer), t.calcit, clt._PCT_some(map()));
-  assert.throws(() => updater(store, op(t['hydrate-storage'], malformed), 'restore', 1));
-  assert.equal(field(store, t.page), t.input);
-});
-test('message create and payload-free clear use Enum tag/payload, not List Option', () => {
-  const created = updater(store, op(action.create, map(t.text, 'fixture', t.token, 'token')), 'create', 1);
-  assert.equal(clt.count(field(created, t.messages)), 1);
-  const cleared = updater(created, op(action.clear), 'clear', 2);
-  assert.equal(clt.count(field(cleared, t.messages)), 0);
-});
-test('state operation keeps exactly one store wrapper', () => {
-  const next = updater(store, op(t.states, list(t.graph), map(t.text, 'state')), 'state', 1);
-  assert.equal(field(field(field(field(next, t.states), t.graph), t.data), t.text), 'state');
-  assert.equal(clt.contains_$q_(field(next, t.states), t.states), false);
-});
-test('wrong filename dispatches one error Enum', () => {
-  let next;
-  on_file_change(fileEvent('wrong.txt'), dispatchTo(store, v => { next = v; }));
-  assert.match(clt.option_$o_unwrap(field(next, t.error)), /Expected calcit.cirru/);
+
+test('unreadable text dispatches one error', () => {
+  const run = collect(store);
+  load_text_$x_('not valid cirru edn (', 'broken.cirru', run.d);
+  assert.equal(run.ops.length, 1);
+  assert.equal(typeof clt.option_$o_unwrap(field(run.get(), t.error)), 'string');
 });
 
 for (const mode of ['load', 'missing-result', 'error']) {
-  test(`FileReader ${mode} dispatches one Enum`, () => {
+  test(`FileReader ${mode} dispatches one operation`, () => {
     const saved = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
-    let next;
+    const run = collect(store);
     try {
       globalThis.FileReader = class {
         constructor() {
@@ -98,15 +80,16 @@ for (const mode of ['load', 'missing-result', 'error']) {
         }
         readAsText() {
           if (mode === 'error') return this.onerror(new Event('error'));
-          this.result = mode === 'load' ? source : null;
+          this.result = mode === 'load' ? sample_ir : null;
           this.onload(new Event('load'));
         }
       };
-      on_file_change(fileEvent('calcit.cirru'), dispatchTo(store, v => { next = v; }));
+      on_file_change(fileEvent('program-ir.cirru'), run.d);
+      assert.equal(run.ops.length, 1);
       if (mode === 'load') {
-        assert.equal(field(next, t.page), t.viewer);
-        assert.equal(clt._$n__$e_(clt.option_$o_unwrap(field(next, t.calcit)), snapshot), true);
-      } else assert.match(clt.option_$o_unwrap(field(next, t.error)), /Failed to read/);
+        assert.equal(field(run.get(), t['file-name']), 'program-ir.cirru');
+        assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/main!']);
+      } else assert.match(clt.option_$o_unwrap(field(run.get(), t.error)), /Failed to read program-ir.cirru/);
     } finally {
       if (saved) Object.defineProperty(globalThis, 'FileReader', saved);
       else delete globalThis.FileReader;

@@ -5,988 +5,1476 @@
   :entries $ {} $ :default
     {} (:description |) (:init-fn 'app.main/main!) (:mode :js) (:reload-fn 'app.main/reload!) (:target :browser)
       :feature-policy $ {}
-      :modules $ [] |respo.calcit/ |respo-ui.calcit/ |respo-markdown.calcit/ |reel.calcit/ |respo-feather.calcit/ |respo-message.calcit/ |js-ffi/
-      :type-slots $ {}
+      :modules $ [] |respo.calcit/ |respo-ui.calcit/ |respo-markdown.calcit/ |respo-feather.calcit/ |js-ffi/
+      :type-slots $ {} $ :dispatch-op |app.types/Op
   :files $ {}
-    'app.ast $ %{} 'FileEntry
+    'app.comp.code $ %{} 'FileEntry
       :defs $ {}
-        'ImportRule $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defenum ImportRule (:alias 'String 'String) (:refer 'String 'String) (:default 'String 'String)
+        'comp-code $ %{} 'CodeEntry
+          :doc "|Source of one definition as nested blocks; hover shows inferred types, clicking a resolved symbol opens it in the next panel."
+          :code $ quote $ defcomp comp-code (ctx code)
+            div
+              {} $ :class-name style-code
+              render-expr ctx (code->tree code) ([])
           :examples $ []
-          :schema $ :: 'EnumDef
-        'Reference $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defenum Reference (:def 'String 'String) (:default 'String)
+          :schema $ quote $ Fn app.types/CodeCtx CirruQuote (-> respo.schema/Component)
+        'path-key $ %{} 'CodeEntry
+          :doc "|Dotted path, the same coordinates as `calcit query type-at --path`."
+          :code $ quote $ defn path-key (path)
+            .join-string
+              .map path $ fn (x) (str x)
+              , |.
           :examples $ []
-          :schema $ :: 'EnumDef
-        'build-deps-graph $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn build-deps-graph (entry-ns entry-def files pkg)
-            filter-map-kv files $ fn (ns-name file)
+          :schema $ quote $ Fn (List Number) (-> String)
+        'render-expr $ %{} 'CodeEntry (:doc "|Renders a Cirru tree node at `path`.")
+          :code $ quote $ defn render-expr (ctx tree path)
+            if (string? tree)
+              render-leaf ctx (decode-map-as tree 'String) path
               let
-                  ns-info $ reel-schema/read-field file :ns
-                  ns-form $ tree->cirru $ decode-map-as (reel-schema/read-field ns-info :code) 'CirruQuote
-                  rules $ mapcat (slice ns-form 2)
-                    fn (clause)
-                      if (list? clause)
-                        match (first clause)
-                          (:some head)
-                            if (= |:require head) (slice clause 1) ([])
-                          (:none) ([])
-                        []
-                  results $ mapcat rules $ fn (rule)
-                    parse-rule $ decode-map-as rule $ :: 'List 'Dynamic
-                  ns-dict $ fold results ({})
-                    fn (dict rule)
-                      hint-fn $ {}
-                        :args $ [] (:: 'Map 'String 'String) 'app.ast/ImportRule
-                        :return $ :: 'Map 'String 'String
-                      match rule
-                        (:alias namespace alias) (assoc dict alias namespace)
-                        _ dict
-                  defs-dict $ fold results ({})
-                    fn (dict rule)
-                      hint-fn $ {}
-                        :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
-                        :return $ :: 'Map 'String 'app.ast/Reference
-                      match rule
-                        (:refer namespace name)
-                          assoc dict name $ Reference :def namespace name
-                        _ dict
-                  defaults-dict $ fold results ({})
-                    fn (dict rule)
-                      hint-fn $ {}
-                        :args $ [] (:: 'Map 'String 'app.ast/Reference) 'app.ast/ImportRule
-                        :return $ :: 'Map 'String 'app.ast/Reference
-                      match rule
-                        (:default package-name alias)
-                          assoc dict alias $ Reference :default package-name
-                        _ dict
-                  defs $ schema/as-string-map $ decode-map-as (reel-schema/read-field file :defs) (:: 'Map 'Symbol 'Dynamic)
-                MapEntryDecision :keep ns-name $ filter-map-kv defs $ fn (name entry)
-                  MapEntryDecision :keep name $ match-references
-                    tree->cirru $ decode-map-as (reel-schema/read-field entry :code) 'CirruQuote
-                    , ns-dict defs-dict defaults-dict (keys defs) ns-name $ keys files
+                  items $ decode-map-as tree $ :: 'List 'Dynamic
+                  t $ .get (:types ctx) (path-key path)
+                  flat? $ not $ .any? items
+                    fn (x)
+                      hint-fn $ Fn Dynamic $ -> Bool
+                      list? x
+                list->
+                  {}
+                    :class-name $ str-spaced style-expr (if flat? style-flat |)
+                      if (.some? t) style-typed |
+                    :title $ .unwrap-or t |
+                  .map-indexed items $ fn (idx child)
+                    hint-fn $ Fn Number Dynamic $ -> (List Dynamic)
+                    [] idx $ render-expr ctx child $ .concat path ([] idx)
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'String 'String (:: 'Map 'String 'Dynamic) 'String
-            :return $ :: 'Map 'String $ :: 'Map 'String (:: 'List 'app.ast/Reference)
-          :tests $ [] $ %{} 'TestEntry (:name |current-canonical-snapshot)
-            :code $ quote $ let
-                source $ match
-                  .read-text $ fs:path |calcit.cirru
-                  (:ok text) text
-                  (:err message) (raise message)
-                snapshot $ parse-cirru-edn source
-                files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
-                graph $ build-deps-graph |app.main |main! files |app
-                dispatch-refs $ .unwrap $ get-in graph ([] |app.main |dispatch!)
-                reel-refs $ .unwrap $ get-in graph ([] |app.main |*reel)
-              assert= true $ contains? graph |app.ast
-              assert= true $ .includes? dispatch-refs $ Reference :def |app.updater |updater
-              assert= true $ .includes? reel-refs $ Reference :def |app.schema |store
-        'flatten-form $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn flatten-form (xs)
-            if (list? xs) (mapcat xs flatten-form)
-              [] $ decode-map-as xs 'String
-          :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'Dynamic
-            :return $ :: 'List 'String
-        'match-references $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn match-references (form ns-dict defs-dict defaults-dict current-defs current-ns known-namespaces)
-            -> form (slice 2) (flatten-form)
-              filter $ fn (x)
-                not $ or (starts-with? x |:) (starts-with? x |.) (starts-with? x ||) (starts-with? x "|\"")
-              map $ fn (x)
-                -> x (strip-prefix |~@) (strip-prefix |~) (strip-prefix |@)
-              distinct
-              mapcat $ fn (x)
-                cond
-                    contains? current-defs x
-                    [] $ Reference :def current-ns x
-                  (contains? defs-dict x)
-                    [] $ .unwrap $ get defs-dict x
-                  (contains? defaults-dict x)
-                    [] $ .unwrap $ get defaults-dict x
-                  (includes? x |/)
-                    let
-                        parts $ split x |/
-                        ns-part $ .unwrap $ first parts
-                        def-part $ .unwrap $ nth parts 1
-                      match (get ns-dict ns-part)
-                        (:some namespace)
-                          [] $ Reference :def namespace def-part
-                        (:none)
-                          match (get defaults-dict ns-part)
-                            (:some reference) ([] reference)
-                            (:none)
-                              if
-                                or (contains? known-namespaces ns-part) (.contains-value? ns-dict ns-part)
-                                [] $ Reference :def ns-part def-part
-                                []
-                  true $ []
-          :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] (:: 'List 'Dynamic) (:: 'Map 'String 'String) (:: 'Map 'String 'app.ast/Reference) (:: 'Map 'String 'app.ast/Reference) (:: 'Set 'String) 'String $ :: 'Set 'String
-            :return $ :: 'List 'app.ast/Reference
-          :tests $ [] $ %{} 'TestEntry (:name |alias-refer-default-and-qualified)
-            :code $ quote $ assert=
-              [] (Reference :def |lib.core |run) (Reference :def |lib.core |picked) (Reference :default |dayjs) (Reference :def |app.main |local) (Reference :def |pkg.ns |direct)
-              match-references
-                [] |defn |start ([])
-                  [] |alias/run |picked |day/format |local |pkg.ns/direct |42 |:tag ||text |missing
-                {} $ |alias |lib.core
-                {} $ |picked $ Reference :def |lib.core |picked
-                {} $ |day $ Reference :default |dayjs
-                #{} |local
-                , |app.main $ #{} |pkg.ns
-        'parse-rule $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn parse-rule (rule)
+          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) (-> respo.schema/Element)
+        'render-leaf $ %{} 'CodeEntry
+          :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
+          :code $ quote $ defn render-leaf (ctx leaf path)
             let
-                module $ decode-map-as
-                  .unwrap $ first rule
-                  , 'String
-                npm? $ starts-with? module ||
-                source $ if npm? (strip-prefix module ||) module
-              mapcat
-                range 1 (.len rule) 2
-                fn (idx)
-                  let
-                      mode $ decode-map-as
-                        .unwrap $ nth rule idx
-                        , 'String
-                      payload $ .unwrap $ nth rule (inc idx)
-                    match mode
-                      |:as $ [] $ if npm?
-                        ImportRule :default source $ decode-map-as payload 'String
-                        ImportRule :alias source $ decode-map-as payload 'String
-                      |:refer $ map
-                        decode-map-as payload $ :: 'List 'String
-                        fn (name)
-                          if npm? (ImportRule :default source name) (ImportRule :refer source name)
-                      |:default $ [] $ ImportRule :default source (decode-map-as payload 'String)
-                      _ $ raise $ str |Unsupported-import-mode: mode
-          :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'List 'Dynamic
-            :return $ :: 'List 'app.ast/ImportRule
-          :tests $ [] $ %{} 'TestEntry (:name |multiple-options-and-npm)
-            :code $ quote $ do
-              assert=
-                [] (ImportRule :alias |lib.core |lib) (ImportRule :refer |lib.core |pick) (ImportRule :refer |lib.core |drop)
-                parse-rule $ [] |lib.core |:as |lib |:refer $ [] |pick |drop
-              assert=
-                [] (ImportRule :default |dayjs |day) (ImportRule :default |dayjs |format)
-                parse-rule $ [] ||dayjs |:as |day |:refer $ [] |format
-              assert=
-                [] $ ImportRule :default |pkg |api
-                parse-rule $ [] ||pkg |:default |api
-        'tree->cirru $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn tree->cirru (x)
-            decode-map-as (&cirru-quote:to-list x) (:: 'List 'Dynamic)
-          :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'CirruQuote
-            :return $ :: 'List 'Dynamic
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.ast
-          :require (app.schema :as schema) (reel.schema :as reel-schema)
-    'app.comp.container $ %{} 'FileEntry
-      :defs $ {}
-        'FileHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait FileHost (:name 'String)
-          :examples $ []
-          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-          :schema $ :: 'Trait
-        'FileInputHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait FileInputHost
-            :files $ :: 'JsNullish 'app.comp.container/FileListHost
-          :examples $ []
-          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-          :schema $ :: 'Trait
-        'FileListHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait FileListHost
-            .item! $ :: 'Fn $ {}
-              :args $ [] 'app.comp.container/FileListHost 'Number
-              :return $ :: 'JsNullish 'app.comp.container/FileHost
-          :examples $ []
-          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-            :names $ {} $ :item! |item
-          :schema $ :: 'Trait
-        'FileReaderHost $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ deftrait FileReaderHost
-            :result $ :: 'JsNullish 'JsObject
-            :onload 'Dynamic
-            :onerror 'Dynamic
-            .read-as-text! $ :: 'Fn $ {}
-              :args $ [] 'app.comp.container/FileReaderHost 'app.comp.container/FileHost
-              :return 'Unit
-          :examples $ []
-          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
-            :names $ {} $ :read-as-text! |readAsText
-            :writable $ #{} :onerror :onload
-          :schema $ :: 'Trait
-        'comp-about $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-about ()
-            div
-              {} $ :style $ {} (:padding 8)
-              comp-md "|Calcit Viewer is a tool for reading calcit.cirru files. Read more on https://github.com/calcit-lang/calcit-viewer ." $ {}
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ []
-        'comp-container $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-container (reel)
-            let
-                store $ :store reel
-                states $ :states store
-              div
-                {} $ :class-name $ str-spaced css/global css/fullscreen css/row
-                let
-                    page $ :page store
-                  div
-                    {} $ :style $ {}
-                      :background-color $ hsl 200 30 24
-                      :color :white
-                    comp-entry :upload :input page
-                    comp-entry :edit :textarea page
-                    comp-entry :monitor :viewer page
-                    comp-entry :info :about page
-                    comp-entry :map :graph page
-                match (:page store)
-                  :viewer $ div
-                    {} (:class-name css/expand)
-                      :style $ {} (:padding 16) (:overflow :auto)
-                    match (:error store)
-                      (:some message)
-                        <> message $ {} $ :color :red
-                      (:none)
-                        match (:calcit store)
-                          (:some snapshot)
-                            try (comp-viewer snapshot)
-                              fn (message)
-                                <> message $ {} $ :color :red
-                          (:none) (<> |Nothing)
-                  :textarea $ comp-text-area (:text store) (:error store)
-                  :input $ comp-file-input $ :error store
-                  :about $ comp-about
-                  :graph $ match (:calcit store)
-                    (:some snapshot)
-                      try
-                        comp-graph (>> states :graph) snapshot
-                        fn (message)
-                          <> message $ {} $ :color :red
-                    (:none) (<> |Nothing)
-                  _ $ <> "|Unknown route"
-                comp-messages (:messages store) ({})
-                  fn (info d!)
-                    d! $ :: action/clear
-                    , &unit
-                when config/dev? $ comp-inspect :store store $ {} (:bottom 0) (:right 8)
-                comp-typed-reel (>> states :reel) reel $ {}
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] $ :: 'reel.typed/State 'Enum 'app.schema/StoreData
-        'comp-entry $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-entry (icon page current-page)
-            div
-              {}
-                :class-name $ str-spaced css/center style-entry
-                :style $ if (= page current-page)
-                  {} $ :color :white
-                :on-click $ fn (e d!)
-                  d! $ :: :page page
-              comp-i icon 14 $ hsl 200 80 80
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'Tag 'Tag 'Tag
-        'comp-file-input $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-file-input (error)
-            div
-              {} $ :style $ {} (:padding 16)
-              <> "|Pick calcit.cirru to view:"
-              =< 8 nil
-              input $ {} (:type |file) (:on-change on-file-change)
-              div
-                {} $ :style $ {} (:color :red)
-                <> $ .unwrap-or error |
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] $ :: 'Option 'String
-        'comp-text-area $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-text-area (text error)
-            div
-              {} $ :class-name $ str-spaced css/row css/flex
-              textarea $ {}
-                :class-name $ str-spaced css/textarea css/flex css/font-code!
-                :style $ {} (:width |100%) (:font-size 12) (:line-height |1.4em)
-                :value text
-                :placeholder "|Paste calcit.cirru content here..."
-                :on-input $ fn (e d!)
-                  d! $ :: :text $ decode-map-as
-                    .unwrap $ get e :value
-                    , 'String
-                  , &unit
-              div
-                {} $ :style $ {} (:padding 8)
-                button
-                  {} (:class-name css/button)
+                t $ .get (:types ctx) (path-key path)
+                target $ if (symbol-leaf? leaf)
+                  resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
+                  Option :none
+                linked? $ match target
+                  (:some id)
+                    not= id $ :self ctx
+                  (:none) false
+                class-name $ str-spaced style-leaf (if linked? style-link |)
+                  if
+                    and (.some? t)
+                      .includes? (.unwrap-or t |) |Dynamic
+                    , style-dynamic |
+                  if (.some? t) style-typed |
+              span
+                if linked?
+                  {} (:class-name class-name)
+                    :title $ str (.unwrap-or target |) &newline $ .unwrap-or t |
                     :on-click $ fn (e d!)
-                      try
-                        do
-                          d! $ :: :load/calcit $ parse-cirru-edn text
-                          , &unit
-                        fn (message)
-                          d! $ :: :error message
-                          , &unit
-                  <> |Parse
-                div
-                  {} $ :style $ {} (:color :red)
-                  <> $ .unwrap-or error |
+                      d! $ Op :open (:next-idx ctx) (.unwrap target)
+                  {} (:class-name class-name)
+                    :title $ .unwrap-or t |
+                <> leaf
+                if
+                  and (:inline-types? ctx) (.some? t)
+                  span $ {} (:class-name style-inline-type)
+                    :inner-text $ .unwrap-or t |
+                  span $ {}
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String $ :: 'Option 'String
-        'on-file-change $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn on-file-change (e dispatch)
-            let
-                d! $ if (fn? dispatch) dispatch $ raise "|Expected dispatch callback"
-                event $ decode-map-as e $ :: 'Map 'Tag 'Dynamic
-                event-host $ js-cast
-                  .unwrap $ get event :event
-                  , 'js-ffi.browser/EventHost
-                target $ js-cast (.-target event-host) 'app.comp.container/FileInputHost
-                raw-files $ .-files target
-              when (js-present? raw-files)
-                let
-                    files $ js-cast raw-files 'app.comp.container/FileListHost
-                    maybe-file $ .item! files 0
-                  when (js-present? maybe-file)
-                    let
-                        file $ js-cast maybe-file 'app.comp.container/FileHost
-                        filename $ .-name file
-                      if (not= filename |calcit.cirru)
-                        d! $ :: :error $ str "|Expected calcit.cirru , but got " filename
-                        let
-                            reader $ js-cast (new js/FileReader) 'app.comp.container/FileReaderHost
-                          js-set reader :onload $ fn (event)
-                            let
-                                result $ .-result reader
-                              if (js-present? result)
-                                try
-                                  do
-                                    d! $ :: :load/calcit $ parse-cirru-edn (expect-string |FileReader.result result)
-                                    , &unit
-                                  fn (message)
-                                    d! $ :: :error message
-                                    , &unit
-                                do
-                                  d! $ :: :error "|Failed to read calcit.cirru"
-                                  , &unit
-                          js-set reader :onerror $ fn (event)
-                            d! $ :: :error "|Failed to read calcit.cirru"
-                            , &unit
-                          .read-as-text! reader file
-            , &unit
+          :schema $ quote $ Fn app.types/CodeCtx String (List Number) (-> respo.schema/Element)
+        'style-code $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-code
+            {} $ |& $ {} (:font-family "|Source Code Pro, Menlo, monospace") (:font-size 13) (:line-height |20px)
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ [] 'Dynamic 'Dynamic
-            :features $ #{} :js-ffi
-        'style-entry $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-entry
-            {} $ |& $ {} (:font-size 28) (:width 48) (:height 48)
-              :color $ hsl 0 0 60
-              :cursor :pointer
+          :schema $ quote String
+        'style-dynamic $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-dynamic
+            {} $ |& $ {} (:text-decoration-color "|hsl(30, 90%, 55%)")
           :examples $ []
-          :schema $ :: 'String
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.comp.container
-          :require
-            respo-ui.core :refer $ hsl
-            respo.core :refer $ defcomp >> <> div button textarea input
-            respo.comp.space :refer $ =<
-            app.comp.viewer :refer $ comp-viewer
-            respo-md.comp.md :refer $ comp-md
-            feather.core :refer $ comp-i
-            respo.comp.inspect :refer $ comp-inspect
-            respo-message.action :as action
-            respo-message.comp.messages :refer $ comp-messages
-            app.config :as config
-            app.comp.graph :refer $ comp-graph
-            respo-ui.css :as css
-            respo.css :refer $ defstyle
-            js-ffi.contract :refer $ expect-string
-            reel.comp.reel :refer $ comp-typed-reel
-    'app.comp.expr $ %{} 'FileEntry
-      :defs $ {}
-        'comp-expr $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-expr (expr last?)
-            list->
-              {}
-                :class-name $ str-spaced style-expr |comp-expr
-                :style $ if last?
-                  {} $ :display :inline-block
-                  if (every? expr string?)
-                    {} (:display :inline-block) (:border-width "|0 0 1px 0") (:margin "|0 4px")
-                    {}
-                :on-click $ fn (e d!)
-                  let
-                      code $ format-cirru $ [] expr
-                    copy! code
-                    d! $ :: action/create $ {}
-                      :text $ str "|Copied! " code
-                      :token code
-              map-indexed expr $ fn (idx child)
-                [] idx $ if (list? child)
-                  comp-expr child $ = idx $ dec (.len expr)
-                  div
-                    {} $ :class-name $ str-spaced css/column style-leaf
-                    <> $ decode-map-as child 'String
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] (:: 'List 'Dynamic) 'Bool
+          :schema $ quote String
         'style-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-expr
             {}
-              |& $ {} (:padding "|2px 16px") (:font-family "|Source Code Pro, menlo") (:line-height |16px) (:margin-bottom 2) (:vertical-align :top) (:min-height 16) (:min-width 32) (:font-size 13) (:cursor :pointer) (:border-radius |8px) (:border-style :solid)
-                :border-color $ hsl 0 0 70
-                :border-width "|0 0 0 1px"
-                :background-color $ hsl 300 0 98
-              |&:hover $ {}
-                ; :background-color $ hsl 300 0 92
-                :outline $ str "|2px solid " $ hsl 200 90 70 (Option :some 0.5)
-              "|&:has(.comp-expr:hover):hover" $ {}
-                :background-color $ hsl 300 0 98
-                :outline :none
+              |& $ {} (:display :block) (:padding "|0 0 0 10px") (:margin "|1px 0") (:border-left "|1px solid hsl(0, 0%, 86%)") (:border-radius |4px)
+              |&:hover $ {} $ :background-color "|hsla(200, 80%, 60%, 0.06)"
           :examples $ []
-          :schema $ :: 'String
+          :schema $ quote String
+        'style-flat $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-flat
+            {} $ |& $ {} (:display :inline-block) (:margin "|1px 4px 1px 0") (:padding "|0 4px") (:border-left :none) (:border-bottom "|1px solid hsl(0, 0%, 86%)")
+          :examples $ []
+          :schema $ quote String
+        'style-inline-type $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-inline-type
+            {} $ |& $ {} (:color "|hsl(200, 40%, 55%)") (:font-size 11) (:margin-left 4) (:padding "|0 4px") (:border-radius |3px) (:background-color "|hsl(200, 40%, 95%)")
+          :examples $ []
+          :schema $ quote String
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
-            {} $ |& $ {} (:display :inline-flex) (:margin-right 8)
+            {} $ |& $ {} (:display :inline-block) (:margin-right 8) (:white-space :pre)
           :examples $ []
-          :schema $ :: 'String
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.comp.expr
+          :schema $ quote String
+        'style-link $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-link
+            {}
+              |& $ {} (:color "|hsl(210, 80%, 45%)") (:cursor :pointer)
+              |&:hover $ {} $ :text-decoration :underline
+          :examples $ []
+          :schema $ quote String
+        'style-typed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-typed
+            {} $ |& $ {} (:text-decoration-line :underline) (:text-decoration-style :dotted) (:text-decoration-color "|hsl(200, 50%, 70%)") (:text-underline-offset |3px)
+          :examples $ []
+          :schema $ quote String
+        'symbol-leaf? $ %{} 'CodeEntry
+          :doc "|Leaves that may name a definition: not strings, tags, numbers or quoted symbols."
+          :code $ quote $ defn symbol-leaf? (leaf)
+            not $ or (.empty? leaf) (.starts-with? leaf ||) (.starts-with? leaf |:) (.starts-with? leaf "|\"") (.starts-with? leaf |')
+              .includes? |0123456789 $ .unwrap-or (.first leaf) |
+          :examples $ []
+          :schema $ quote $ Fn String (-> Bool)
+          :tests $ [] $ %{} 'TestEntry (:name |symbol-leaves)
+            :code $ quote $ do
+              assert= true $ symbol-leaf? |respo.core/div
+              assert= false $ symbol-leaf? "|\"|text"
+              assert= false $ symbol-leaf? |:tag
+              assert= false $ symbol-leaf? |12
+              assert= true $ symbol-leaf? |render-app!
+      :ns $ %{} 'NsEntry (:doc "|Rendering definition source with types.")
+        :code $ quote $ ns app.comp.code
           :require
-            respo-ui.core :refer $ hsl
-            respo.core :refer $ defcomp <> list-> div
-            |copy-to-clipboard :default copy!
-            respo-message.action :as action
+            respo.core :refer $ defcomp div span <> list->
             respo.css :refer $ defstyle
-            respo-ui.css :as css
-    'app.comp.file $ %{} 'FileEntry
+            app.types :refer $ Op
+            app.program :refer $ code->tree resolve-with
+    'app.comp.container $ %{} 'FileEntry
       :defs $ {}
-        'comp-file $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-file (filename file-info)
+        'comp-container $ %{} 'CodeEntry
+          :doc "|Root layout: navigation, toolbar and the panel stack."
+          :code $ quote $ defcomp comp-container (store)
             let
-                ns-info $ reel-schema/read-field file-info :ns
-                defs $ schema/as-string-map $ decode-map-as (reel-schema/read-field file-info :defs) (:: 'Map 'Symbol 'Dynamic)
+                prefs $ :prefs store
               div
-                {} $ :class-name $ str-spaced css/row style-file
-                <> filename
-                =< 16 nil
-                div ({})
-                  div
-                    {} (:class-name css/column)
-                      :style $ {}
-                        :border-left $ str "|1px solid " $ hsl 0 0 80
-                        :padding-left 8
-                    div
-                      {} $ :class-name css/row
-                      <> |ns $ {} $ :color (hsl 0 0 70)
-                      =< 8 nil
-                      comp-md-block
-                        decode-map-as (reel-schema/read-field ns-info :doc) 'String
-                        {} $ :class-name css/font-normal
-                    comp-expr
-                      tree->cirru $ decode-map-as (reel-schema/read-field ns-info :code) 'CirruQuote
-                      , false
-                  list->
-                    {} $ :style $ {}
-                      :border-left $ str "|1px solid " $ hsl 0 0 70
-                      :padding-left 16
-                      :margin-bottom 2
-                    -> defs
-                      filter-map-kv $ fn (def-name def-info)
-                        MapEntryDecision :keep def-name $ div
-                          {} $ :class-name css/column
-                          div
-                            {} $ :class-name css/row
-                            <> def-name $ {} (:white-space :nowrap)
-                              :color $ hsl 0 0 70
-                            =< 8 nil
-                            comp-md-block
-                              decode-map-as (reel-schema/read-field def-info :doc) 'String
-                              {} $ :class-name css/font-normal
-                          comp-expr
-                            tree->cirru $ decode-map-as (reel-schema/read-field def-info :code) 'CirruQuote
-                            , false
-                      &map:to-list
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String 'Dynamic
-        'style-file $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-file
-            {} $ |& $ {}
-              :border-left $ str "|1px solid " $ hsl 0 0 70
-              :padding-left 8
-              :font-family "|Source Code Pro, menlo"
-          :examples $ []
-          :schema $ :: 'String
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.comp.file
-          :require
-            respo-ui.core :refer $ hsl
-            respo-ui.core :as ui
-            respo.core :refer $ defcomp <> list-> div button span input pre
-            respo.comp.space :refer $ =<
-            app.comp.expr :refer $ comp-expr
-            reel.schema :as reel-schema
-            respo-ui.css :as css
-            respo.css :refer $ defstyle
-            respo-md.comp.md :refer $ comp-md-block
-            app.schema :as schema
-            app.ast :refer $ tree->cirru
-    'app.comp.graph $ %{} 'FileEntry
-      :defs $ {}
-        'comp-graph $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-graph (states snapshot)
-            let
-                cursor $ decode-map-as (reel-schema/read-field states :cursor) (:: 'List 'Dynamic)
-                entries $ decode-map-as (reel-schema/read-field snapshot :entries) (:: 'Map 'Tag 'Dynamic)
-                config $ .unwrap $ get entries :default
-                initial-entry $ to-string $ decode-map-as (reel-schema/read-field config :init-fn) 'Symbol
-                raw-state $ reel-schema/read-field states :data
-                state $ if (nil? raw-state)
-                  {} (:graph nil) (:init-fn initial-entry)
-                  decode-map-as raw-state $ :: 'Map 'Tag 'Dynamic
-                init-fn $ decode-map-as (reel-schema/read-field state :init-fn) 'String
-                entry $ split init-fn |/
-                entry-ns $ .unwrap-or (first entry) |
-                entry-def $ .unwrap-or (nth entry 1) |
-                files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
-                package-name $ decode-map-as (reel-schema/read-field snapshot :package) 'String
-                graph $ reel-schema/read-field state :graph
-              div
-                {} $ :class-name $ str-spaced css/expand css/column
+                {} $ :class-name $ str-spaced css/global style-app
+                match (:program store)
+                  (:some program) (comp-nav program prefs)
+                  (:none)
+                    span $ {}
                 div
-                  {} $ :style $ {}
-                    :border-bottom $ str "|1px solid " $ hsl 0 0 90
-                    :padding "|8px 4px"
-                  button $ {} (:class-name css/button) (:inner-text |Button)
-                    :on-click $ fn (e d!)
-                      d! $ :: :states cursor $ assoc state :graph (build-deps-graph entry-ns entry-def files package-name)
-                      , &unit
-                  =< 8 nil
-                  input $ {} (:value init-fn) (:class-name css/input)
-                    :on-input $ fn (e d!)
-                      d! $ :: :states cursor $ assoc state :init-fn
-                        decode-map-as
-                          .unwrap $ get e :value
-                          , 'String
-                      , &unit
-                div
-                  {} (:class-name css/expand)
-                    :style $ {} $ :padding |8px
-                  if (non-nil? graph)
-                    comp-graph-tree entry-ns entry-def
-                      decode-map-as graph $ :: 'Map 'String $ :: 'Map 'String (:: 'List 'app.ast/Reference)
-                      #{}
-                      , files
-                    <> "|no graph"
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] (:: 'Map 'Dynamic 'Dynamic) (:: 'Map 'Tag 'Dynamic)
-        'comp-graph-tree $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-graph-tree (ns-name def-name dict footprints files)
-            let
-                path $ str ns-name |/ def-name
-                doc $ -> (get files ns-name)
-                  .and-then $ fn (file)
-                    get
-                      schema/as-string-map $ decode-map-as (reel-schema/read-field file :defs) (:: 'Map 'Symbol 'Dynamic)
-                      , def-name
-                  .map $ fn (entry)
-                    decode-map-as (reel-schema/read-field entry :doc) 'String
-                  .unwrap-or |
-              div
-                {} $ :class-name css/row
-                div
-                  {} $ :class-name css/column
-                  div
-                    {} $ :style $ {} (:margin "|0px 0") (:line-height |20px)
-                    <> (str ns-name |/)
-                      {}
-                        :color $ hsl 0 0 70
-                        :line-height |14px
-                        :font-size |12px
-                    <> def-name $ {} (:line-height |20px) (:font-family ui/font-normal)
-                  comp-md-block doc $ {} (:class-name css/font-normal)
-                    :style $ {} $ :color (hsl 0 0 50)
-                if (contains? footprints path)
-                  <> |Looped $ {} (:display :inline-block) (:margin "|0 4px")
-                    :background-color $ hsl 40 80 60
-                    :padding "|0 6px"
-                    :color :white
-                    :border-radius |8px
-                  match
-                    get-in dict $ [] ns-name def-name
-                    (:some deps)
+                  {} $ :class-name style-main
+                  comp-toolbar store
+                  match (:error store)
+                    (:some message)
                       div
-                        {} $ :style $ {}
-                          :border-left $ str "|1px solid " $ hsl 0 0 90
-                          :padding "|0 8px"
-                          :margin "|0 8px"
-                        , & $ map deps $ fn (dep)
-                          match dep
-                            (:default package-name)
-                              div
-                                {} $ :style $ {}
-                                  :color $ hsl 200 80 60
-                                  :line-height |20px
-                                  :text-decoration :underline
-                                <> package-name
-                            (:def namespace name)
-                              comp-graph-tree namespace name dict (include footprints path) files
+                        {} $ :class-name style-error
+                        <> message
                     (:none)
-                      div
-                        {} $ :style $ {} (:padding "|0 8px") (:line-height |20px)
-                        <> |- $ {} $ :color (hsl 0 0 80)
+                      span $ {}
+                  match (:program store)
+                    (:some program)
+                      list->
+                        {} $ :class-name style-panels
+                        .map-indexed (:stack prefs)
+                          fn (idx id)
+                            hint-fn $ Fn Number String $ -> (List Dynamic)
+                            [] (str idx |: id)
+                              comp-panel program idx id
+                                .includes? (:changed store) id
+                                :inline-types? prefs
+                    (:none) (comp-welcome)
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] 'String 'String
-              :: 'Map 'String $ :: 'Map 'String $ :: 'List 'app.ast/Reference
-              :: 'Set 'String
-              :: 'Map 'String 'Dynamic
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.comp.graph
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+        'comp-toolbar $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defcomp comp-toolbar (store)
+            div
+              {} $ :class-name style-toolbar
+              div
+                {} $ :class-name style-file-button
+                <> "|Open file…"
+                input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
+              match (:program store)
+                (:some program)
+                  span $ {} (:class-name style-meta)
+                    :inner-text $ str (:file-name store) "| · " (:package program)
+                      if
+                        = :ir $ :format program
+                        str "| · calcit " $ :calcit-version program
+                        , "| · Snapshot, no inferred types"
+                (:none)
+                  span $ {}
+              div
+                {} (:class-name style-toggle)
+                  :on-click $ fn (e d!)
+                    d! $ Op :toggle-inline-types
+                <> $ if
+                  :inline-types? $ :prefs store
+                  , "|☑ Inline types" "|☐ Inline types"
+          :examples $ []
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+        'comp-welcome $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defcomp comp-welcome ()
+            div
+              {} $ :class-name style-welcome
+              comp-md-block "|Open `program-ir.cirru` to read a Calcit program with its inferred types, or a `calcit.cirru` Snapshot for source only.\n\nGenerate the IR file in your project:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nThe file is written to `js-out/program-ir.cirru`." $ {}
+          :examples $ []
+          :schema $ quote $ Fn (-> respo.schema/Component)
+        'style-app $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-app
+            {} $ |& $ {} (:position :fixed) (:inset 0) (:display :flex) (:background-color "|hsl(0, 0%, 97%)")
+          :examples $ []
+          :schema $ quote String
+        'style-error $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-error
+            {} $ |& $ {} (:color "|hsl(0, 70%, 45%)") (:padding "|8px 16px") (:white-space :pre-wrap) (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-file-button $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-file-button
+            {} $ |& $ {} (:position :relative) (:overflow :hidden) (:padding "|2px 10px") (:border-radius |4px) (:background-color "|hsl(210, 80%, 50%)") (:color :white) (:cursor :pointer) (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-file-input $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-file-input
+            {} $ |& $ {} (:position :absolute) (:inset 0) (:opacity 0) (:cursor :pointer)
+          :examples $ []
+          :schema $ quote String
+        'style-main $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-main
+            {} $ |& $ {} (:flex 1) (:min-width 0) (:display :flex) (:flex-direction :column)
+          :examples $ []
+          :schema $ quote String
+        'style-meta $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-meta
+            {} $ |& $ {} (:font-size 12) (:color "|hsl(0, 0%, 45%)")
+          :examples $ []
+          :schema $ quote String
+        'style-panels $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-panels
+            {} $ |& $ {} (:flex 1) (:min-height 0) (:display :flex) (:overflow-x :auto)
+          :examples $ []
+          :schema $ quote String
+        'style-toggle $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-toggle
+            {} $ |& $ {} (:margin-left :auto) (:font-size 12) (:cursor :pointer) (:color "|hsl(0, 0%, 35%)") (:user-select :none)
+          :examples $ []
+          :schema $ quote String
+        'style-toolbar $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-toolbar
+            {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 12) (:padding "|6px 16px") (:border-bottom "|1px solid hsl(0, 0%, 88%)") (:background-color :white)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome
+            {} $ |& $ {} (:padding "|24px 32px") (:max-width 640) (:color "|hsl(0, 0%, 30%)")
+          :examples $ []
+          :schema $ quote String
+      :ns $ %{} 'NsEntry (:doc "|Root component.")
+        :code $ quote $ ns app.comp.container
           :require
-            respo-ui.core :refer $ hsl
-            respo.core :refer $ defcomp <> list-> div button span input pre
-            respo.comp.space :refer $ =<
-            app.ast :refer $ build-deps-graph
-            reel.schema :as reel-schema
+            respo.core :refer $ defcomp div span <> list-> input
+            respo.css :refer $ defstyle
             respo-ui.css :as css
+            respo-md.comp.md :refer $ comp-md-block
+            app.types :refer $ Op
+            app.loader :refer $ on-file-change
+            app.comp.nav :refer $ comp-nav
+            app.comp.panel :refer $ comp-panel
+    'app.comp.nav $ %{} 'FileEntry
+      :defs $ {}
+        'comp-nav $ %{} 'CodeEntry
+          :doc "|Namespace and definition tree with a filter; libraries are hidden unless toggled."
+          :code $ quote $ defcomp comp-nav (program prefs)
+            let
+                query $ .trim $ :filter prefs
+                open-ids $ .to-set $ :stack prefs
+                visible $ ->
+                  map-values $ :namespaces program
+                  .filter $ fn (ns-info)
+                    hint-fn $ Fn NsInfo $ -> Bool
+                    or (:show-libs? prefs)
+                      = :project $ :origin ns-info
+              div
+                {} $ :class-name style-nav
+                div
+                  {} $ :class-name style-nav-tools
+                  input $ {} (:class-name style-filter) (:placeholder "|Filter definitions")
+                    :value $ :filter prefs
+                    :on-input $ fn (e d!)
+                      d! $ Op :filter $ event-value e
+                  div
+                    {} (:class-name style-check)
+                      :on-click $ fn (e d!)
+                        d! $ Op :toggle-libs
+                    <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
+                list->
+                  {} $ :class-name style-nav-list
+                  .map visible $ fn (ns-info)
+                    hint-fn $ Fn NsInfo $ -> (List Dynamic)
+                    let
+                        defs $ ->
+                          map-values $ :defs ns-info
+                          .filter $ fn (info)
+                            hint-fn $ Fn DefInfo $ -> Bool
+                            or (.empty? query)
+                              .includes? (:id info) query
+                      [] (:name ns-info)
+                        if (.empty? defs)
+                          span $ {}
+                          div ({})
+                            div
+                              {} $ :class-name style-ns-name
+                              <> $ :name ns-info
+                              if
+                                = :project $ :origin ns-info
+                                span $ {}
+                                span $ {} (:class-name style-origin)
+                                  :inner-text $ .to-string $ :origin ns-info
+                            list-> ({})
+                              .map defs $ fn (info)
+                                hint-fn $ Fn DefInfo $ -> (List Dynamic)
+                                [] (:name info)
+                                  comp-nav-def info $ .includes? open-ids $ :id info
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (-> respo.schema/Component)
+        'comp-nav-def $ %{} 'CodeEntry
+          :doc "|One definition row; the dot shows how much of its source types still mention Dynamic."
+          :code $ quote $ defcomp comp-nav-def (info open?)
+            let
+                ratio $ dynamic-ratio info
+                color $ cond
+                    < ratio 0
+                    , "|hsl(0, 0%, 85%)"
+                  (= ratio 0) "|hsl(140, 50%, 55%)"
+                  (< ratio 0.2) "|hsl(50, 85%, 55%)"
+                  true "|hsl(25, 85%, 55%)"
+              div
+                {}
+                  :class-name $ str-spaced style-nav-def $ if open? style-nav-open |
+                  :title $ if (< ratio 0) (:id info)
+                    str (:id info) &newline "|Dynamic in "
+                      .round $ * 100 ratio
+                      , "|% of recorded types"
+                  :on-click $ fn (e d!)
+                    d! $ Op :open 0 $ :id info
+                span $ {} (:class-name style-dot)
+                  :style $ {} $ :background-color color
+                <> $ :name info
+          :examples $ []
+          :schema $ quote $ Fn app.types/DefInfo Bool (-> respo.schema/Component)
+        'style-check $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-check
+            {} $ |& $ {} (:font-size 12) (:color "|hsl(0, 0%, 75%)") (:display :flex) (:align-items :center) (:gap 4) (:cursor :pointer)
+          :examples $ []
+          :schema $ quote String
+        'style-dot $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-dot
+            {} $ |& $ {} (:display :inline-block) (:width 6) (:height 6) (:border-radius |50%) (:margin-right 6) (:flex-shrink 0)
+          :examples $ []
+          :schema $ quote String
+        'style-filter $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-filter
+            {} $ |& $ {} (:width |100%) (:box-sizing :border-box) (:padding "|4px 8px") (:border :none) (:border-radius |4px) (:outline :none) (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-nav $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav
+            {} $ |& $ {} (:width 260) (:flex-shrink 0) (:display :flex) (:flex-direction :column) (:background-color "|hsl(210, 25%, 20%)") (:color "|hsl(0, 0%, 85%)")
+          :examples $ []
+          :schema $ quote String
+        'style-nav-def $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-def
+            {}
+              |& $ {} (:display :flex) (:align-items :center) (:padding "|1px 8px 1px 18px") (:cursor :pointer) (:font-family "|Source Code Pro, Menlo, monospace") (:font-size 12) (:white-space :nowrap) (:overflow :hidden) (:text-overflow :ellipsis)
+              |&:hover $ {} $ :background-color "|hsla(0, 0%, 100%, 0.08)"
+          :examples $ []
+          :schema $ quote String
+        'style-nav-list $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-list
+            {} $ |& $ {} (:flex 1) (:overflow :auto) (:padding-bottom 40)
+          :examples $ []
+          :schema $ quote String
+        'style-nav-open $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-open
+            {} $ |& $ {} (:color :white) (:background-color "|hsla(210, 80%, 60%, 0.25)")
+          :examples $ []
+          :schema $ quote String
+        'style-nav-tools $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-tools
+            {} $ |& $ {} (:padding 8) (:display :flex) (:flex-direction :column) (:gap 6)
+          :examples $ []
+          :schema $ quote String
+        'style-ns-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ns-name
+            {} $ |& $ {} (:padding "|8px 8px 2px") (:font-size 12) (:color "|hsl(210, 30%, 70%)") (:display :flex) (:align-items :center) (:gap 6)
+          :examples $ []
+          :schema $ quote String
+        'style-origin $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-origin
+            {} $ |& $ {} (:font-size 10) (:padding "|0 4px") (:border-radius |3px) (:background-color "|hsla(0, 0%, 100%, 0.12)")
+          :examples $ []
+          :schema $ quote String
+      :ns $ %{} 'NsEntry (:doc "|Left navigation.")
+        :code $ quote $ ns app.comp.nav
+          :require
+            respo.core :refer $ defcomp div span <> list-> input event-value
+            respo.css :refer $ defstyle
+            app.types :refer $ Op NsInfo DefInfo
+            app.program :refer $ map-values dynamic-ratio
+    'app.comp.panel $ %{} 'FileEntry
+      :defs $ {}
+        'comp-def-list $ %{} 'CodeEntry
+          :doc "|Clickable list of definition ids; ids missing from the program are shown plain."
+          :code $ quote $ defcomp comp-def-list (program title ids next-idx)
+            div ({})
+              div
+                {} $ :class-name style-section-title
+                <> $ str title "| (" (.len ids) "|)"
+              list->
+                {} $ :class-name style-def-list
+                .map ids $ fn (id)
+                  hint-fn $ Fn String $ -> (List Dynamic)
+                  [] id $ if
+                    .some? $ lookup-def program id
+                    span $ {} (:class-name style-ref) (:inner-text id)
+                      :on-click $ fn (e d!)
+                        d! $ Op :open next-idx id
+                    span $ {} (:class-name style-ref-missing) (:inner-text id)
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program String (List String) Number (-> respo.schema/Component)
+        'comp-panel $ %{} 'CodeEntry
+          :doc "|One definition: signature, doc, source with types, and its references in both directions."
+          :code $ quote $ defcomp comp-panel (program idx id changed? inline-types?)
+            match (lookup-def program id)
+              (:none)
+                div
+                  {} $ :class-name style-panel
+                  comp-panel-header idx id |missing false
+                  div
+                    {} $ :class-name style-note
+                    <> "|This definition is not in the loaded file."
+              (:some info)
+                let
+                    ns-info $ .unwrap $ .get (:namespaces program) (:ns info)
+                    ctx $ CodeCtx :namespaces (:namespaces program) :ns-info ns-info :imports
+                      ns-imports $ code->tree $ :code ns-info
+                      , :types (:types info) :self id :next-idx (inc idx) :inline-types? inline-types?
+                    users $ .unwrap-or
+                      .get (:users program) id
+                      []
+                  div
+                    {} $ :class-name $ str-spaced style-panel (if changed? style-changed |)
+                    comp-panel-header idx id (:head info) changed?
+                    comp-signature info
+                    if
+                      .empty? $ :doc info
+                      span $ {}
+                      comp-md-block (:doc info)
+                        {} $ :class-name style-doc
+                    match (:error info)
+                      (:some message)
+                        div
+                          {} $ :class-name style-error
+                          <> message
+                      (:none)
+                        span $ {}
+                    comp-code ctx $ :source info
+                    comp-def-list program |Uses (:deps info) (inc idx)
+                    comp-def-list program "|Used by" users $ inc idx
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program Number String Bool Bool (-> respo.schema/Component)
+        'comp-panel-header $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defcomp comp-panel-header (idx id head changed?)
+            let
+                parts $ split-id id
+              div
+                {} $ :class-name style-header
+                div
+                  {} $ :class-name style-title
+                  span $ {} (:class-name style-title-ns)
+                    :inner-text $ str
+                      .unwrap-or (.get parts 0) |
+                      , |/
+                  span $ {} (:class-name style-title-name)
+                    :inner-text $ .unwrap-or (.get parts 1) |
+                if (.empty? head)
+                  span $ {}
+                  span $ {} (:class-name style-badge) (:inner-text head)
+                if changed?
+                  span $ {} (:class-name style-badge-changed) (:inner-text |updated)
+                  span $ {}
+                span $ {} (:class-name style-close) (:inner-text "|×")
+                  :on-click $ fn (e d!)
+                    d! $ Op :close idx
+          :examples $ []
+          :schema $ quote $ Fn Number String String Bool (-> respo.schema/Component)
+        'comp-signature $ %{} 'CodeEntry
+          :doc "|Declared schema and the type the compiler uses; Dynamic is highlighted."
+          :code $ quote $ defcomp comp-signature (info)
+            let
+                schema $ :schema info
+                inferred $ :type info
+                row $ fn (label text)
+                  hint-fn $ Fn String String $ -> respo.schema/Element
+                  div
+                    {} $ :class-name style-sig-row
+                    span $ {} (:class-name style-sig-label) (:inner-text label)
+                    span $ {} (:inner-text text)
+                      :class-name $ str-spaced style-sig-text $ if (.includes? text |Dynamic) style-sig-dynamic |
+              div
+                {} $ :class-name style-sig
+                match schema
+                  (:some text) (row |schema text)
+                  (:none) (row |schema "|(none)")
+                match inferred
+                  (:some text)
+                    if (= inferred schema)
+                      span $ {}
+                      row |type text
+                  (:none)
+                    span $ {}
+          :examples $ []
+          :schema $ quote $ Fn app.types/DefInfo (-> respo.schema/Component)
+        'style-badge $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-badge
+            {} $ |& $ {} (:font-size 11) (:padding "|0 6px") (:margin-left 8) (:border-radius |8px) (:color "|hsl(0, 0%, 45%)") (:background-color "|hsl(0, 0%, 94%)") (:font-family "|Source Code Pro, Menlo, monospace")
+          :examples $ []
+          :schema $ quote String
+        'style-badge-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-badge-changed
+            {} $ |& $ {} (:font-size 11) (:padding "|0 6px") (:margin-left 8) (:border-radius |8px) (:color :white) (:background-color "|hsl(140, 50%, 48%)")
+          :examples $ []
+          :schema $ quote String
+        'style-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-changed
+            {} $ |& $ {} (:box-shadow "|inset 3px 0 0 hsl(140, 50%, 55%)")
+          :examples $ []
+          :schema $ quote String
+        'style-close $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-close
+            {}
+              |& $ {} (:margin-left :auto) (:cursor :pointer) (:color "|hsl(0, 0%, 60%)") (:font-size 18) (:padding "|0 4px")
+              |&:hover $ {} $ :color "|hsl(0, 0%, 20%)"
+          :examples $ []
+          :schema $ quote String
+        'style-def-list $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-def-list
+            {} $ |& $ {} (:display :flex) (:flex-wrap :wrap) (:gap "|2px 10px") (:font-family "|Source Code Pro, Menlo, monospace") (:font-size 12)
+          :examples $ []
+          :schema $ quote String
+        'style-doc $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-doc
+            {} $ |& $ {} (:color "|hsl(0, 0%, 35%)") (:font-size 13) (:margin "|4px 0 8px")
+          :examples $ []
+          :schema $ quote String
+        'style-error $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-error
+            {} $ |& $ {} (:color "|hsl(0, 70%, 45%)") (:font-size 12) (:white-space :pre-wrap) (:margin "|4px 0")
+          :examples $ []
+          :schema $ quote String
+        'style-header $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-header
+            {} $ |& $ {} (:display :flex) (:align-items :center) (:position :sticky) (:top 0) (:background-color :white) (:padding "|8px 0") (:z-index 1)
+          :examples $ []
+          :schema $ quote String
+        'style-note $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-note
+            {} $ |& $ {} (:color "|hsl(0, 0%, 55%)") (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-panel $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-panel
+            {} $ |& $ {} (:width 560) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid hsl(0, 0%, 90%)") (:background-color :white)
+          :examples $ []
+          :schema $ quote String
+        'style-ref $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref
+            {}
+              |& $ {} (:color "|hsl(210, 80%, 45%)") (:cursor :pointer)
+              |&:hover $ {} $ :text-decoration :underline
+          :examples $ []
+          :schema $ quote String
+        'style-ref-missing $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-missing
+            {} $ |& $ {} (:color "|hsl(0, 0%, 65%)")
+          :examples $ []
+          :schema $ quote String
+        'style-section-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-section-title
+            {} $ |& $ {} (:font-size 12) (:color "|hsl(0, 0%, 55%)") (:margin "|16px 0 4px") (:text-transform :uppercase) (:letter-spacing |0.04em)
+          :examples $ []
+          :schema $ quote String
+        'style-sig $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig
+            {} $ |& $ {} (:margin "|0 0 8px") (:font-family "|Source Code Pro, Menlo, monospace") (:font-size 12)
+          :examples $ []
+          :schema $ quote String
+        'style-sig-dynamic $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig-dynamic
+            {} $ |& $ {} (:color "|hsl(30, 90%, 40%)")
+          :examples $ []
+          :schema $ quote String
+        'style-sig-label $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig-label
+            {} $ |& $ {} (:display :inline-block) (:width 52) (:color "|hsl(0, 0%, 60%)")
+          :examples $ []
+          :schema $ quote String
+        'style-sig-row $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig-row
+            {} $ |& $ {} (:display :flex) (:line-height |18px)
+          :examples $ []
+          :schema $ quote String
+        'style-sig-text $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig-text
+            {} $ |& $ {} (:color "|hsl(260, 40%, 40%)") (:white-space :pre-wrap)
+          :examples $ []
+          :schema $ quote String
+        'style-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-title
+            {} $ |& $ {} (:font-family "|Source Code Pro, Menlo, monospace") (:min-width 0) (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
+          :examples $ []
+          :schema $ quote String
+        'style-title-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-title-name
+            {} $ |& $ {} (:font-size 16) (:font-weight 600)
+          :examples $ []
+          :schema $ quote String
+        'style-title-ns $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-title-ns
+            {} $ |& $ {} (:font-size 12) (:color "|hsl(0, 0%, 55%)")
+          :examples $ []
+          :schema $ quote String
+      :ns $ %{} 'NsEntry (:doc "|A definition panel in the panel stack.")
+        :code $ quote $ ns app.comp.panel
+          :require
+            respo.core :refer $ defcomp div span <> list->
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
-            respo-ui.core :as ui
-            app.schema :as schema
-    'app.comp.viewer $ %{} 'FileEntry
-      :defs $ {} $ 'comp-viewer
-        %{} 'CodeEntry (:doc |)
-          :code $ quote $ defcomp comp-viewer (snapshot)
-            let
-                package-name $ decode-map-as (reel-schema/read-field snapshot :package) 'String
-                entries $ decode-map-as (reel-schema/read-field snapshot :entries) (:: 'Map 'Tag 'Dynamic)
-                files $ schema/as-string-map $ decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
-              div ({})
-                div ({}) (<> |Namespace:) (=< 8 nil) (<> package-name)
-                div ({}) (<> |Entries:) (=< 8 nil)
-                  <> $ format-cirru-edn entries
-                div
-                  {} $ :style ui/row
-                  <> |Files:
-                  =< 16 nil
-                  list-> ({})
-                    -> files
-                      filter-map-kv $ fn (filename file-info)
-                        MapEntryDecision :keep filename $ comp-file filename file-info
-                      &map:to-list
-          :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'respo.schema/Component)
-            :args $ [] $ :: 'Map 'Tag 'Dynamic
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.comp.viewer
-          :require
-            hsl.core :refer $ hsl
-            respo-ui.core :as ui
-            respo.core :refer $ defcomp <> div list-> button span input
-            respo.comp.space :refer $ =<
-            app.comp.file :refer $ comp-file
-            reel.schema :as reel-schema
-            app.schema :as schema
+            app.types :refer $ Op CodeCtx
+            app.program :refer $ lookup-def split-id ns-imports code->tree
+            app.comp.code :refer $ comp-code
     'app.config $ %{} 'FileEntry
       :defs $ {}
         'dev? $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def dev?
             = |dev $ .unwrap-or (get-env |mode) |release
           :examples $ []
-          :schema $ :: 'Bool
+          :schema $ quote Bool
         'site $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def site
             {} (:dev-ui |http://localhost:8100/main.css) (:title "|Calcit Viewer") (:icon |http://cdn.tiye.me/logo/cirru.png) (:storage-key |calcit-viewer)
           :examples $ []
-          :schema $ :: 'Map 'Tag 'String
+          :schema $ quote $ Map Tag String
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.config
-    'app.main $ %{} 'FileEntry
+    'app.loader $ %{} 'FileEntry
       :defs $ {}
-        '*reel $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defref *reel (typed/new-reel schema/store)
+        'FileHost $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ deftrait FileHost (:name 'String)
           :examples $ []
-          :schema $ :: 'Ref $ :: 'reel.typed/State 'Enum 'app.schema/StoreData
-        'dispatch! $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn dispatch! (op)
-            let
-                checked $ if (enum? op) op $ raise |Expected-Enum-operation
-              match (typed/decode-control checked)
-                (:some control)
-                  reset! *reel $ typed/apply-control updater @*reel control
-                (:none)
-                  reset! *reel $ typed/record-op updater @*reel checked (generate-id!)
-                    :timestamp $ date-now-snapshot
+          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
+          :schema $ quote Trait
+        'FileInputHost $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ deftrait FileInputHost
+            :files $ quote $ JsNullish app.loader/FileListHost
+          :examples $ []
+          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
+          :schema $ quote Trait
+        'FileListHost $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ deftrait FileListHost
+            .item! $ quote $ Fn app.loader/FileListHost Number
+              -> $ JsNullish app.loader/FileHost
+          :examples $ []
+          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
+            :names $ {} $ :item! |item
+          :schema $ quote Trait
+        'FileReaderHost $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ deftrait FileReaderHost
+            :result $ quote $ JsNullish JsObject
+            :onload 'Dynamic
+            :onerror 'Dynamic
+            .read-as-text! $ quote $ Fn app.loader/FileReaderHost app.loader/FileHost (-> Unit)
+          :examples $ []
+          :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
+            :names $ {} $ :read-as-text! |readAsText
+            :writable $ #{} :onerror :onload
+          :schema $ quote Trait
+        'cache-key $ %{} 'CodeEntry (:doc "|localStorage key for the last loaded file text.")
+          :code $ quote $ def cache-key |calcit-viewer-source
+          :examples $ []
+          :schema $ quote String
+        'load-text! $ %{} 'CodeEntry
+          :doc "|Parses file text into a Program and dispatches it; keeps small files for the next visit."
+          :code $ quote $ defn load-text! (text file-name d!)
+            d! $ try
+              Op :load
+                parse-program $ parse-cirru-edn text
+                , file-name $ shared/now-ms
+              fn (message) (Op :error message)
+            try
+              if
+                < (.len text) 4000000
+                browser/storage-set! cache-key $ str file-name &newline text
+                browser/storage-remove! cache-key
+              fn (message) (println "|Skipped caching the file text:" message)
             , &unit
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ [] 'Dynamic
+          :schema $ quote $ Fn String String
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
+        'on-file-change $ %{} 'CodeEntry (:doc "|Reads the picked file with FileReader.")
+          :code $ quote $ defn on-file-change (e dispatch)
+            let
+                d! $ fn (op)
+                  hint-fn $ Fn app.types/Op $ -> Unit
+                  if (fn? dispatch) (dispatch op) (raise "|Expected dispatch callback")
+                  , &unit
+                event $ decode-map-as e $ :: 'Map 'Tag 'Dynamic
+                event-host $ js-cast
+                  .unwrap $ get event :event
+                  , 'js-ffi.browser/EventHost
+                target $ js-cast (.-target event-host) 'app.loader/FileInputHost
+                raw-files $ .-files target
+              when (js-present? raw-files)
+                let
+                    files $ js-cast raw-files 'app.loader/FileListHost
+                    maybe-file $ .item! files 0
+                  when (js-present? maybe-file)
+                    let
+                        file $ js-cast maybe-file 'app.loader/FileHost
+                        filename $ .-name file
+                        reader $ js-cast (new js/FileReader) 'app.loader/FileReaderHost
+                      js-set reader :onload $ fn (event)
+                        let
+                            result $ .-result reader
+                          if (js-present? result)
+                            load-text! (expect-string |FileReader.result result) filename d!
+                            d! $ Op :error $ str "|Failed to read " filename
+                      js-set reader :onerror $ fn (event)
+                        d! $ Op :error $ str "|Failed to read " filename
+                      .read-as-text! reader file
+            , &unit
+          :examples $ []
+          :schema $ quote $ Fn Dynamic Dynamic (-> Unit) (:features :js-ffi)
+        'restore-cached! $ %{} 'CodeEntry
+          :doc "|Loads the file text kept by `load-text!`, if any."
+          :code $ quote $ defn restore-cached! (d!)
+            match (browser/storage-get cache-key)
+              (:some raw)
+                match (.find-index raw &newline)
+                  (:some idx)
+                    load-text!
+                      .slice raw (inc idx) (Option :none)
+                      .slice raw 0 $ Option :some idx
+                      , d!
+                  (:none) &unit
+              (:none) &unit
+          :examples $ []
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
+      :ns $ %{} 'NsEntry (:doc "|Reading program files picked by the user.")
+        :code $ quote $ ns app.loader
+          :require
+            app.types :refer $ Op
+            app.program :refer $ parse-program
+            js-ffi.browser :as browser
+            js-ffi.shared :as shared
+            js-ffi.contract :refer $ expect-string
+    'app.main $ %{} 'FileEntry
+      :defs $ {}
+        '*store $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defref *store updater/store
+          :examples $ []
+          :schema $ quote $ Ref app.types/Store
+        'dispatch! $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn dispatch! (op)
+            reset! *store $ updater/updater @*store op
+            , &unit
+          :examples $ []
+          :schema $ quote $ Fn app.types/Op (-> Unit)
         'main! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
-            when config/dev? $ load-console-formatter!
-            let
-                restored? $ match
-                  browser/storage-get $ .unwrap $ get config/site :storage-key
-                  (:some raw)
-                    try
-                      do
-                        dispatch! $ :: :hydrate-storage $ parse-cirru-edn raw
-                          {} $ :Option Option
-                        render-app!
-                        , true
-                      fn (message)
-                        dispatch! $ :: :text raw
-                        dispatch! $ :: :page :textarea
-                        dispatch! $ :: :error $ str "|无法恢复旧存档，原始内容已保留在草稿中，请先备份。 " message
-                        render-app!
-                        , false
-                  (:none)
-                    do (render-app!) true
-              add-watch! *reel :changes $ fn (current previous) (render-app!)
-              listen-devtools! |k dispatch!
-              when restored?
-                browser/set-before-unload! $ fn (event) (persist-storage!)
-                browser/document-add-event-listener! |visibilitychange $ fn (event)
-                  match (browser/visibility-state)
-                    (:hidden) (persist-storage!)
-                    _ &unit
-              println "|App started."
+            if config/dev? (load-console-formatter!) &unit
+            restore-prefs!
+            render-app!
+            add-watch! *store :changes $ fn (current previous) (render-app!)
+            restore-cached! dispatch!
+            browser/set-before-unload! $ fn (event) (persist-prefs!)
+            browser/document-add-event-listener! |visibilitychange $ fn (event) (persist-prefs!)
+            println "|App started."
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
         'mount-target $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ def mount-target
+          :code $ quote $ defn mount-target ()
             narrow-element $ .unwrap $ browser/query-selector |.app
           :examples $ []
-          :schema $ :: 'respo.dom/DomElement
-        'persist-storage! $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn persist-storage! ()
-            let
-                store $ :store @*reel
-              browser/storage-set!
-                .unwrap $ get config/site :storage-key
-                format-cirru-edn $ assoc store :states $ schema/without-graph-cache (:states store)
+          :schema $ quote $ Fn (-> respo.dom/DomElement) (:features :js-ffi)
+        'persist-prefs! $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn persist-prefs! ()
+            browser/storage-set! prefs-key $ format-cirru-edn $ :prefs @*store
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+        'prefs-key $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ def prefs-key |calcit-viewer-prefs
+          :examples $ []
+          :schema $ quote String
         'reload! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn reload! ()
             if (nil? build-errors)
-              do (remove-watch! *reel :changes) (clear-cache!)
-                add-watch! *reel :changes $ fn (current previous) (render-app!)
-                reset! *reel $ typed/refresh updater @*reel schema/store
+              do (remove-watch! *store :changes) (clear-cache!)
+                add-watch! *store :changes $ fn (current previous) (render-app!)
+                render-app!
                 hud! |ok~ |Ok
               hud! |error build-errors
             , &unit
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
-            :features $ #{} :js-ffi
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
         'render-app! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn render-app! ()
-            render! mount-target (comp-container @*reel) dispatch!
+            render! (mount-target) (comp-container @*store)
+              fn (op) (dispatch! op)
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'Unit)
-            :args $ []
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+        'restore-prefs! $ %{} 'CodeEntry
+          :doc "|Restores view preferences; unreadable data is ignored."
+          :code $ quote $ defn restore-prefs! ()
+            match (browser/storage-get prefs-key)
+              (:some raw)
+                try
+                  dispatch! $ Op :restore $ decode-map-as (parse-cirru-edn raw) 'app.types/Prefs
+                  fn (message) (println "|Ignored stored preferences:" message)
+              (:none) &unit
+          :examples $ []
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.main
           :require
             respo.core :refer $ render! clear-cache!
+            respo.ffi.browser :refer $ narrow-element
             app.comp.container :refer $ comp-container
-            app.updater :refer $ updater
-            app.schema :as schema
-            reel.util :refer $ listen-devtools!
-            reel.typed :as typed
+            app.updater :as updater
+            app.types :refer $ Op
+            app.loader :refer $ restore-cached!
             app.config :as config
+            js-ffi.browser :as browser
             |./calcit.build-errors :default build-errors
             |bottom-tip :default hud!
-            js-ffi.browser :as browser
-            respo.ffi.browser :refer $ narrow-element
-            js-ffi.shared :refer $ date-now-snapshot
-    'app.schema $ %{} 'FileEntry
+    'app.program $ %{} 'FileEntry
       :defs $ {}
-        'StoreData $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstruct StoreData
-            :states $ :: 'Map 'Dynamic 'Dynamic
-            :error $ :: 'Option 'String
-            :calcit $ :: 'Option $ :: 'Map 'Tag 'Dynamic
-            :page 'Tag
-            :text 'String
-            :messages $ :: 'Map 'String 'Dynamic
+        'all-defs $ %{} 'CodeEntry (:doc "|Every definition of every namespace.")
+          :code $ quote $ defn all-defs (namespaces)
+            .flat-map (map-values namespaces)
+              fn (ns-info)
+                hint-fn $ Fn NsInfo $ -> (List DefInfo)
+                map-values $ :defs ns-info
           :examples $ []
-          :schema $ :: 'StructDef
-        'as-string-map $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn as-string-map (x)
-            filter-map-kv x $ fn (k v)
-              MapEntryDecision :keep (to-string k) v
+          :schema $ quote $ Fn (Map String app.types/NsInfo)
+            -> $ List app.types/DefInfo
+        'cirru-leaves $ %{} 'CodeEntry
+          :doc "|All leaf texts in a Cirru tree, in reading order."
+          :code $ quote $ defn cirru-leaves (tree)
+            hint-fn $ Fn Dynamic $ -> (List String)
+            if (string? tree)
+              [] $ decode-map-as tree 'String
+              .flat-map
+                decode-map-as tree $ :: 'List 'Dynamic
+                , cirru-leaves
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'Map 'Symbol 'V
-            :generics $ [] 'V
-            :return $ :: 'Map 'String 'V
-        'hydrate-store $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn hydrate-store (data)
+          :schema $ quote $ Fn Dynamic
+            -> $ List String
+        'code->tree $ %{} 'CodeEntry
+          :doc "|Nested lists of leaf strings for a quoted Cirru expression."
+          :code $ quote $ defn code->tree (code)
+            if (.leaf? code)
+              .unwrap-or (.leaf-text code) |
+              &cirru-quote:to-list code
+          :examples $ []
+          :schema $ quote $ Fn CirruQuote (-> Dynamic)
+        'collect-users $ %{} 'CodeEntry
+          :doc "|Reverse dependency index: definition id to the ids that reference it."
+          :code $ quote $ defn collect-users (namespaces)
+            foldl (all-defs namespaces) ({})
+              fn (acc info)
+                hint-fn $ Fn
+                  Map String $ List String
+                  , DefInfo $ ->
+                    Map String $ List String
+                foldl (:deps info) acc $ fn (acc2 dep)
+                  hint-fn $ Fn
+                    Map String $ List String
+                    , String $ ->
+                      Map String $ List String
+                  .assoc acc2 dep $ .concat
+                    .unwrap-or (.get acc2 dep) ([])
+                    [] $ :id info
+          :examples $ []
+          :schema $ quote $ Fn (Map String app.types/NsInfo)
+            -> $ Map String $ List String
+        'def-id $ %{} 'CodeEntry
+          :doc "|Joins a namespace and a definition name into `ns/def`."
+          :code $ quote $ defn def-id (ns def-name) (str ns |/ def-name)
+          :examples $ []
+          :schema $ quote $ Fn String String (-> String)
+        'dynamic-ratio $ %{} 'CodeEntry
+          :doc "|Share of recorded source types that still mention Dynamic, or -1 when nothing was recorded."
+          :code $ quote $ defn dynamic-ratio (info)
             let
-                fields $ if (struct? data)
-                  struct-match data
-                    StoreData checked $ .to-map checked
-                    _ other $ raise "|Expected StoreData archive"
-                  decode-map-as data $ :: 'Map 'Tag 'Dynamic
-                without-error-nil $ if
-                  nil? $ reel-schema/read-field fields :error
-                  dissoc fields :error
-                  , fields
-                without-calcit-nil $ if
-                  nil? $ reel-schema/read-field fields :calcit
-                  dissoc without-error-nil :calcit
-                  , without-error-nil
-                checked $ decode-map-as without-calcit-nil 'app.schema/StoreData
-              assoc
-                assoc checked :states $ without-graph-cache $ :states checked
-                , :calcit $ .map (:calcit checked) validate-snapshot
+                types $ :types info
+                total $ .len types
+              if (= total 0) -1 $ /
+                .len $ .filter-kv types $ fn (path t) (.includes? t |Dynamic)
+                , total
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
-            :args $ [] 'Dynamic
-          :tests $ [] $ %{} 'TestEntry (:name |legacy-nil-and-derived-cache)
+          :schema $ quote $ Fn app.types/DefInfo (-> Number)
+          :tests $ [] $ %{} 'TestEntry (:name |ratio-of-dynamic-types)
             :code $ quote $ let
-                archive "|%{} 'StoreData (:states ({} (:graph ({} (:data ({} (:init-fn |custom/run) (:graph ({})))))) (:other ({} (:data |keep))))) (:error nil) (:calcit nil) (:page :input) (:text |draft) (:messages ({}))"
-                restored $ hydrate-store $ parse-cirru-edn archive
-                states $ :states restored
-              assert= true $ .none? $ :error restored
-              assert= true $ .none? $ :calcit restored
-              assert= |draft $ :text restored
-              assert= |custom/run $ .unwrap $ get-in states ([] :graph :data :init-fn)
-              assert= true $ .none? $ get-in states ([] :graph :data :graph)
-              assert= |keep $ .unwrap $ get-in states ([] :other :data)
-              assert= true $ try
-                do
-                  hydrate-store $ assoc store :calcit $ Option :some ({})
-                  , false
-                fn (message) true
-        'store $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ def store
-            StoreData :states ({}) :error (Option :none) :calcit (Option :none) :page :input :text | :messages $ {}
-          :examples $ []
-          :schema $ :: 'app.schema/StoreData
-        'validate-snapshot $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn validate-snapshot (data)
-            let
-                snapshot $ decode-map-as data $ :: 'Map 'Tag 'Dynamic
-              decode-map-as (reel-schema/read-field snapshot :package) 'String
-              decode-map-as (reel-schema/read-field snapshot :files) (:: 'Map 'Symbol 'Dynamic)
+                program $ parse-program $ parse-cirru-edn sample-ir
+                info $ .unwrap $ lookup-def program |app.main/double
+              assert= 0.5 $ dynamic-ratio info
+        'first-leaf $ %{} 'CodeEntry
+          :doc "|The leading leaf text of a list tree, empty otherwise."
+          :code $ quote $ defn first-leaf (tree)
+            if (list? tree)
               let
-                  entries $ decode-map-as (reel-schema/read-field snapshot :entries) (:: 'Map 'Tag 'Dynamic)
-                  default-entry $ decode-map-as (reel-schema/read-field entries :default) (:: 'Map 'Tag 'Dynamic)
-                decode-map-as (reel-schema/read-field default-entry :init-fn) 'Symbol
-              , snapshot
+                  head $ .first $ decode-map-as tree (:: 'List 'Dynamic)
+                match head
+                  (:some x)
+                    if (string? x) (decode-map-as x 'String) |
+                  (:none) |
+              , |
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] 'Dynamic
-            :return $ :: 'Map 'Tag 'Dynamic
-        'without-graph-cache $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn without-graph-cache (states)
-            match (get states :graph)
-              (:none) states
-              (:some raw-branch)
-                let
-                    branch $ decode-map-as raw-branch $ :: 'Map 'Dynamic 'Dynamic
-                  match (get branch :data)
-                    (:none) states
-                    (:some raw-data)
-                      if (nil? raw-data) states $ assoc states :graph $ assoc branch :data
-                        dissoc
-                          decode-map-as raw-data $ :: 'Map 'Tag 'Dynamic
-                          , :graph
+          :schema $ quote $ Fn Dynamic (-> String)
+        'lookup-def $ %{} 'CodeEntry (:doc "|Finds a definition by `ns/def` id.")
+          :code $ quote $ defn lookup-def (program id)
+            let
+                parts $ split-id id
+              -> (:namespaces program)
+                .get $ .unwrap-or (.get parts 0) |
+                .and-then $ fn (ns-info)
+                  hint-fn $ Fn NsInfo $ -> (Option DefInfo)
+                  .get (:defs ns-info)
+                    .unwrap-or (.get parts 1) |
           :examples $ []
-          :schema $ :: 'Fn $ {}
-            :args $ [] $ :: 'Map 'Dynamic 'Dynamic
-            :return $ :: 'Map 'Dynamic 'Dynamic
-      :ns $ %{} 'NsEntry (:doc |)
-        :code $ quote $ ns app.schema
-          :require $ reel.schema :as reel-schema
-    'app.updater $ %{} 'FileEntry
-      :defs $ {} $ 'updater
-        %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn updater (store op op-id op-time)
-            if
-              action/message-action? $ &enum:nth op 0
-              assoc store :messages $ decode-map-as
-                update-messages (:messages store) (&enum:nth op 0)
-                  if
-                    > (&enum:count op) 1
-                    &enum:nth op 1
-                    {}
-                  , op-id op-time
-                :: 'Map 'String 'Dynamic
-              match op
-                (:states cursor data)
-                  assoc store :states $ decode-map-as
-                    update-state-tree (:states store)
-                      decode-map-as cursor $ :: 'List 'Dynamic
-                      , data
-                    :: 'Map 'Dynamic 'Dynamic
-                (:load/calcit data)
-                  struct-with store
-                    :calcit $ Option :some $ schema/validate-snapshot data
-                    :error $ Option :none
-                    :page :viewer
-                    :states $ schema/without-graph-cache $ :states store
-                (:text text)
-                  assoc store :text $ decode-map-as text 'String
-                (:error message)
-                  assoc store :error $ Option :some $ decode-map-as message 'String
-                (:page page)
-                  assoc store :page $ decode-map-as page 'Tag
-                (:hydrate-storage data) (schema/hydrate-store data)
-                _ store
+          :schema $ quote $ Fn app.types/Program String
+            -> $ Option app.types/DefInfo
+        'map-values $ %{} 'CodeEntry (:doc "|Values of a map ordered by key.")
+          :code $ quote $ defn map-values (m)
+            hint-fn $ Fn (Map String V)
+              -> $ List V
+              :generics V
+            -> m .keys .to-list
+              .sort $ fn (a b) (.compare a b)
+              .map $ fn (k)
+                hint-fn $ Fn String $ -> V
+                .unwrap $ .get m k
           :examples $ []
-          :schema $ :: 'Fn $ {} (:return 'app.schema/StoreData)
-            :args $ [] 'app.schema/StoreData 'Enum 'String 'Number
-          :tests $ [] $ %{} 'TestEntry (:name |canonical-snapshot-store-roundtrip)
+          :schema $ quote $ Fn (Map String V)
+            -> $ List V
+            :generics V
+        'ns-imports $ %{} 'CodeEntry
+          :doc "|Reads `:require` rules of an `ns` form into referred names and namespace aliases."
+          :code $ quote $ defn ns-imports (ns-tree)
+            let
+                forms $ if (list? ns-tree)
+                  decode-map-as ns-tree $ :: 'List 'Dynamic
+                  []
+                require-form $ .find forms $ fn (form)
+                  and (list? form)
+                    = (first-leaf form) |:require
+                rules $ match require-form
+                  (:some form)
+                    .rest $ decode-map-as form $ :: 'List 'Dynamic
+                  (:none) ([])
+              foldl rules
+                {}
+                  :refers $ {}
+                  :aliases $ {}
+                fn (acc rule)
+                  hint-fn $ Fn
+                    Map Tag $ Map String String
+                    , Dynamic $ ->
+                      Map Tag $ Map String String
+                  if (list? rule)
+                    let
+                        items $ .filter (cirru-leaves rule)
+                          fn (x) (not= x |[])
+                        target $ .strip-prefix
+                          .unwrap-or (.first items) |
+                          , |\|
+                        kind $ .unwrap-or (.get items 1) |
+                      cond
+                          = kind |:as
+                          update-section acc :aliases
+                            .unwrap-or (.get items 2) |
+                            , target
+                        (= kind |:refer)
+                          foldl
+                            .slice items 2 $ Option :none
+                            , acc $ fn (acc2 name)
+                              hint-fn $ Fn
+                                Map Tag $ Map String String
+                                , String $ ->
+                                  Map Tag $ Map String String
+                              update-section acc2 :refers name $ def-id target name
+                        true acc
+                    , acc
+          :examples $ []
+          :schema $ quote $ Fn Dynamic
+            -> $ Map Tag $ Map String String
+          :tests $ [] $ %{} 'TestEntry (:name |reads-refer-and-as)
             :code $ quote $ let
-                source $ match
-                  .read-text $ fs:path |calcit.cirru
-                  (:ok text) text
-                  (:err message) (raise message)
-                snapshot $ parse-cirru-edn source
-                loaded $ updater schema/store (:: :load/calcit snapshot) |load 1
-                cached $ updater loaded
-                  :: :states ([] :graph)
-                    {} (:init-fn |custom/run)
-                      :graph $ {} $ :stale :cache
-                  , |graph 2
-                restored $ updater cached
-                  :: :hydrate-storage $ parse-cirru-edn (format-cirru-edn cached)
-                    {} $ :Option Option
-                  , |restore 3
-              assert= snapshot $ .unwrap $ :calcit loaded
-              assert= (:calcit loaded) (:calcit restored)
-              assert= :viewer $ :page restored
-              assert= true $ .none? $ :error restored
-              assert= |custom/run $ .unwrap $ get-in (:states restored) ([] :graph :data :init-fn)
-              assert= true $ .none? $ get-in (:states restored) ([] :graph :data :graph)
+                imports $ ns-imports $ [] |ns |app.main
+                  [] |:require ([] |respo.core |:refer |div |span) ([] |app.config |:as |config)
+              assert= (Option :some |respo.core/span)
+                .get
+                  .unwrap $ .get imports :refers
+                  , |span
+              assert= (Option :some |app.config)
+                .get
+                  .unwrap $ .get imports :aliases
+                  , |config
+        'parse-ir $ %{} 'CodeEntry
+          :doc "|Reads `program-ir.cirru` written by `calcit ir` (`:sources` section)."
+          :code $ quote $ defn parse-ir (data)
+            let
+                meta $ read-field data :meta
+                configs $ read-field data :configs
+                sources $ decode-map-as (read-field data :sources) (:: 'Map 'String 'Dynamic)
+                namespaces $ .filter-map-kv sources $ fn (ns-name file)
+                  let
+                      defs $ decode-map-as (read-field file :defs) (:: 'Map 'String 'Dynamic)
+                    MapEntryDecision :keep ns-name $ NsInfo :name ns-name :origin
+                      decode-map-as (read-field file :origin) 'Tag
+                      , :doc (read-string file :ns-doc) :code
+                        decode-map-as (read-field file :ns-code) 'CirruQuote
+                        , :defs $ .filter-map-kv defs
+                          fn (def-name d)
+                            MapEntryDecision :keep def-name $ parse-ir-def ns-name def-name d
+              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users $ collect-users namespaces
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> app.types/Program)
+          :tests $ [] $ %{} 'TestEntry (:name |reads-sources)
+            :code $ quote $ let
+                program $ parse-program $ parse-cirru-edn sample-ir
+                info $ .unwrap $ lookup-def program |app.main/main!
+              assert= :ir $ :format program
+              assert= |app.main/main! $ :init-fn program
+              assert= ([] |app.main/double) (:deps info)
+              assert= (Option :some "|Fn $ -> Number") (:schema info)
+              assert= ([] |app.main/main!)
+                .unwrap $ get (:users program) |app.main/double
+              assert= |Number $ .unwrap $ get (:types info) |3
+        'parse-ir-def $ %{} 'CodeEntry (:doc "|One definition entry of `:sources`.")
+          :code $ quote $ defn parse-ir-def (ns-name def-name d)
+            let
+                kind $ read-field d :kind
+              DefInfo :id (def-id ns-name def-name) :ns ns-name :name def-name :doc (read-string d :doc) :head (read-string d :head) :kind
+                if (nil? kind) | $ .to-string $ decode-map-as kind 'Tag
+                , :source
+                  decode-map-as (read-field d :source) 'CirruQuote
+                  , :schema (read-option-string d :schema) :type (read-option-string d :type) :deps
+                    decode-map-as (read-field d :deps) (:: 'List 'String)
+                    , :types
+                      foldl
+                        decode-map-as (read-field d :types)
+                          :: 'List $ :: 'List 'String
+                        {}
+                        fn (acc pair)
+                          hint-fn $ Fn (Map String String) (List String)
+                            -> $ Map String String
+                          .assoc acc
+                            .unwrap-or (.get pair 0) |
+                            .unwrap-or (.get pair 1) |
+                      , :hash (read-string d :hash) :error $ read-option-string d :error
+          :examples $ []
+          :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
+        'parse-program $ %{} 'CodeEntry
+          :doc "|Reads either a `calcit ir` artifact or a `calcit.cirru` Snapshot."
+          :code $ quote $ defn parse-program (data)
+            if
+              non-nil? $ read-field data :sources
+              parse-ir data
+              if
+                non-nil? $ read-field data :files
+                parse-snapshot data
+                raise "|Expected program-ir.cirru with :sources, or a calcit.cirru Snapshot with :files"
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> app.types/Program)
+        'parse-snapshot $ %{} 'CodeEntry
+          :doc "|Reads a `calcit.cirru` Snapshot. Types are only the declared schemas; dependencies are resolved from symbols."
+          :code $ quote $ defn parse-snapshot (data)
+            let
+                files $ decode-map-as (read-field data :files) (:: 'Map 'Symbol 'Dynamic)
+                default-entry $ read-field (read-field data :entries) :default
+                raw-init $ read-field default-entry :init-fn
+                bare $ .filter-map-kv files $ fn (ns-sym file)
+                  MapEntryDecision :keep (.to-string ns-sym)
+                    parse-snapshot-ns (.to-string ns-sym) file
+                namespaces $ .filter-map-kv bare $ fn (ns-name ns-info)
+                  MapEntryDecision :keep ns-name $ assoc ns-info :defs $ .filter-map-kv (:defs ns-info)
+                    fn (def-name info)
+                      MapEntryDecision :keep def-name $ assoc info :deps $ source-deps bare ns-info info
+              Program :package (read-string data :package) :calcit-version | :format :snapshot :init-fn
+                if (nil? raw-init) | $ .to-string $ decode-map-as raw-init 'Symbol
+                , :namespaces namespaces :users $ collect-users namespaces
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> app.types/Program)
+          :tests $ [] $ %{} 'TestEntry (:name |reads-snapshot)
+            :code $ quote $ let
+                program $ parse-program $ parse-cirru-edn sample-snapshot
+                main $ .unwrap $ lookup-def program |app.main/main!
+              assert= :snapshot $ :format program
+              assert= ([] |app.main/double) (:deps main)
+              assert= (Option :some "|Fn $ -> Number") (:schema main)
+              assert= |defn $ :head main
+        'parse-snapshot-def $ %{} 'CodeEntry
+          :doc "|One `CodeEntry` of a Snapshot, before dependencies are resolved."
+          :code $ quote $ defn parse-snapshot-def (ns-name def-name entry)
+            let
+                code $ decode-map-as (read-field entry :code) 'CirruQuote
+                schema $ read-field entry :schema
+              DefInfo :id (def-id ns-name def-name) :ns ns-name :name def-name :doc (read-string entry :doc) :head
+                first-leaf $ code->tree code
+                , :kind | :source code :schema
+                  if (nil? schema) (Option :none)
+                    Option :some $ quote-text $ decode-map-as schema 'CirruQuote
+                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error $ Option :none
+          :examples $ []
+          :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
+        'parse-snapshot-ns $ %{} 'CodeEntry (:doc "|One `FileEntry` of a Snapshot.")
+          :code $ quote $ defn parse-snapshot-ns (ns-name file)
+            let
+                ns-entry $ read-field file :ns
+                defs $ decode-map-as (read-field file :defs) (:: 'Map 'Symbol 'Dynamic)
+              NsInfo :name ns-name :origin :project :doc (read-string ns-entry :doc) :code
+                decode-map-as (read-field ns-entry :code) 'CirruQuote
+                , :defs $ .filter-map-kv defs $ fn (def-sym entry)
+                  MapEntryDecision :keep (.to-string def-sym)
+                    parse-snapshot-def ns-name (.to-string def-sym) entry
+          :examples $ []
+          :schema $ quote $ Fn String Dynamic (-> app.types/NsInfo)
+        'quote-text $ %{} 'CodeEntry
+          :doc "|One-line text of a quoted Cirru expression such as a schema."
+          :code $ quote $ defn quote-text (code)
+            if (.leaf? code)
+              .unwrap-or (.leaf-text code) |
+              .trim $ format-cirru $ [] (&cirru-quote:to-list code)
+          :examples $ []
+          :schema $ quote $ Fn CirruQuote (-> String)
+        'read-field $ %{} 'CodeEntry
+          :doc "|Reads a field of a Snapshot record or a plain map; nil when missing."
+          :code $ quote $ defn read-field (value field)
+            cond
+                nil? value
+                , nil
+              (struct? value)
+                .unwrap-or
+                  get (&struct:to-map value) field
+                  , nil
+              true $ .unwrap-or
+                get (decode-map-as value 'Map) field
+                , nil
+          :examples $ []
+          :schema $ quote $ Fn Dynamic Tag (-> Dynamic)
+        'read-option-string $ %{} 'CodeEntry (:doc "|Reads an optional string field.")
+          :code $ quote $ defn read-option-string (value field)
+            let
+                raw $ read-field value field
+              if (nil? raw) (Option :none)
+                Option :some $ decode-map-as raw 'String
+          :examples $ []
+          :schema $ quote $ Fn Dynamic Tag
+            -> $ Option String
+        'read-string $ %{} 'CodeEntry (:doc "|Reads a string field, empty when missing.")
+          :code $ quote $ defn read-string (value field)
+            let
+                raw $ read-field value field
+              if (nil? raw) | $ decode-map-as raw 'String
+          :examples $ []
+          :schema $ quote $ Fn Dynamic Tag (-> String)
+        'resolve-leaf $ %{} 'CodeEntry
+          :doc "|Resolves a symbol leaf inside `ns-info` to a definition id: qualified names, `:as` aliases, `:refer` names, same-namespace definitions, then calcit.core."
+          :code $ quote $ defn resolve-leaf (namespaces ns-info leaf)
+            resolve-with namespaces
+              ns-imports $ code->tree $ :code ns-info
+              , ns-info leaf
+          :examples $ []
+          :schema $ quote $ Fn (Map String app.types/NsInfo) app.types/NsInfo String
+            -> $ Option String
+          :tests $ [] $ %{} 'TestEntry (:name |resolves-local-and-imported)
+            :code $ quote $ let
+                program $ parse-program $ parse-cirru-edn sample-snapshot
+                namespaces $ :namespaces program
+                main-ns $ .unwrap $ get namespaces |app.main
+              assert= (Option :some |app.main/double) (resolve-leaf namespaces main-ns |double)
+              assert= (Option :none) (resolve-leaf namespaces main-ns |unknown)
+        'resolve-with $ %{} 'CodeEntry
+          :doc "|Like `resolve-leaf` with the namespace imports already read."
+          :code $ quote $ defn resolve-with (namespaces imports ns-info leaf)
+            let
+                aliases $ .unwrap-or (.get imports :aliases) ({})
+                refers $ .unwrap-or (.get imports :refers) ({})
+                slash $ .unwrap-or (.find-index leaf |/) -1
+                candidate $ if
+                  and (> slash 0)
+                    < slash $ dec $ .len leaf
+                  let
+                      head $ .slice leaf 0 $ Option :some slash
+                      tail $ .slice leaf (inc slash) (Option :none)
+                    def-id
+                      .unwrap-or (.get aliases head) head
+                      , tail
+                  .unwrap-or (.get refers leaf)
+                    if
+                      .contains-key? (:defs ns-info) leaf
+                      def-id (:name ns-info) leaf
+                      def-id |calcit.core leaf
+                parts $ split-id candidate
+                known? $ -> namespaces
+                  .get $ .unwrap-or (.get parts 0) |
+                  .map $ fn (target)
+                    hint-fn $ Fn NsInfo $ -> Bool
+                    .contains-key? (:defs target)
+                      .unwrap-or (.get parts 1) |
+                  .unwrap-or false
+              if known? (Option :some candidate) (Option :none)
+          :examples $ []
+          :schema $ quote $ Fn (Map String app.types/NsInfo)
+            Map Tag $ Map String String
+            , app.types/NsInfo String
+              -> $ Option String
+        'sample-ir $ %{} 'CodeEntry
+          :doc "|Small `calcit ir --sources-only` artifact used by tests."
+          :code $ quote $ def sample-ir "|{} (:configs $ {} (:init-fn |app.main/main!) (:reload-fn |app.main/reload!)) (:meta $ {} (:calcit-version |0.32.1) (:package |app) (:schema-version 1)) (:sources $ {} (|app.main $ {} (:origin :project) (:ns-doc |) (:ns-code $ quote $ ns app.main) (:defs $ {} (|double $ {} (:doc |) (:hash |md5:1) (:head |defn) (:kind :fn) (:schema \"|Fn Number $ -> Number\") (:type \"|Fn Number $ -> Number\") (:deps $ []) (:source $ quote $ defn double (n) (* n 2)) (:types $ [] ([] |3 |Number) ([] |3.1 |Dynamic))) (|main! $ {} (:doc |) (:hash |md5:2) (:head |defn) (:kind :fn) (:schema \"|Fn $ -> Number\") (:type \"|Fn $ -> Number\") (:deps $ [] |app.main/double) (:source $ quote $ defn main! () (double 21)) (:types $ [] ([] |3 |Number))))))"
+          :examples $ []
+          :schema $ quote String
+        'sample-snapshot $ %{} 'CodeEntry (:doc "|Small Snapshot used by tests.")
+          :code $ quote $ def sample-snapshot "|{} (:package |app) (:entries $ {} (:default $ {} (:init-fn 'app.main/main!))) (:files $ {} ('app.main $ %{} 'FileEntry (:ns $ %{} 'NsEntry (:doc |) (:code $ quote $ ns app.main)) (:defs $ {} ('double $ %{} 'CodeEntry (:doc |) (:code $ quote $ defn double (n) (* n 2)) (:schema $ quote $ Fn Number $ -> Number)) ('main! $ %{} 'CodeEntry (:doc |) (:code $ quote $ defn main! () (double 21)) (:schema $ quote $ Fn $ -> Number)))))"
+          :examples $ []
+          :schema $ quote String
+        'source-deps $ %{} 'CodeEntry
+          :doc "|Definitions a Snapshot definition refers to, resolved from its symbol leaves."
+          :code $ quote $ defn source-deps (namespaces ns-info info)
+            let
+                imports $ ns-imports $ code->tree (:code ns-info)
+              ->
+                cirru-leaves $ code->tree $ :source info
+                .flat-map $ fn (leaf)
+                  match (resolve-with namespaces imports ns-info leaf)
+                    (:some id)
+                      if
+                        = id $ :id info
+                        []
+                        [] id
+                    (:none) ([])
+                .to-set
+                .to-list
+                .sort $ fn (a b)
+                  hint-fn $ Fn String String $ -> Number
+                  .compare a b
+          :examples $ []
+          :schema $ quote $ Fn (Map String app.types/NsInfo) app.types/NsInfo app.types/DefInfo
+            -> $ List String
+        'split-id $ %{} 'CodeEntry
+          :doc "|Splits `ns/def` at the first slash; definition names may contain `/` themselves."
+          :code $ quote $ defn split-id (id)
+            match (.find-index id |/)
+              (:some idx)
+                []
+                  .slice id 0 $ Option :some idx
+                  .slice id (inc idx) (Option :none)
+              (:none) ([] id |)
+          :examples $ []
+          :schema $ quote $ Fn String
+            -> $ List String
+          :tests $ [] $ %{} 'TestEntry (:name |splits-at-first-slash)
+            :code $ quote $ do
+              assert= ([] |app.main |/) (split-id |app.main//)
+              assert= ([] |respo.core |div) (split-id |respo.core/div)
+        'update-section $ %{} 'CodeEntry
+          :doc "|Sets one entry of a named section in the imports map."
+          :code $ quote $ defn update-section (acc section k v)
+            .assoc acc section $ .assoc
+              .unwrap-or (.get acc section) ({})
+              , k v
+          :examples $ []
+          :schema $ quote $ Fn
+            Map Tag $ Map String String
+            , Tag String String
+              -> $ Map Tag $ Map String String
+      :ns $ %{} 'NsEntry
+        :doc "|Reads `calcit ir` artifacts and Snapshots into the viewer's Program data."
+        :code $ quote $ ns app.program
+          :require $ app.types :refer $ Program NsInfo DefInfo
+    'app.types $ %{} 'FileEntry
+      :defs $ {}
+        'CodeCtx $ %{} 'CodeEntry
+          :doc "|What rendering one definition's source needs: where symbols resolve and which panel opens next."
+          :code $ quote $ defstruct CodeCtx
+            :namespaces $ quote $ Map String app.types/NsInfo
+            :ns-info 'app.types/NsInfo
+            :imports $ quote $ Map Tag (Map String String)
+            :types $ quote $ Map String String
+            :self 'String
+            :next-idx 'Number
+            :inline-types? 'Bool
+          :examples $ []
+          :schema $ quote StructDef
+        'DefInfo $ %{} 'CodeEntry
+          :doc "|One definition as shown by the viewer, from `calcit ir` `:sources` or a Snapshot."
+          :code $ quote $ defstruct DefInfo (:id 'String) (:ns 'String) (:name 'String) (:doc 'String) (:head 'String) (:kind 'String) (:source 'CirruQuote)
+            :schema $ quote $ Option String
+            :type $ quote $ Option String
+            :deps $ quote $ List String
+            :types $ quote $ Map String String
+            :hash 'String
+            :error $ quote $ Option String
+          :examples $ []
+          :schema $ quote StructDef
+        'NsInfo $ %{} 'CodeEntry
+          :doc "|A namespace with its definitions; `:origin` is `:project`, `:dep` or `:core`."
+          :code $ quote $ defstruct NsInfo (:name 'String) (:origin 'Tag) (:doc 'String) (:code 'CirruQuote)
+            :defs $ quote $ Map String app.types/DefInfo
+          :examples $ []
+          :schema $ quote StructDef
+        'Op $ %{} 'CodeEntry (:doc "|Store operations.")
+          :code $ quote $ defenum Op (:load 'app.types/Program 'String 'Number) (:error 'String) (:open 'Number 'String) (:close 'Number) (:filter 'String) (:toggle-libs) (:toggle-inline-types) (:restore 'app.types/Prefs)
+          :examples $ []
+          :schema $ quote EnumDef
+        'Prefs $ %{} 'CodeEntry (:doc "|View preferences kept in localStorage.")
+          :code $ quote $ defstruct Prefs
+            :stack $ quote $ List String
+            :filter 'String
+            :show-libs? 'Bool
+            :inline-types? 'Bool
+          :examples $ []
+          :schema $ quote StructDef
+        'Program $ %{} 'CodeEntry
+          :doc "|Loaded program; `:users` maps a definition id to the definitions that reference it."
+          :code $ quote $ defstruct Program (:package 'String) (:calcit-version 'String) (:format 'Tag) (:init-fn 'String)
+            :namespaces $ quote $ Map String app.types/NsInfo
+            :users $ quote $ Map String (List String)
+          :examples $ []
+          :schema $ quote StructDef
+        'Store $ %{} 'CodeEntry
+          :doc "|Application state. `:stack` holds the definition ids of the open panels from left to right."
+          :code $ quote $ defstruct Store
+            :program $ quote $ Option app.types/Program
+            :error $ quote $ Option String
+            :file-name 'String
+            :loaded-at 'Number
+            :changed $ quote $ Set String
+            :prefs 'app.types/Prefs
+          :examples $ []
+          :schema $ quote StructDef
+      :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
+        :code $ quote $ ns app.types
+    'app.updater $ %{} 'FileEntry
+      :defs $ {}
+        'changed-ids $ %{} 'CodeEntry
+          :doc "|Definitions that differ from the previously loaded program; empty on the first load."
+          :code $ quote $ defn changed-ids (previous program)
+            match previous
+              (:none) (#{})
+              (:some old)
+                if
+                  not= (:format old) (:format program)
+                  #{}
+                  ->
+                    all-defs $ :namespaces program
+                    .filter $ fn (info)
+                      hint-fn $ Fn DefInfo $ -> Bool
+                      match
+                        lookup-def old $ :id info
+                        (:some prev) (not= prev info)
+                        (:none) true
+                    .map $ fn (info)
+                      hint-fn $ Fn DefInfo $ -> String
+                      :id info
+                    .to-set
+          :examples $ []
+          :schema $ quote $ Fn (Option app.types/Program) app.types/Program
+            -> $ Set String
+        'store $ %{} 'CodeEntry (:doc "|Initial store.")
+          :code $ quote $ def store
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false
+          :examples $ []
+          :schema $ quote app.types/Store
+        'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
+          :code $ quote $ defn update-prefs (store f)
+            assoc store :prefs $ f $ :prefs store
+          :examples $ []
+          :schema $ quote $ Fn app.types/Store
+            Fn app.types/Prefs $ -> app.types/Prefs
+            -> app.types/Store
+        'updater $ %{} 'CodeEntry (:doc "|Applies one operation to the store.")
+          :code $ quote $ defn updater (store op)
+            match op
+              (:load program file-name time)
+                let
+                    kept $ .filter
+                      :stack $ :prefs store
+                      fn (id)
+                        .some? $ lookup-def program id
+                    stack $ if (.empty? kept)
+                      if
+                        .some? $ lookup-def program $ :init-fn program
+                        [] $ :init-fn program
+                        []
+                      , kept
+                  -> store
+                    assoc :changed $ changed-ids (:program store) program
+                    assoc :program $ Option :some program
+                    assoc :error $ Option :none
+                    assoc :file-name file-name
+                    assoc :loaded-at time
+                    update-prefs $ fn (prefs) (assoc prefs :stack stack)
+              (:error message)
+                assoc store :error $ Option :some message
+              (:open idx id)
+                update-prefs store $ fn (prefs)
+                  assoc prefs :stack $ .concat
+                    .take (:stack prefs) idx
+                    [] id
+              (:close idx)
+                update-prefs store $ fn (prefs)
+                  assoc prefs :stack $ .take (:stack prefs) idx
+              (:filter text)
+                update-prefs store $ fn (prefs) (assoc prefs :filter text)
+              (:toggle-libs)
+                update-prefs store $ fn (prefs)
+                  assoc prefs :show-libs? $ not $ :show-libs? prefs
+              (:toggle-inline-types)
+                update-prefs store $ fn (prefs)
+                  assoc prefs :inline-types? $ not $ :inline-types? prefs
+              (:restore prefs) (assoc store :prefs prefs)
+          :examples $ []
+          :schema $ quote $ Fn app.types/Store app.types/Op (-> app.types/Store)
+          :tests $ [] $ %{} 'TestEntry (:name |open-load-and-refresh)
+            :code $ quote $ let
+                program $ parse-program $ parse-cirru-edn sample-ir
+                loaded $ updater store $ Op :load program |program-ir.cirru 1
+                opened $ updater loaded $ Op :open 1 |app.main/double
+                reopened $ updater opened $ Op :open 0 |app.main/double
+                app-ns $ .unwrap $ .get (:namespaces program) |app.main
+                double $ .unwrap $ .get (:defs app-ns) |double
+                edited $ assoc program :namespaces $ .assoc (:namespaces program) |app.main
+                  assoc app-ns :defs $ .assoc (:defs app-ns) |double $ assoc double :doc |changed
+              assert= ([] |app.main/main!)
+                :stack $ :prefs loaded
+              assert= ([] |app.main/main! |app.main/double)
+                :stack $ :prefs opened
+              assert= ([] |app.main/double)
+                :stack $ :prefs reopened
+              assert= (#{}) (:changed loaded)
+              assert= (#{} |app.main/double)
+                :changed $ updater opened $ Op :load edited |program-ir.cirru 2
+              assert= ([] |app.main/main! |app.main/double)
+                :stack $ :prefs $ updater opened (Op :load edited |program-ir.cirru 2)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.updater
           :require
-            respo.cursor :refer $ update-state-tree
-            respo-message.action :as action
-            respo-message.updater :refer $ update-messages
-            app.schema :as schema
+            app.types :refer $ Store Prefs Op DefInfo
+            app.program :refer $ all-defs lookup-def parse-program sample-ir
