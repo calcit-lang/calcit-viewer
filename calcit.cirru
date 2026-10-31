@@ -68,11 +68,15 @@
               span
                 if linked?
                   {} (:class-name class-name)
-                    :title $ str (.unwrap-or target |) &newline $ .unwrap-or t |
+                    :data-tip $ if (.some? t)
+                      str (.unwrap-or target |) "| · " $ .unwrap-or t |
+                      .unwrap-or target |
                     :on-click $ fn (e d!)
                       d! $ Op :open (:next-idx ctx) (.unwrap target)
-                  {} (:class-name class-name)
-                    :title $ .unwrap-or t |
+                  if (.some? t)
+                    {} (:class-name class-name)
+                      :data-tip $ .unwrap-or t |
+                    {} $ :class-name class-name
                 <> leaf
                 if
                   and (:inline-types? ctx) (.some? t)
@@ -111,7 +115,9 @@
           :schema $ quote String
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
-            {} $ |& $ {} (:display :inline-block) (:margin-right 8) (:white-space :pre)
+            {}
+              |& $ {} (:display :inline-block) (:margin-right 8) (:white-space :pre) (:position :relative)
+              |&[data-tip]:hover::after $ {} (:content "|attr(data-tip)") (:position :absolute) (:left 0) (:top |100%) (:z-index 5) (:margin-top 2) (:padding "|2px 6px") (:border-radius |4px) (:background-color "|hsl(220, 20%, 22%)") (:color :white) (:font-size 11) (:line-height |16px) (:white-space :nowrap) (:pointer-events :none)
           :examples $ []
           :schema $ quote String
         'style-link $ %{} 'CodeEntry (:doc |)
@@ -168,7 +174,7 @@
                 {} $ :class-name $ str-spaced css/global style-app
                 match (:program store)
                   (:some program)
-                    comp-nav program prefs $ :changed store
+                    comp-nav program prefs (:changed store) (:ns-toggled store)
                   (:none)
                     span $ {}
                 div
@@ -225,13 +231,17 @@
                         = :ir $ :format program
                         str "| · calcit " $ :calcit-version program
                         , "| · Snapshot, no inferred types"
-                      if
-                        .empty? $ :changed store
-                        , | $ str "| · "
-                          .len $ :changed store
-                          , "| updated"
                 (:none)
                   span $ {}
+              if
+                .empty? $ :changed store
+                span $ {}
+                span $ {} (:class-name style-updated)
+                  :inner-text $ str
+                    .len $ :changed store
+                    , "| updated ×"
+                  :on-click $ fn (e d!)
+                    d! $ Op :clear-changed
               span $ {} (:class-name style-tab) (:inner-text "|Prompt…")
                 :on-click $ fn (e d!)
                   d! $ Op :toggle-prompt
@@ -357,6 +367,11 @@
         'style-toolbar $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-toolbar
             {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 12) (:padding "|6px 16px") (:border-bottom "|1px solid hsl(0, 0%, 88%)") (:background-color :white)
+          :examples $ []
+          :schema $ quote String
+        'style-updated $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-updated
+            {} $ |& $ {} (:font-size 12) (:padding "|0 6px") (:border-radius |8px) (:color :white) (:background-color "|hsl(140, 50%, 48%)") (:cursor :pointer)
           :examples $ []
           :schema $ quote String
         'style-watch-button $ %{} 'CodeEntry (:doc |)
@@ -775,7 +790,7 @@
       :defs $ {}
         'comp-nav $ %{} 'CodeEntry
           :doc "|Namespace and definition tree with a filter; libraries are hidden unless toggled."
-          :code $ quote $ defcomp comp-nav (program prefs changed)
+          :code $ quote $ defcomp comp-nav (program prefs changed toggled)
             let
                 query $ .trim $ :filter prefs
                 open-ids $ .to-set $ :stack prefs
@@ -812,24 +827,17 @@
                       [] (:name ns-info)
                         if (.empty? defs)
                           span $ {}
-                          div ({})
-                            div
-                              {} $ :class-name style-ns-name
-                              <> $ :name ns-info
-                              if
+                          let
+                              default-open? $ or
+                                not $ .empty? query
                                 = :project $ :origin ns-info
-                                span $ {}
-                                span $ {} (:class-name style-origin)
-                                  :inner-text $ .to-string $ :origin ns-info
-                            list-> ({})
-                              .map defs $ fn (info)
-                                hint-fn $ Fn DefInfo $ -> (List Dynamic)
-                                [] (:name info)
-                                  comp-nav-def info
-                                    .includes? open-ids $ :id info
-                                    .includes? changed $ :id info
+                                .any? defs $ fn (info)
+                                  hint-fn $ Fn DefInfo $ -> Bool
+                                  .includes? open-ids $ :id info
+                              open? $ not= default-open? $ .includes? toggled (:name ns-info)
+                            comp-nav-ns ns-info defs open? open-ids changed
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (Set String) (-> respo.schema/Component)
         'comp-nav-def $ %{} 'CodeEntry
           :doc "|One definition row; the dot shows how much of its source types still mention Dynamic."
           :code $ quote $ defcomp comp-nav-def (info open? changed?)
@@ -852,12 +860,70 @@
                     d! $ Op :open 0 $ :id info
                 span $ {} (:class-name style-dot)
                   :style $ {} $ :background-color color
-                <> $ :name info
+                span $ {} (:class-name style-def-name)
+                  :inner-text $ :name info
+                span $ {} (:class-name style-kind)
+                  :inner-text $ head-label $ :head info
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo Bool Bool (-> respo.schema/Component)
+        'comp-nav-ns $ %{} 'CodeEntry
+          :doc "|A namespace header that folds its definitions; libraries start folded, namespaces with open or matching definitions stay open."
+          :code $ quote $ defn comp-nav-ns (ns-info defs open? open-ids changed)
+            div ({})
+              div
+                {} (:class-name style-ns-name)
+                  :on-click $ fn (e d!)
+                    d! $ Op :toggle-ns $ :name ns-info
+                span $ {} (:class-name style-fold)
+                  :inner-text $ if open? "|▾" "|▸"
+                <> $ :name ns-info
+                if
+                  = :project $ :origin ns-info
+                  span $ {}
+                  span $ {} (:class-name style-origin)
+                    :inner-text $ .to-string $ :origin ns-info
+                span $ {} (:class-name style-count)
+                  :inner-text $ str $ .len defs
+              if open?
+                list-> ({})
+                  .map defs $ fn (info)
+                    hint-fn $ Fn DefInfo $ -> (List Dynamic)
+                    [] (:name info)
+                      comp-nav-def info
+                        .includes? open-ids $ :id info
+                        .includes? changed $ :id info
+                span $ {}
+          :examples $ []
+          :schema $ quote $ Fn app.types/NsInfo (List app.types/DefInfo) Bool (Set String) (Set String) (-> respo.schema/Element)
+        'head-label $ %{} 'CodeEntry
+          :doc "|Short kind label from a definition's leading leaf."
+          :code $ quote $ defn head-label (head)
+            cond
+                = head |defn
+                , |fn
+              (= head |defcomp) |comp
+              (= head |defstyle) |css
+              (= head |defmacro) |macro
+              (includes? (#{} |defstruct |defenum |deftrait |defimpl |defrecord) head)
+                , |type
+              (includes? (#{} |def |defref) head)
+                , |val
+              true head
+          :examples $ []
+          :schema $ quote $ Fn String (-> String)
         'style-check $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-check
             {} $ |& $ {} (:font-size 12) (:color "|hsl(0, 0%, 75%)") (:display :flex) (:align-items :center) (:gap 4) (:cursor :pointer)
+          :examples $ []
+          :schema $ quote String
+        'style-count $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-count
+            {} $ |& $ {} (:margin-left :auto) (:font-size 10) (:color "|hsl(210, 15%, 55%)")
+          :examples $ []
+          :schema $ quote String
+        'style-def-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-def-name
+            {} $ |& $ {} (:overflow :hidden) (:text-overflow :ellipsis) (:min-width 0)
           :examples $ []
           :schema $ quote String
         'style-dot $ %{} 'CodeEntry (:doc |)
@@ -868,6 +934,16 @@
         'style-filter $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-filter
             {} $ |& $ {} (:width |100%) (:box-sizing :border-box) (:padding "|4px 8px") (:border :none) (:border-radius |4px) (:outline :none) (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-fold $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-fold
+            {} $ |& $ {} (:width 10) (:color "|hsl(210, 15%, 55%)")
+          :examples $ []
+          :schema $ quote String
+        'style-kind $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-kind
+            {} $ |& $ {} (:margin-left :auto) (:padding-left 6) (:font-size 10) (:color "|hsl(210, 15%, 55%)")
           :examples $ []
           :schema $ quote String
         'style-nav $ %{} 'CodeEntry (:doc |)
@@ -904,7 +980,7 @@
           :schema $ quote String
         'style-ns-name $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-ns-name
-            {} $ |& $ {} (:padding "|8px 8px 2px") (:font-size 12) (:color "|hsl(210, 30%, 70%)") (:display :flex) (:align-items :center) (:gap 6)
+            {} $ |& $ {} (:padding "|6px 8px 2px") (:font-size 12) (:color "|hsl(210, 30%, 70%)") (:display :flex) (:align-items :center) (:gap 6) (:cursor :pointer) (:user-select :none)
           :examples $ []
           :schema $ quote String
         'style-origin $ %{} 'CodeEntry (:doc |)
@@ -946,7 +1022,8 @@
             match (lookup-def program id)
               (:none)
                 div
-                  {} $ :class-name style-panel
+                  {} (:class-name style-panel)
+                    :data-panel $ str idx
                   comp-panel-header idx id |missing false
                   div
                     {} $ :class-name style-note
@@ -961,7 +1038,9 @@
                       .get (:users program) id
                       []
                   div
-                    {} $ :class-name $ str-spaced style-panel (if changed? style-changed |)
+                    {}
+                      :data-panel $ str idx
+                      :class-name $ str-spaced style-panel $ if changed? style-changed |
                     comp-panel-header idx id (:head info) changed?
                     comp-signature info
                     if
@@ -1440,9 +1519,12 @@
         'dispatch! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn dispatch! (op)
             reset! *store $ updater/updater @*store op
+            match op
+              (:open idx id) (reveal-panel idx)
+              _ &unit
             , &unit
           :examples $ []
-          :schema $ quote $ Fn app.types/Op (-> Unit)
+          :schema $ quote $ Fn app.types/Op (-> Unit) (:features :js-ffi)
         'main! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
@@ -1452,6 +1534,11 @@
             add-watch! *store :changes $ fn (current previous) (render-app!)
             restore-cached! dispatch!
             check-resumable! dispatch!
+            listen-escape $ fn () $ let
+                size $ .len $ :stack (:prefs @*store)
+              if (> size 0)
+                dispatch! $ Op :close $ dec size
+                , &unit
             browser/set-before-unload! $ fn (event) (persist-prefs!)
             browser/document-add-event-listener! |visibilitychange $ fn (event) (persist-prefs!)
             println "|App started."
@@ -1508,6 +1595,7 @@
             app.updater :as updater
             app.types :refer $ Op
             app.loader :refer $ restore-cached! check-resumable!
+            |../src/dom-helpers.mjs :refer $ reveal-panel listen-escape
             app.config :as config
             js-ffi.browser :as browser
             |./calcit.build-errors :default build-errors
@@ -2098,6 +2186,8 @@
             :toggle-prompt
             :toggle-prompt-source
             :copied 'Number
+            :toggle-ns 'String
+            :clear-changed
             :resumable 'String
           :examples $ []
           :schema $ quote EnumDef
@@ -2134,6 +2224,7 @@
             :expanded $ quote $ Set String
             :zoom $ quote $ Option String
             :copied-at 'Number
+            :ns-toggled $ quote $ Set String
           :examples $ []
           :schema $ quote StructDef
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
@@ -2166,7 +2257,7 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true
           :examples $ []
           :schema $ quote app.types/Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
@@ -2245,6 +2336,13 @@
                 update-prefs store $ fn (prefs)
                   assoc prefs :prompt-source? $ not $ :prompt-source? prefs
               (:copied time) (assoc store :copied-at time)
+              (:toggle-ns ns-name)
+                assoc store :ns-toggled $ if
+                  .includes? (:ns-toggled store) ns-name
+                  .exclude (:ns-toggled store) ns-name
+                  .include (:ns-toggled store) ns-name
+              (:clear-changed)
+                assoc store :changed $ #{}
               (:resumable file-name)
                 if
                   .some? $ :watching store
