@@ -19,6 +19,7 @@ Then open `js-out/program-ir.cirru` with "Open file…". A `calcit.cirru` Snapsh
 - Clicking a definition opens it as a panel. Clicking a linked symbol inside its source opens that definition in the next panel to the right; panels further right are replaced.
 - Hover a node to see its inferred type, or turn on "Inline types".
 - "Uses" and "Used by" list the definitions in both directions.
+- "Watch file…" (Chrome and Edge) reloads the file whenever it changes on disk, for example with `calcit calcit.cirru ir --sources-only -w` or after rerunning `calcit ir`. Open panels stay, changed definitions are marked "updated" and highlighted in the list. A later visit offers "Resume watching" for the same file.
 - The last opened file and the open panels are kept in localStorage.
 
 ### Workflow
