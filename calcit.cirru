@@ -18,6 +18,46 @@
               render-expr ctx (code->tree code) ([])
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx CirruQuote (-> respo.schema/Component)
+        'leaf-type $ %{} 'CodeEntry
+          :doc "|Type shown for a leaf: the type recorded at its path, else the type of the definition it names (`macro` for macros), else for a method head the receiver's type."
+          :code $ quote $ defn leaf-type (ctx leaf path target)
+            let
+                recorded $ .get (:types ctx) (path-key path)
+                last-idx $ .unwrap-or (.last path) -1
+              cond
+                  .some? recorded
+                  , recorded
+                (.some? target)
+                  let
+                      parts $ split-id $ .unwrap target
+                    -> (:namespaces ctx)
+                      .get $ .unwrap-or (.get parts 0) |
+                      .and-then $ fn (ns-info)
+                        hint-fn $ Fn app.types/NsInfo $ -> (Option app.types/DefInfo)
+                        .get (:defs ns-info)
+                          .unwrap-or (.get parts 1) |
+                      .and-then $ fn (info)
+                        hint-fn $ Fn app.types/DefInfo $ -> (Option String)
+                        cond
+                            or
+                              = (:head info) |defmacro
+                              = (:kind info) |macro
+                            Option :some |macro
+                          (= (:kind info) |syntax)
+                            Option :some |syntax
+                          true $ match (:type info)
+                            (:some t) (Option :some t)
+                            (:none) (:schema info)
+                (and (.starts-with? leaf |.) (= last-idx 0))
+                  -> (:types ctx)
+                    .get $ path-key $ .concat (.butlast path) ([] 1)
+                    .map $ fn (receiver)
+                      hint-fn $ Fn String $ -> String
+                      str "|method on " receiver
+                true $ Option :none
+          :examples $ []
+          :schema $ quote $ Fn app.types/CodeCtx String (List Number) (Option String)
+            -> $ Option String
         'path-key $ %{} 'CodeEntry
           :doc "|Dotted path, the same coordinates as `calcit query type-at --path`."
           :code $ quote $ defn path-key (path)
@@ -51,10 +91,10 @@
           :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
           :code $ quote $ defn render-leaf (ctx leaf path)
             let
-                t $ .get (:types ctx) (path-key path)
                 target $ if (symbol-leaf? leaf)
                   resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
                   Option :none
+                t $ leaf-type ctx leaf path target
                 linked? $ match target
                   (:some id)
                     not= id $ :self ctx
@@ -156,7 +196,7 @@
             respo.core :refer $ defcomp div span <> list->
             respo.css :refer $ defstyle
             app.types :refer $ Op
-            app.program :refer $ code->tree resolve-with
+            app.program :refer $ code->tree resolve-with split-id
     'app.comp.container $ %{} 'FileEntry
       :defs $ {}
         'case-view $ %{} 'CodeEntry
