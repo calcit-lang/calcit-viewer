@@ -1874,6 +1874,7 @@
                       (:none)
                         span $ {}
                     comp-code ctx $ :source info
+                    comp-tests ctx $ :tests info
                     comp-def-list program |Uses (:deps info) (inc idx)
                     comp-def-list program "|Used by" users $ inc idx
           :examples $ []
@@ -1934,6 +1935,30 @@
                     span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo (-> respo.schema/Component)
+        'comp-tests $ %{} 'CodeEntry
+          :doc "|Tests attached to the definition, each with its name and code; symbols link like in the source, without recorded types."
+          :code $ quote $ defn comp-tests (ctx tests)
+            if (.empty? tests)
+              span $ {}
+              div ({})
+                div
+                  {} $ :class-name style-section-title
+                  <> $ str "|Tests (" (.len tests) "|)"
+                list->
+                  {} $ :class-name style-tests
+                  .map tests $ fn (test)
+                    hint-fn $ Fn TestInfo $ -> (List Dynamic)
+                    [] (:name test)
+                      div
+                        {} $ :class-name style-test
+                        div
+                          {} $ :class-name style-test-name
+                          <> $ :name test
+                        comp-code
+                          assoc ctx :types $ {}
+                          :source test
+          :examples $ []
+          :schema $ quote $ Fn app.types/CodeCtx (List app.types/TestInfo) (-> respo.schema/Element)
         'panel-width $ %{} 'CodeEntry
           :doc "|Panel width in pixels from the longest line of the formatted source: 640 by default, narrower only for clearly short code, wider up to 880 for long lines."
           :code $ quote $ defn panel-width (info)
@@ -2086,6 +2111,24 @@
             {} $ |& $ {} (:writing-mode :vertical-rl) (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--text-2)") (:white-space :nowrap)
           :examples $ []
           :schema $ quote String
+        'style-test $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-test
+            {} $ |& $ {} (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:padding "|4px 8px 2px")
+              :background-color "|color-mix(in srgb, var(--surface-2) 45%, transparent)"
+          :examples $ []
+          :schema $ quote String
+        'style-test-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-test-name
+            {}
+              |& $ {} (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--ok)")
+              |&::before $ {} (:content "|\"✓ \"") (:color "|var(--text-3)")
+          :examples $ []
+          :schema $ quote String
+        'style-tests $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tests
+            {} $ |& $ {} (:display :flex) (:flex-direction :column) (:gap 6)
+          :examples $ []
+          :schema $ quote String
         'style-title $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-title
             {} $ |& $ {} (:font-family "|var(--font-code)") (:min-width 0) (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap) (:margin-right :auto)
@@ -2107,7 +2150,7 @@
             respo.core :refer $ defcomp div span <> list->
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
-            app.types :refer $ Op CodeCtx
+            app.types :refer $ Op CodeCtx TestInfo
             app.program :refer $ lookup-def split-id ns-imports code->tree
             app.comp.code :refer $ comp-code
     'app.comp.prompt $ %{} 'FileEntry
@@ -2853,7 +2896,9 @@
                           .assoc acc
                             .unwrap-or (.get pair 0) |
                             .unwrap-or (.get pair 1) |
-                      , :hash (read-string d :hash) :error (read-option-string d :error) :size $ source-size $ decode-map-as (read-field d :source) 'CirruQuote
+                      , :hash (read-string d :hash) :error (read-option-string d :error) :size
+                        source-size $ decode-map-as (read-field d :source) 'CirruQuote
+                        , :tests $ parse-tests $ read-field d :tests
           :examples $ []
           :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
         'parse-program $ %{} 'CodeEntry
@@ -2907,7 +2952,7 @@
                 , :kind | :source code :schema
                   if (nil? schema) (Option :none)
                     Option :some $ quote-text $ decode-map-as schema 'CirruQuote
-                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size $ source-size code
+                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size (source-size code) :tests $ parse-tests $ read-field entry :tests
           :examples $ []
           :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
         'parse-snapshot-ns $ %{} 'CodeEntry (:doc "|One `FileEntry` of a Snapshot.")
@@ -2923,6 +2968,29 @@
                     parse-snapshot-def ns-name (.to-string def-sym) entry
           :examples $ []
           :schema $ quote $ Fn String Dynamic (-> app.types/NsInfo)
+        'parse-tests $ %{} 'CodeEntry
+          :doc "|Definition tests from IR `:tests` maps or Snapshot `TestEntry` records."
+          :code $ quote $ defn parse-tests (raw)
+            if (nil? raw) ([])
+              .map
+                decode-map-as raw $ quote $ List Dynamic
+                fn (test)
+                  hint-fn $ Fn Dynamic $ -> TestInfo
+                  TestInfo :name (read-string test :name) :source $ decode-map-as (read-field test :code) 'CirruQuote
+          :examples $ []
+          :schema $ quote $ Fn Dynamic
+            -> $ List app.types/TestInfo
+          :tests $ [] $ %{} 'TestEntry (:name |reads-ir-and-snapshot-tests)
+            :code $ quote $ do
+              assert= ([] |doubles)
+                .map
+                  parse-tests $ parse-cirru-edn "|[] $ {} (:name |doubles) (:code $ quote $ assert= 4 $ double 2)"
+                  fn (t) (:name t)
+              assert= ([] |rec)
+                .map
+                  parse-tests $ parse-cirru-edn "|[] $ %{} 'TestEntry (:name |rec) (:code $ quote $ do 1)"
+                  fn (t) (:name t)
+              assert= ([]) (parse-tests nil)
         'quote-text $ %{} 'CodeEntry
           :doc "|One-line text of a quoted Cirru expression such as a schema."
           :code $ quote $ defn quote-text (code)
@@ -3146,7 +3214,7 @@
       :ns $ %{} 'NsEntry
         :doc "|Reads `calcit ir` artifacts and Snapshots into the viewer's Program data."
         :code $ quote $ ns app.program
-          :require $ app.types :refer $ Program NsInfo DefInfo EntryInfo
+          :require $ app.types :refer $ Program NsInfo DefInfo EntryInfo TestInfo
     'app.prompt $ %{} 'FileEntry
       :defs $ {}
         'compose-prompt $ %{} 'CodeEntry
@@ -3265,6 +3333,7 @@
             :hash 'String
             :error $ quote $ Option String
             :size 'Number
+            :tests $ quote $ List app.types/TestInfo
           :examples $ []
           :schema $ quote StructDef
         'EntryInfo $ %{} 'CodeEntry
@@ -3350,6 +3419,10 @@
             :loading $ quote $ Option String
             :tree-root $ quote $ Option String
             :sun-mode 'Tag
+          :examples $ []
+          :schema $ quote StructDef
+        'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
+          :code $ quote $ defstruct TestInfo (:name 'String) (:source 'CirruQuote)
           :examples $ []
           :schema $ quote StructDef
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
