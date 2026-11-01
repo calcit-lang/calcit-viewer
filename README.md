@@ -20,8 +20,8 @@ Then open `js-out/program-ir.cirru` with "Open file…". A `calcit.cirru` Snapsh
 - Clicking a definition opens it as a panel. Clicking a linked symbol inside its source opens that definition in the next panel to the right and scrolls it into view; panels further right are replaced. Escape closes the last panel.
 - Hover a symbol to see its inferred type (and its definition for links) right away, or turn on "Inline types".
 - "Uses" and "Used by" list the definitions in both directions.
-- "Call tree" expands callees from the first open panel; a definition already on the path is marked instead of expanded again.
-- "Sunburst" shows namespaces (inner ring) and definitions (outer ring) sized by source and coloured by Dynamic share. Click a namespace to zoom in, the centre to zoom out, a definition to read it.
+- "Call tree" starts from a root you pick (an entry or the first open panel). Click a row to expand its callees or use "Expand 3 levels"; ↗ opens the code. A definition already on the path is marked instead of expanded again.
+- "Sunburst" draws the calls from the same root on a canvas, one ring per depth and sized by source (or "Namespaces" for namespaces and their definitions). Click a ring to zoom in and the centre to go up; the corner card shows the definition and links to its code.
 - "Watch file…" (Chrome and Edge) reloads the file whenever it changes on disk, for example with `calcit calcit.cirru ir --sources-only -w` or after rerunning `calcit ir`. Open panels stay, changed definitions are marked "updated" and highlighted in the list; click the "updated" count to clear the marks. A later visit offers "Resume watching" for the same file.
 - "Prompt…" opens a drawer: write a question and "Copy prompt" puts a Markdown prompt on the clipboard with the project, the open panels (signature, doc, spots typed `Dynamic`, optionally source) and `calcit query` commands to continue with. Nothing is sent anywhere by the viewer.
 - The last opened file and the open panels are kept in localStorage.
