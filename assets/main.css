@@ -157,3 +157,95 @@ body * {
     transition-duration: 1ms !important;
   }
 }
+
+/* Type tooltip on <body>, positioned by src/dom-helpers.mjs. */
+.viewer-tip {
+  position: fixed;
+  z-index: 100;
+  max-width: min(560px, 80vw);
+  padding: 4px 8px;
+  border-radius: var(--radius-float);
+  background-color: var(--tip-bg);
+  color: var(--tip-text);
+  box-shadow: var(--shadow-float);
+  font-family: var(--font-code);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--ease), transform var(--ease);
+}
+
+.viewer-tip.viewer-tip-on {
+  opacity: 1;
+  transform: none;
+}
+
+/* Sunburst corner card, created by src/sunburst.mjs. */
+.viewer-sun-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 260px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-float);
+  background-color: var(--surface);
+  box-shadow: var(--shadow-float);
+  font-size: 12px;
+  animation: viewer-pop var(--ease-enter);
+}
+
+.viewer-sun-ns {
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-sun-name {
+  font-family: var(--font-code);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.viewer-sun-meta {
+  margin-top: 2px;
+  color: var(--text-2);
+}
+
+.viewer-sun-type {
+  margin-top: 6px;
+  font-family: var(--font-code);
+  color: var(--type);
+  overflow-wrap: anywhere;
+}
+
+.viewer-sun-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.viewer-sun-actions button {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.viewer-sun-actions button:hover {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+}
