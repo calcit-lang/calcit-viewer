@@ -2,8 +2,9 @@
 {}
   :configs $ {} (:init-fn |app.main/main!) (:reload-fn |app.main/reload!)
   :meta $ {} (:calcit-version |0.32.1) (:generated-at 0) (:package |app) (:schema-version 1) (:snapshot |contract-app.cirru)
-    :entries $ {} $ |default
-      {} (:description |) (:init-fn |app.main/main!) (:reload-fn |app.main/reload!)
+    :entries $ {}
+      |bench $ {} (:description |Bench) (:init-fn |app.main/bench!) (:reload-fn |app.main/reload!)
+      |default $ {} (:description |) (:init-fn |app.main/main!) (:reload-fn |app.main/reload!)
   :sources $ {}
     |app.empty $ {} (:ns-doc "|Namespace without definitions") (:origin :project)
       :defs $ {}
@@ -22,6 +23,10 @@
           :deps $ []
           :source $ quote $ defstruct Point (:x 'Number)
           :types $ [] $ [] | |StructDef
+        |bench! $ {} (:doc |) (:hash |md5:c30f5747b945435acc727ef484033571) (:head |defn) (:kind :fn) (:schema "|Fn $ -> Number") (:type "|Fn $ -> Number")
+          :deps $ [] |app.main/double
+          :source $ quote $ defn bench! () (double 2)
+          :types $ [] ([] | "|Fn $ -> Number") ([] |3 |Number) ([] |3.0 "|Fn Number $ -> Number")
         |double $ {} (:doc "|Twice the input") (:hash |md5:6879a396aa93fe07184dd6a058b31974) (:head |defn) (:kind :fn) (:schema "|Fn Number $ -> Number") (:type "|Fn Number $ -> Number")
           :deps $ [] |calcit.core/*
           :source $ quote $ defn double (n)
@@ -73,6 +78,19 @@
           :type "|Fn Dynamic Dynamic Dynamic $ -> Dynamic"
           :deps $ []
           :source $ quote &runtime-implementation
+          :types $ []
+        |reduce $ {}
+          :doc "|Collection reduction operation\nFunction: Reduces a collection using a specified function, accumulating elements onto an initial value\nParams: xs (collection), x0 (initial accumulator value), f (reduction function that takes accumulator and current element)\nReturns: any type - final accumulated result\nNotes: The reduction function f should accept two parameters (accumulator, current element) and return a new accumulator value"
+          :hash |md5:0f2304a592020855a81a8138ab0d7a25
+          :head |defn
+          :kind :fn
+          :schema "|Fn (List T) U (Fn U T (-> U)) (-> U) $ :generics T U"
+          :type "|Fn (List T) U (Fn U T (-> U)) (-> U) $ :generics T U"
+          :deps $ []
+          :source $ quote $ defn reduce (xs x0 f) (foldl xs x0 f)
+          :tests $ [] $ {} (:name |reduces-list-from-initial-value)
+            :code $ quote $ assert= 14
+              reduce ([] 3 4 5) 2 +
           :types $ []
         |str $ {} (:doc "|converts values to string and concatenates them") (:hash |md5:bab2ea666d32da202e4c38caa4a980cf) (:head |defn) (:kind :fn) (:schema "|Fn Dynamic & Dynamic $ -> String") (:type "|Fn Dynamic & Dynamic $ -> String")
           :deps $ []
