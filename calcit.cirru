@@ -431,7 +431,7 @@
                   (:some program)
                     if (:nav-hidden? prefs)
                       span $ {}
-                      comp-nav program prefs (:changed store) (:ns-toggled store)
+                      comp-nav program prefs (:changed store) (:ns-toggled store) (:side-toggled store)
                   (:none)
                     span $ {}
                 div
@@ -1454,24 +1454,9 @@
             app.program :refer $ lookup-def split-id map-values
     'app.comp.nav $ %{} 'FileEntry
       :defs $ {}
-        'comp-entry-fn $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn comp-entry-fn (label id open?)
-            div
-              {}
-                :class-name $ str-spaced style-entry-fn $ if open? style-nav-open |
-                :title id
-                :on-click $ fn (e d!)
-                  d! $ Op :open 0 id
-              span $ {} (:class-name style-entry-label) (:inner-text label)
-              span $ {} (:class-name style-def-name)
-                :inner-text $ .unwrap-or
-                  .get (split-id id) 1
-                  , id
-          :examples $ []
-          :schema $ quote $ Fn String String Bool (-> respo.schema/Element)
         'comp-nav $ %{} 'CodeEntry
-          :doc "|Namespace and definition tree with a filter; libraries are hidden unless toggled."
-          :code $ quote $ defcomp comp-nav (program prefs changed toggled)
+          :doc "|Sidebar: the call tree from each program entry by default; typing a filter switches to matching definitions grouped by namespace."
+          :code $ quote $ defcomp comp-nav (program prefs changed toggled side-toggled)
             let
                 query $ .trim $ :filter prefs
                 open-ids $ .to-set $ :stack prefs
@@ -1485,7 +1470,7 @@
                 {} $ :class-name style-nav
                 div
                   {} $ :class-name style-nav-tools
-                  input $ {} (:class-name style-filter) (:placeholder "|Filter definitions")
+                  input $ {} (:class-name style-filter) (:placeholder "|Search definitions")
                     :value $ :filter prefs
                     :on-input $ fn (e d!)
                       d! $ Op :filter $ event-value e
@@ -1494,36 +1479,13 @@
                       :on-click $ fn (e d!)
                         d! $ Op :toggle-libs
                     <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
-                if (.empty? query) (comp-nav-entries program open-ids)
-                  span $ {}
-                if (no-match? visible query)
-                  div $ {} (:class-name style-nav-empty)
-                    :inner-text $ str "|No definitions match “" query "|”"
-                  span $ {}
-                list->
-                  {} $ :class-name style-nav-list
-                  .map visible $ fn (ns-info)
-                    hint-fn $ Fn NsInfo $ -> (List Dynamic)
-                    let
-                        defs $ ->
-                          map-values $ :defs ns-info
-                          .filter $ fn (info)
-                            hint-fn $ Fn DefInfo $ -> Bool
-                            or (.empty? query)
-                              .includes? (:id info) query
-                      [] (:name ns-info)
-                        if (.empty? defs)
-                          span $ {}
-                          let
-                              default-open? $ or
-                                not $ .empty? query
-                                .any? defs $ fn (info)
-                                  hint-fn $ Fn DefInfo $ -> Bool
-                                  .includes? open-ids $ :id info
-                              open? $ not= default-open? $ .includes? toggled (:name ns-info)
-                            comp-nav-ns ns-info defs open? open-ids changed
+                if
+                  and (.empty? query)
+                    not $ .empty? $ :entries program
+                  comp-side-tree program (:show-libs? prefs) open-ids changed side-toggled
+                  comp-nav-results program visible query open-ids changed toggled
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (Set String) (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (Set String) (Set String) (-> respo.schema/Component)
         'comp-nav-def $ %{} 'CodeEntry
           :doc "|One definition row; the dot shows how much of its source types still mention Dynamic."
           :code $ quote $ defcomp comp-nav-def (info open? changed?)
@@ -1552,39 +1514,6 @@
                   :inner-text $ head-label $ :head info
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo Bool Bool (-> respo.schema/Component)
-        'comp-nav-entries $ %{} 'CodeEntry
-          :doc "|Program entries from the Snapshot, the usual starting points, above the namespace tree."
-          :code $ quote $ defn comp-nav-entries (program open-ids)
-            let
-                entries $ :entries program
-              if (.empty? entries)
-                span $ {}
-                div
-                  {} $ :class-name style-entries
-                  div
-                    {} $ :class-name style-entries-title
-                    <> |Entries
-                  list-> ({})
-                    .map entries $ fn (entry)
-                      hint-fn $ Fn EntryInfo $ -> (List Dynamic)
-                      [] (:name entry)
-                        div
-                          {} (:class-name style-entry)
-                            :title $ if
-                              .empty? $ :description entry
-                              :name entry
-                              :description entry
-                          span $ {} (:class-name style-entry-name)
-                            :inner-text $ :name entry
-                          comp-entry-fn |init (:init-fn entry)
-                            .includes? open-ids $ :init-fn entry
-                          if
-                            = (:reload-fn entry) (:init-fn entry)
-                            span $ {}
-                            comp-entry-fn |reload (:reload-fn entry)
-                              .includes? open-ids $ :reload-fn entry
-          :examples $ []
-          :schema $ quote $ Fn app.types/Program (Set String) (-> respo.schema/Element)
         'comp-nav-ns $ %{} 'CodeEntry
           :doc "|A namespace header that folds its definitions; namespaces start folded, and those with open or matching definitions open."
           :code $ quote $ defn comp-nav-ns (ns-info defs open? open-ids changed)
@@ -1615,6 +1544,70 @@
                 span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/NsInfo (List app.types/DefInfo) Bool (Set String) (Set String) (-> respo.schema/Element)
+        'comp-nav-results $ %{} 'CodeEntry
+          :doc "|Search mode: definitions whose id contains the query, grouped by namespace."
+          :code $ quote $ defn comp-nav-results (program visible query open-ids changed toggled)
+            div
+              {} $ :class-name style-nav-list
+              if (no-match? visible query)
+                div $ {} (:class-name style-nav-empty)
+                  :inner-text $ str "|No definitions match “" query "|”"
+                span $ {}
+              list-> ({})
+                .map visible $ fn (ns-info)
+                  hint-fn $ Fn NsInfo $ -> (List Dynamic)
+                  let
+                      defs $ ->
+                        map-values $ :defs ns-info
+                        .filter $ fn (info)
+                          hint-fn $ Fn DefInfo $ -> Bool
+                          or (.empty? query)
+                            .includes? (:id info) query
+                    [] (:name ns-info)
+                      if (.empty? defs)
+                        span $ {}
+                        let
+                            default-open? $ or
+                              not $ .empty? query
+                              .any? defs $ fn (info)
+                                hint-fn $ Fn DefInfo $ -> Bool
+                                .includes? open-ids $ :id info
+                            open? $ not= default-open? $ .includes? toggled (:name ns-info)
+                          comp-nav-ns ns-info defs open? open-ids changed
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program (List app.types/NsInfo) String (Set String) (Set String) (Set String) (-> respo.schema/Element)
+        'comp-side-tree $ %{} 'CodeEntry
+          :doc "|Call tree from every program entry: init and reload roots start open, other rows open on the arrow; clicking a name opens it as the first panel."
+          :code $ quote $ defn comp-side-tree (program show-libs? open-ids changed toggled)
+            list->
+              {} $ :class-name style-nav-list
+              .map (:entries program)
+                fn (entry)
+                  hint-fn $ Fn EntryInfo $ -> (List Dynamic)
+                  let
+                      roots $ if
+                        = (:reload-fn entry) (:init-fn entry)
+                        [] $ :init-fn entry
+                        [] (:init-fn entry) (:reload-fn entry)
+                    [] (:name entry)
+                      div
+                        {} $ :class-name style-side-entry
+                        div
+                          {} (:class-name style-entries-title)
+                            :title $ if
+                              .empty? $ :description entry
+                              :name entry
+                              :description entry
+                          <> $ :name entry
+                        list-> ({})
+                          .map
+                            .filter roots $ fn (id)
+                              not $ .empty? id
+                            fn (id)
+                              hint-fn $ Fn String $ -> (List Dynamic)
+                              [] id $ side-node program show-libs? open-ids changed toggled (:name entry) ([]) id
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program Bool (Set String) (Set String) (Set String) (-> respo.schema/Element)
         'head-label $ %{} 'CodeEntry
           :doc "|Short kind label from a definition's leading leaf."
           :code $ quote $ defn head-label (head)
@@ -1645,6 +1638,57 @@
                     .includes? (:id info) query
           :examples $ []
           :schema $ quote $ Fn (List app.types/NsInfo) String (-> Bool)
+        'side-node $ %{} 'CodeEntry
+          :doc "|One sidebar tree row and its callees when open. A definition already on the path is marked instead of repeated."
+          :code $ quote $ defn side-node (program show-libs? open-ids changed toggled prefix path id)
+            let
+                key $ str prefix |: $ .join-string
+                  .concat path $ [] id
+                  , "| > "
+                looped? $ .includes? path id
+                children $ if looped? ([]) (call-children program show-libs? id)
+                open? $ and (not looped?)
+                  not= (.empty? path) (.includes? toggled key)
+                info $ lookup-def program id
+                depth $ .len path
+              div ({})
+                div
+                  {}
+                    :class-name $ str-spaced style-side-row
+                      if (.includes? open-ids id) style-side-open |
+                      if (.includes? changed id) style-side-changed |
+                    :style $ {} $ :padding-left
+                      + 6 $ * 12 depth
+                    :title id
+                  span $ {}
+                    :inner-text $ cond (looped? "|↻")
+                      (.empty? children) "|·"
+                      true "|▸"
+                    :class-name $ str-spaced style-side-toggle $ if open? style-fold-open |
+                    :on-click $ fn (e d!)
+                      if (.empty? children) &unit $ d! $ Op :toggle-side key
+                  span $ {} (:class-name style-def-name)
+                    :inner-text $ .unwrap-or
+                      .get (split-id id) 1
+                      , id
+                    :on-click $ fn (e d!)
+                      d! $ Op :open 0 id
+                  span $ {} (:class-name style-kind)
+                    :inner-text $ match info
+                      (:some d)
+                        head-label $ :head d
+                      (:none) |
+                if open?
+                  list->
+                    {} $ :class-name style-ns-defs
+                    .map children $ fn (child)
+                      hint-fn $ Fn String $ -> (List Dynamic)
+                      [] child $ side-node program show-libs? open-ids changed toggled prefix
+                        .concat path $ [] id
+                        , child
+                  span $ {}
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program Bool (Set String) (Set String) (Set String) String (List String) String (-> respo.schema/Element)
         'style-check $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-check
             {}
@@ -1667,36 +1711,9 @@
             {} $ |& $ {} (:display :inline-block) (:width 6) (:height 6) (:border-radius |50%) (:margin-right 8) (:flex-shrink 0)
           :examples $ []
           :schema $ quote String
-        'style-entries $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-entries
-            {} $ |& $ {} (:padding "|4px 0 8px") (:margin-bottom 4) (:border-bottom "|1px solid var(--sidebar-hover)")
-          :examples $ []
-          :schema $ quote String
         'style-entries-title $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-entries-title
             {} $ |& $ {} (:padding "|4px 10px") (:font-size 11) (:font-weight 600) (:letter-spacing |0.06em) (:text-transform :uppercase) (:color "|var(--sidebar-text-2)")
-          :examples $ []
-          :schema $ quote String
-        'style-entry $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-entry
-            {} $ |& $ {} (:padding "|2px 0 4px")
-          :examples $ []
-          :schema $ quote String
-        'style-entry-fn $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-entry-fn
-            {}
-              |& $ {} (:display :flex) (:align-items :center) (:gap 6) (:height 24) (:padding "|0 10px 0 16px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--sidebar-text)") (:border-left "|2px solid transparent") (:transition "|background-color var(--ease)")
-              |&:hover $ {} $ :background-color "|var(--sidebar-hover)"
-          :examples $ []
-          :schema $ quote String
-        'style-entry-label $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-entry-label
-            {} $ |& $ {} (:font-family "|var(--font-ui)") (:font-size 10) (:padding "|0 4px") (:border-radius "|var(--radius-chip)") (:background-color "|var(--sidebar-hover)") (:color "|var(--sidebar-text-2)") (:flex-shrink 0)
-          :examples $ []
-          :schema $ quote String
-        'style-entry-name $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-entry-name
-            {} $ |& $ {} (:display :block) (:padding "|0 10px") (:font-size 11) (:color "|var(--sidebar-text-2)")
           :examples $ []
           :schema $ quote String
         'style-filter $ %{} 'CodeEntry (:doc |)
@@ -1778,13 +1795,41 @@
             {} $ |& $ {} (:font-size 10) (:padding "|0 4px") (:border-radius "|var(--radius-chip)") (:background-color "|var(--sidebar-hover)")
           :examples $ []
           :schema $ quote String
+        'style-side-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-changed
+            {} $ |& $ {} (:color "|var(--ok)") (:font-weight 600)
+          :examples $ []
+          :schema $ quote String
+        'style-side-entry $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-entry
+            {} $ |& $ {} (:padding-bottom 6)
+          :examples $ []
+          :schema $ quote String
+        'style-side-open $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-open
+            {} $ |& $ {} (:color |#ffffff) (:background-color "|var(--sidebar-active)") (:border-left-color "|var(--accent)")
+          :examples $ []
+          :schema $ quote String
+        'style-side-row $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-row
+            {}
+              |& $ {} (:display :flex) (:align-items :center) (:height 22) (:padding-right 8) (:font-family "|var(--font-code)") (:font-size 12) (:white-space :nowrap) (:cursor :pointer) (:border-left "|2px solid transparent") (:transition "|background-color var(--ease)")
+              |&:hover $ {} $ :background-color "|var(--sidebar-hover)"
+          :examples $ []
+          :schema $ quote String
+        'style-side-toggle $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-toggle
+            {} $ |& $ {} (:display :inline-block) (:width 14) (:flex-shrink 0) (:text-align :center) (:color "|var(--sidebar-text-2)") (:transition "|transform var(--ease)")
+          :examples $ []
+          :schema $ quote String
       :ns $ %{} 'NsEntry (:doc "|Left navigation.")
         :code $ quote $ ns app.comp.nav
           :require
             respo.core :refer $ defcomp div span <> list-> input event-value
             respo.css :refer $ defstyle
             app.types :refer $ Op NsInfo DefInfo EntryInfo
-            app.program :refer $ map-values dynamic-ratio split-id
+            app.program :refer $ map-values dynamic-ratio split-id lookup-def
+            app.comp.graph :refer $ call-children
     'app.comp.panel $ %{} 'FileEntry
       :defs $ {}
         'comp-def-list $ %{} 'CodeEntry
@@ -3371,6 +3416,7 @@
             :tree-root 'String
             :set-expanded $ quote $ Set String
             :sun-mode 'Tag
+            :toggle-side 'String
             :resumable 'String
           :examples $ []
           :schema $ quote EnumDef
@@ -3419,6 +3465,7 @@
             :loading $ quote $ Option String
             :tree-root $ quote $ Option String
             :sun-mode 'Tag
+            :side-toggled $ quote $ Set String
           :examples $ []
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
@@ -3465,6 +3512,11 @@
                   assoc :expanded $ #{}
               (:set-expanded keys) (assoc store :expanded keys)
               (:sun-mode mode) (assoc store :sun-mode mode)
+              (:toggle-side key)
+                assoc store :side-toggled $ if
+                  .includes? (:side-toggled store) key
+                  .exclude (:side-toggled store) key
+                  .include (:side-toggled store) key
               (:open idx id)
                 update-prefs store $ fn (prefs)
                   assoc prefs :stack $ .concat
@@ -3659,7 +3711,7 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :loading (Option :none) :tree-root (Option :none) :sun-mode :calls :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :loading (Option :none) :tree-root (Option :none) :sun-mode :calls :side-toggled (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
           :examples $ []
           :schema $ quote app.types/Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
