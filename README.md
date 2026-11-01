@@ -37,6 +37,7 @@ Then open `js-out/program-ir.cirru` with "Open file…". A `calcit.cirru` Snapsh
 | ⌘B / Ctrl+B | Toggle the sidebar |
 | `1` `2` `3` | Code / Call tree / Sunburst |
 | `T` | Inline types |
+| Arrows / Enter / Backspace / `O` | In the focused sunburst: move between nodes, zoom in, go up, open code |
 
 The toolbar breadcrumb shows the open panels; click a step to close the panels after it. The ⇤ button folds a panel into a narrow strip. Colours follow the system light or dark setting; design tokens live in `assets/main.css`.
 
@@ -48,6 +49,8 @@ yarn install
 yarn compile
 yarn dev
 ```
+
+`node --test scripts/*.test.mjs` runs the regression and IR contract tests against `js-out/`. `scripts/fixtures/contract-ir.cirru` is real `calcit ir --sources-only` output for `scripts/fixtures/contract-app.cirru`; when the IR format changes, regenerate it with `node scripts/gen-contract-ir.mjs [path/to/calcit]`.
 
 ### License
 
