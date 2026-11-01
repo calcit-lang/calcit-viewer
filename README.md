@@ -16,7 +16,7 @@ calcit calcit.cirru ir --sources-only
 Then open `js-out/program-ir.cirru` with "Open file…". A `calcit.cirru` Snapshot can be opened too; it shows source and declared schemas, without inferred types.
 
 - The left panel lists namespaces and definitions. The dot shows how much of a definition's recorded types still mention `Dynamic` (green none, yellow some, orange more, gray nothing recorded).
-- Namespaces fold by clicking their header; library namespaces start folded. Each definition shows its kind (`fn`, `comp`, `css`, `macro`, `type`, `val`).
+- The sidebar is a call tree from each program entry: init and reload start open, ▸ opens callees, a name opens the definition. Typing in the search box switches to matching definitions grouped by namespace.
 - Clicking a definition opens it as a panel. Clicking a linked symbol inside its source opens that definition in the next panel to the right and scrolls it into view; panels further right are replaced. Escape closes the last panel.
 - Hover a symbol to see its inferred type (and its definition for links) right away, or turn on "Inline types".
 - "Uses" and "Used by" list the definitions in both directions.
