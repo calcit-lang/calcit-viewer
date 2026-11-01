@@ -10,7 +10,7 @@ import { comp_nav_def } from '../js-out/app.comp.nav.mjs';
 import { component_$q_, component_tree, render_node_value } from '../js-out/respo.util.detect.mjs';
 import { make_string } from '../js-out/respo.render.html.mjs';
 
-const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name', 'namespaces', 'defs', 'types']);
+const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name', 'namespaces', 'defs', 'types', 'loading']);
 const map = clt._$n__$M_;
 const field = (v, k) => clt.option_$o_unwrap(clt.get(v, k));
 const toArray = xs => { const out = []; for (let i = 0; i < clt.count(xs); i++) out.push(clt.option_$o_unwrap(clt.nth(xs, i))); return out; };
@@ -49,7 +49,8 @@ test('loading the own Snapshot opens the entry and renders the panel stack', () 
   assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/main!']);
   const html = make_string(comp_container(run.get()));
   assert.match(html, /render-app!/);
-  assert.match(html, /app\.comp\.container/);
+  // The sidebar opens as a call tree from the default entry.
+  assert.match(html, /style-side-row[^"]*" style="[^"]*" title="app\.main\/main!"/);
 });
 
 test('clicking a definition in the navigation opens it as the first panel', () => {
@@ -68,7 +69,7 @@ test('unreadable text dispatches one error', () => {
 });
 
 for (const mode of ['load', 'missing-result', 'error']) {
-  test(`FileReader ${mode} dispatches one operation`, () => {
+  test(`FileReader ${mode} marks loading, then dispatches one result`, () => {
     const saved = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
     const run = collect(store);
     try {
@@ -85,7 +86,9 @@ for (const mode of ['load', 'missing-result', 'error']) {
         }
       };
       on_file_change(fileEvent('program-ir.cirru'), run.d);
-      assert.equal(run.ops.length, 1);
+      assert.equal(run.ops.length, 2);
+      assert.equal(clt._$n_enum_$o_nth(run.ops[0], 0), t.loading);
+      assert.equal(clt._$n_enum_$o_nth(field(run.get(), t.loading), 0), t.none);
       if (mode === 'load') {
         assert.equal(field(run.get(), t['file-name']), 'program-ir.cirru');
         assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/main!']);

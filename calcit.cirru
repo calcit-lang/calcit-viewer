@@ -10,14 +10,73 @@
   :files $ {}
     'app.comp.code $ %{} 'FileEntry
       :defs $ {}
+        'child-modes $ %{} 'CodeEntry
+          :doc "|Layout of each child, as the Calcit editor decides it: leaves are inline; a list with more than 6 items or any nested list is a block; otherwise it follows the previous sibling, staying inline after inline items and turning into a block once lists start to nest."
+          :code $ quote $ defn child-modes (items)
+            let
+                many? $ fn (x size)
+                  hint-fn $ Fn Dynamic Number $ -> Bool
+                  if (list? x)
+                    let
+                        xs $ decode-map-as x $ quote (List Dynamic)
+                      or
+                        > (.len xs) size
+                        .any? xs $ fn (y)
+                          hint-fn $ Fn Dynamic $ -> Bool
+                          list? y
+                    , false
+              .rest $ foldl items ([] :inline)
+                fn (acc child)
+                  hint-fn $ Fn (List Tag) Dynamic $ -> (List Tag)
+                  let
+                      prev $ .unwrap-or (.last acc) :inline
+                      mode $ cond
+                          not $ list? child
+                          , :inline
+                        (many? child 6) :block
+                        (= prev :inline) :inline-block
+                        (= prev :inline-block)
+                          if (many? child 2) :block :inline-block
+                        true :block
+                    .concat acc $ [] mode
+          :examples $ []
+          :schema $ quote $ Fn (List Dynamic)
+            -> $ List Tag
+          :tests $ [] $ %{} 'TestEntry (:name |editor-layout-modes)
+            :code $ quote $ do
+              assert= ([] :inline :inline :inline-block)
+                child-modes $ [] |defn |f $ [] |a |b
+              assert= ([] :inline :block :block)
+                child-modes $ [] |let
+                  [] $ [] |a |1
+                  [] |+ |a |1
+              assert= ([] :inline :block)
+                child-modes $ [] |do $ [] |a |b |c |d |e |f |g
         'comp-code $ %{} 'CodeEntry
           :doc "|Source of one definition as nested blocks; hover shows inferred types, clicking a resolved symbol opens it in the next panel."
           :code $ quote $ defcomp comp-code (ctx code)
             div
               {} $ :class-name style-code
-              render-expr ctx (code->tree code) ([]) false
+              render-expr ctx (code->tree code) ([]) false :block false
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx CirruQuote (-> respo.schema/Component)
+        'leaf-class $ %{} 'CodeEntry
+          :doc "|Syntax colour of a leaf by its text, following the Calcit editor: call heads, tags, strings, numbers and literals."
+          :code $ quote $ defn leaf-class (leaf head?)
+            cond
+                or (.starts-with? leaf ||) (.starts-with? leaf "|\"")
+                , style-string
+              (.starts-with? leaf |:) style-tag
+              (includes? (#{} |true |false |nil |&unit) leaf)
+                , style-literal
+              (.includes? |0123456789 (.unwrap-or (.first leaf) |))
+                , style-number
+              (and (.starts-with? leaf |-) (.includes? |0123456789 (.unwrap-or (.get leaf 1) |)))
+                , style-number
+              head? style-head
+              true style-plain
+          :examples $ []
+          :schema $ quote $ Fn String Bool (-> String)
         'leaf-type $ %{} 'CodeEntry
           :doc "|Type shown for a leaf: the type recorded at its path, else the type of the definition it names (`macro` for macros), else for a method head the receiver's type."
           :code $ quote $ defn leaf-type (ctx leaf path target threaded?)
@@ -58,6 +117,11 @@
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx String (List Number) (Option String) Bool
             -> $ Option String
+        'long-leaf-length $ %{} 'CodeEntry
+          :doc "|Leaves longer than this are long text: strings become text blocks, other leaves are cut with an ellipsis."
+          :code $ quote $ def long-leaf-length 48
+          :examples $ []
+          :schema $ quote Number
         'path-key $ %{} 'CodeEntry
           :doc "|Dotted path, the same coordinates as `calcit query type-at --path`."
           :code $ quote $ defn path-key (path)
@@ -67,21 +131,26 @@
           :examples $ []
           :schema $ quote $ Fn (List Number) (-> String)
         'render-expr $ %{} 'CodeEntry
-          :doc "|Renders a Cirru tree node at `path`. `threaded?` marks a step of a threading form such as `->`, whose receiver is not written inside it; a step hands the flag to its head leaf."
-          :code $ quote $ defn render-expr (ctx tree path threaded?)
+          :doc "|Renders a Cirru tree node at `path`, laid out like the Calcit editor's code tree: short lists sit inline with a bottom rule, long or nested ones become blocks with a left guide, and the last list continues the line. `threaded?` marks a step of a threading form such as `->`, whose receiver is not written inside it; a step hands the flag to its head leaf."
+          :code $ quote $ defn render-expr (ctx tree path threaded? mode tail?)
             if (string? tree)
               render-leaf ctx (decode-map-as tree 'String) path threaded?
               let
                   items $ decode-map-as tree $ quote (List Dynamic)
                   t $ .get (:types ctx) (path-key path)
                   threading? $ threading-head? $ .unwrap-or (.first items) nil
-                  flat? $ not $ .any? items
-                    fn (x)
-                      hint-fn $ Fn Dynamic $ -> Bool
-                      list? x
+                  modes $ child-modes items
+                  last-idx $ dec $ .len items
                 list->
                   {}
-                    :class-name $ str-spaced style-expr (if flat? style-flat |)
+                    :class-name $ str-spaced style-expr
+                      cond
+                          .empty? items
+                          , style-expr-void
+                        tail? style-tail
+                        (and (not= mode :block) (> (.len items) 0))
+                          , style-simple
+                        true |
                       if (.some? t) style-typed |
                     :title $ .unwrap-or t |
                   .map-indexed items $ fn (idx child)
@@ -89,8 +158,10 @@
                     [] idx $ render-expr ctx child
                       .concat path $ [] idx
                       if (= idx 0) threaded? $ and threading? $ > idx 1
+                      .unwrap-or (.get modes idx) :inline
+                      and (= idx last-idx) (> idx 0) (list? child)
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) Bool (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) Bool Tag Bool (-> respo.schema/Element)
         'render-leaf $ %{} 'CodeEntry
           :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
           :code $ quote $ defn render-leaf (ctx leaf path threaded?)
@@ -99,57 +170,90 @@
                   resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
                   Option :none
                 t $ leaf-type ctx leaf path target threaded?
-                linked? $ match target
-                  (:some id)
-                    not= id $ :self ctx
-                  (:none) false
-                class-name $ str-spaced style-leaf (if linked? style-link |)
-                  if
-                    and (.some? t)
-                      .includes? (.unwrap-or t |) |Dynamic
-                    , style-dynamic |
-                  if (.some? t) style-typed |
-              span
-                if linked?
-                  {} (:class-name class-name)
-                    :data-tip $ if (.some? t)
-                      str (.unwrap-or target |) "| · " $ .unwrap-or t |
-                      .unwrap-or target |
-                    :on-click $ fn (e d!)
-                      d! $ Op :open (:next-idx ctx) (.unwrap target)
-                  if (.some? t)
-                    {} (:class-name class-name)
-                      :data-tip $ .unwrap-or t |
-                    {} $ :class-name class-name
-                <> leaf
-                if
-                  and (:inline-types? ctx) (.some? t)
-                  span $ {} (:class-name style-inline-type)
-                    :inner-text $ .unwrap-or t |
-                  span $ {}
+                long? $ > (.len leaf) long-leaf-length
+              if (text-block? leaf) (render-text-block leaf t)
+                let
+                    linked? $ match target
+                      (:some id)
+                        not= id $ :self ctx
+                      (:none) false
+                    class-name $ str-spaced style-leaf
+                      leaf-class leaf $ = 0 $ .unwrap-or (.last path) -1
+                      if linked? style-link |
+                      if
+                        and (.some? t)
+                          .includes? (.unwrap-or t |) |Dynamic
+                        , style-typed-dynamic |
+                      if (.some? t) style-typed |
+                  span
+                    if linked?
+                      {} (:class-name class-name)
+                        :data-tip $ str
+                          if long? (str leaf &newline) |
+                          .unwrap-or target |
+                          if (.some? t)
+                            str "| · " $ .unwrap-or t |
+                            , |
+                        :on-click $ fn (e d!)
+                          d! $ Op :open (:next-idx ctx) (.unwrap target)
+                      if
+                        or (.some? t) long?
+                        {} (:class-name class-name)
+                          :data-tip $ str (if long? leaf |)
+                            if
+                              and long? $ .some? t
+                              , &newline |
+                            .unwrap-or t |
+                        {} $ :class-name class-name
+                    span $ {} (:inner-text leaf)
+                      :class-name $ if long? style-leaf-long |
+                    if
+                      and (:inline-types? ctx) (.some? t)
+                      span $ {} (:class-name style-inline-type)
+                        :inner-text $ .unwrap-or t |
+                      span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx String (List Number) Bool (-> respo.schema/Element)
+        'render-text-block $ %{} 'CodeEntry
+          :doc "|Long or multi-line string as its own block: wrapped, with a line and character count and its inferred type, scrolling past 16 lines."
+          :code $ quote $ defn render-text-block (leaf t)
+            let
+                text $ .slice leaf 1 $ Option :none
+                lines $ .len $ .split text &newline
+              div
+                {} $ :class-name style-text-block
+                div $ {} (:class-name style-text-meta)
+                  :inner-text $ str "|text · " lines
+                    if (= lines 1) "| line · " "| lines · "
+                    .len text
+                    , "| chars" $ match t
+                      (:some type-text) (str "| · " type-text)
+                      (:none) |
+                div $ {} (:class-name style-text-body) (:inner-text text)
+          :examples $ []
+          :schema $ quote $ Fn String (Option String) (-> respo.schema/Element)
         'style-code $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-code
-            {} $ |& $ {} (:font-family "|var(--font-code)") (:font-size 13) (:line-height |20px) (:color "|var(--text)")
-          :examples $ []
-          :schema $ quote String
-        'style-dynamic $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-dynamic
-            {} $ |& $ {} (:text-decoration-color "|var(--dynamic)")
+            {} $ |& $ {} (:font-family "|var(--font-code)") (:font-size 13) (:line-height |22px) (:color "|var(--code-plain)") (:padding "|4px 0 8px")
           :examples $ []
           :schema $ quote String
         'style-expr $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-expr
             {}
-              |& $ {} (:display :block) (:padding "|0 0 0 12px") (:margin "|1px 0") (:border-left "|1px solid var(--border)") (:border-radius "|var(--radius-chip)") (:transition "|background-color var(--ease)")
-              |&:hover $ {} $ :background-color "|var(--accent-soft)"
-              "|&:has([class*=style-expr]:hover)" $ {} $ :background-color :transparent
+              |& $ {} (:display :block) (:min-height 22) (:margin "|0 0 2px 8px") (:padding-left 10) (:border-left "|1px solid var(--code-guide)") (:border-radius |8px)
+                :transition "|background-color var(--ease), border-color var(--ease)"
+              |&:hover $ {} (:background-color "|var(--accent-soft)") (:border-color "|var(--accent)")
+              "|&:has([class*=style-expr]:hover)" $ {} (:background-color :transparent) (:border-color "|var(--code-guide)")
           :examples $ []
           :schema $ quote String
-        'style-flat $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-flat
-            {} $ |& $ {} (:display :inline-block) (:margin "|1px 6px 1px 0") (:padding "|0 4px") (:border-left :none) (:border-bottom "|1px solid var(--border)")
+        'style-expr-void $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-expr-void
+            {} $ |& $ {} (:display :inline-block) (:vertical-align :top) (:width 18) (:height 16) (:min-height 16) (:margin "|3px 4px 0") (:padding 0) (:border-left :none) (:border-bottom "|1px solid var(--code-guide)") (:border-radius |6px)
+          :examples $ []
+          :schema $ quote String
+        'style-head $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-head
+            {} $ |& $ {} (:color "|var(--code-head)")
           :examples $ []
           :schema $ quote String
         'style-inline-type $ %{} 'CodeEntry (:doc |)
@@ -162,15 +266,75 @@
         'style-leaf $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf
             {}
-              |& $ {} (:display :inline-block) (:margin-right 8) (:white-space :pre) (:position :relative)
-              |&[data-tip]:hover::after $ {} (:content "|attr(data-tip)") (:position :absolute) (:left 0) (:top |100%) (:z-index 20) (:margin-top 4) (:padding "|4px 8px") (:border-radius "|var(--radius-float)") (:background-color "|var(--tip-bg)") (:color "|var(--tip-text)") (:box-shadow "|var(--shadow-float)") (:font-size 12) (:line-height |16px) (:white-space :pre) (:pointer-events :none)
+              |& $ {} (:display :inline-block) (:height 22) (:line-height |22px) (:padding "|0 4px") (:margin "|0 1px") (:border-radius |4px) (:white-space :pre) (:transition "|background-color var(--ease)")
+              |&:hover $ {} $ :background-color "|var(--surface-2)"
+          :examples $ []
+          :schema $ quote String
+        'style-leaf-long $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-leaf-long
+            {} $ |& $ {} (:display :inline-block) (:max-width |26em) (:overflow :hidden) (:text-overflow :ellipsis) (:vertical-align :top)
           :examples $ []
           :schema $ quote String
         'style-link $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-link
             {}
-              |& $ {} (:color "|var(--accent)") (:cursor :pointer)
+              |& $ {} $ :cursor :pointer
+              "|&:not([class*=style-head])" $ {} $ :color "|var(--accent)"
               |&:hover $ {} $ :text-decoration :underline
+          :examples $ []
+          :schema $ quote String
+        'style-literal $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-literal
+            {} $ |& $ {} (:color "|var(--code-literal)")
+          :examples $ []
+          :schema $ quote String
+        'style-number $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-number
+            {} $ |& $ {} (:color "|var(--code-number)")
+          :examples $ []
+          :schema $ quote String
+        'style-plain $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-plain
+            {} $ |& $ {} (:color "|var(--code-plain)")
+          :examples $ []
+          :schema $ quote String
+        'style-simple $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-simple
+            {}
+              |& $ {} (:display :inline-block) (:vertical-align :top) (:margin "|0 2px 2px 6px") (:padding "|0 6px") (:min-width 28) (:border-left :none) (:border-bottom "|1px solid var(--code-guide)") (:border-radius |6px)
+              |&:hover $ {} $ :border-color "|var(--accent)"
+          :examples $ []
+          :schema $ quote String
+        'style-string $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-string
+            {} $ |& $ {} (:color "|var(--code-string)")
+          :examples $ []
+          :schema $ quote String
+        'style-tag $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tag
+            {} $ |& $ {} (:color "|var(--code-tag)")
+          :examples $ []
+          :schema $ quote String
+        'style-tail $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tail
+            {} $ |& $ {} (:display :inline-block) (:vertical-align :top) (:margin-left 4)
+          :examples $ []
+          :schema $ quote String
+        'style-text-block $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-text-block
+            {} $ |& $ {} (:display :block) (:margin "|2px 8px 4px 2px") (:padding "|4px 10px 6px") (:border-left "|2px solid var(--code-string)") (:border-radius "|0 var(--radius) var(--radius) 0")
+              :background-color "|color-mix(in srgb, var(--code-string) 7%, transparent)"
+              :max-width |44em
+          :examples $ []
+          :schema $ quote String
+        'style-text-body $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-text-body
+            {} $ |& $ {} (:font-size 12) (:line-height |18px) (:color "|var(--code-string)") (:white-space :pre-wrap) (:overflow-wrap :anywhere) (:max-height "|calc(18px * 16)") (:overflow :auto)
+          :examples $ []
+          :schema $ quote String
+        'style-text-meta $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-text-meta
+            {} $ |& $ {} (:font-family "|var(--font-ui)") (:font-size 10) (:line-height |16px) (:color "|var(--text-2)") (:user-select :none)
           :examples $ []
           :schema $ quote String
         'style-typed $ %{} 'CodeEntry (:doc |)
@@ -178,6 +342,11 @@
             {} $ |& $ {} (:text-decoration-line :underline) (:text-decoration-style :dotted)
               :text-decoration-color "|color-mix(in srgb, var(--type) 55%, transparent)"
               :text-underline-offset |3px
+          :examples $ []
+          :schema $ quote String
+        'style-typed-dynamic $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-typed-dynamic
+            {} $ |& $ {} (:text-decoration-color "|var(--dynamic)")
           :examples $ []
           :schema $ quote String
         'symbol-leaf? $ %{} 'CodeEntry
@@ -194,6 +363,20 @@
               assert= false $ symbol-leaf? |:tag
               assert= false $ symbol-leaf? |12
               assert= true $ symbol-leaf? |render-app!
+        'text-block? $ %{} 'CodeEntry
+          :doc "|A string leaf that spans lines or is too long to read inline."
+          :code $ quote $ defn text-block? (leaf)
+            and
+              or (.starts-with? leaf ||) (.starts-with? leaf "|\"")
+              or (.includes? leaf &newline)
+                > (.len leaf) long-leaf-length
+          :examples $ []
+          :schema $ quote $ Fn String (-> Bool)
+          :tests $ [] $ %{} 'TestEntry (:name |text-blocks)
+            :code $ quote $ do
+              assert= true $ text-block? "||line one\nline two"
+              assert= false $ text-block? ||short
+              assert= false $ text-block? |a-very-long-symbol-name-that-goes-on-and-on-without-end-really
         'threading-head? $ %{} 'CodeEntry
           :doc "|Whether a list head is a threading macro, which passes the previous value into each later step."
           :code $ quote $ defn threading-head? (head)
@@ -224,7 +407,7 @@
               (= view :sunburst) sunburst
               true panels
           :examples $ []
-          :schema $ quote $ Fn Tag respo.schema/Component respo.schema/Component respo.schema/Element (-> Dynamic)
+          :schema $ quote $ Fn Tag respo.schema/Component respo.schema/Component Dynamic (-> Dynamic)
         'comp-breadcrumb $ %{} 'CodeEntry
           :doc "|The open panels as a path; clicking a step closes the panels after it."
           :code $ quote $ defcomp comp-breadcrumb (stack active)
@@ -255,7 +438,7 @@
                   (:some program)
                     if (:nav-hidden? prefs)
                       span $ {}
-                      comp-nav program prefs (:changed store) (:ns-toggled store)
+                      comp-nav program prefs (:changed store) (:ns-toggled store) (:side-toggled store)
                   (:none)
                     span $ {}
                 div
@@ -271,20 +454,26 @@
                   match (:program store)
                     (:some program)
                       case-view (:view prefs)
-                        comp-call-tree program prefs $ :expanded store
-                        comp-sunburst program prefs $ :zoom store
-                        list->
-                          {} $ :class-name style-panels
-                          .map-indexed (:stack prefs)
-                            fn (idx id)
-                              hint-fn $ Fn Number String $ -> (List Dynamic)
-                              [] (str idx |: id)
-                                comp-panel program idx id
-                                  .includes? (:changed store) id
-                                  :inline-types? prefs
-                                  = idx $ :active store
-                                  .includes? (:collapsed store) id
-                    (:none) (comp-welcome)
+                        comp-call-tree program prefs (:expanded store) (:tree-root store)
+                        comp-sunburst program prefs (:tree-root store) (:sun-mode store)
+                        if
+                          .empty? $ :stack prefs
+                          comp-empty-stack
+                          list->
+                            {} $ :class-name style-panels
+                            .map-indexed (:stack prefs)
+                              fn (idx id)
+                                hint-fn $ Fn Number String $ -> (List Dynamic)
+                                [] (str idx |: id)
+                                  comp-panel program idx id
+                                    .includes? (:changed store) id
+                                    :inline-types? prefs
+                                    = idx $ :active store
+                                    .includes? (:collapsed store) id
+                    (:none)
+                      match (:loading store)
+                        (:some file-name) (comp-skeleton file-name)
+                        (:none) (comp-welcome)
                   match (:program store)
                     (:some program)
                       if (:prompt-open? prefs)
@@ -306,6 +495,21 @@
                     span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+        'comp-empty-stack $ %{} 'CodeEntry (:doc "|Shown when no panel is open.")
+          :code $ quote $ defcomp comp-empty-stack ()
+            div
+              {} $ :class-name style-empty
+              div
+                {} $ :class-name style-empty-title
+                <> "|No definition open"
+              div
+                {} $ :class-name style-empty-hint
+                <> "|Pick one on the left, or press ⌘K to search."
+              span $ {} (:class-name style-secondary) (:inner-text "|Search definitions")
+                :on-click $ fn (e d!)
+                  d! $ Op :palette-open
+          :examples $ []
+          :schema $ quote $ Fn (-> respo.schema/Component)
         'comp-palette $ %{} 'CodeEntry
           :doc "|Quick open: fuzzy search over definitions. Enter opens from here, Shift+Enter adds to the right, Esc closes."
           :code $ quote $ defcomp comp-palette (program query idx)
@@ -363,6 +567,26 @@
                     <> "|↑↓ select · Enter open · Shift+Enter add to the right · Esc close"
           :examples $ []
           :schema $ quote $ Fn app.types/Program String Number (-> respo.schema/Component)
+        'comp-skeleton $ %{} 'CodeEntry (:doc "|Placeholder panels while a file is being read.")
+          :code $ quote $ defcomp comp-skeleton (file-name)
+            div
+              {} $ :class-name style-panels
+              div
+                {} $ :class-name style-skeleton-panel
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} (:width |40%) (:height 18)
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |70%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |55%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |80%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |62%
+                div $ {} (:class-name style-skeleton-line)
+                  :style $ {} $ :width |35%
+          :examples $ []
+          :schema $ quote $ Fn String (-> respo.schema/Component)
         'comp-statusbar $ %{} 'CodeEntry
           :doc "|File actions, file facts and shortcut hints along the bottom edge."
           :code $ quote $ defcomp comp-statusbar (store)
@@ -373,6 +597,14 @@
                 <> "|Open file…"
                 input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
               comp-watch store
+              match (:loading store)
+                (:some file-name)
+                  span
+                    {} $ :class-name style-status-text
+                    span $ {} $ :class-name style-spinner
+                    <> $ str "|Reading " file-name "|…"
+                (:none)
+                  span $ {}
               match (:program store)
                 (:some program)
                   span $ {} (:class-name style-status-text)
@@ -473,11 +705,30 @@
                         span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
-        'comp-welcome $ %{} 'CodeEntry (:doc |)
+        'comp-welcome $ %{} 'CodeEntry
+          :doc "|First screen: what the viewer reads, how to produce it, and the two ways to open a file."
           :code $ quote $ defcomp comp-welcome ()
             div
               {} $ :class-name style-welcome
-              comp-md-block "|Open `program-ir.cirru` to read a Calcit program with its inferred types, or a `calcit.cirru` Snapshot for source only.\n\nGenerate the IR file in your project:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nThe file is written to `js-out/program-ir.cirru`." $ {}
+              div
+                {} $ :class-name style-welcome-card
+                div
+                  {} $ :class-name style-welcome-title
+                  <> "|Calcit Viewer"
+                div
+                  {} $ :class-name style-welcome-lead
+                  <> "|Read a Calcit program with its inferred types, one definition at a time."
+                div
+                  {} $ :class-name style-welcome-actions
+                  span
+                    {} $ :class-name style-primary
+                    <> "|Open program-ir.cirru…"
+                    input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
+                  if (supports-watch)
+                    span $ {} (:class-name style-secondary) (:inner-text "|Watch a file…")
+                      :on-click $ fn (e d!) (watch! d!)
+                    span $ {}
+                comp-md-block "|Generate the file in your project, then open `js-out/program-ir.cirru`:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nA `calcit.cirru` Snapshot also opens, with declared schemas but no inferred types." $ {} $ :class-name style-welcome-md
           :examples $ []
           :schema $ quote $ Fn (-> respo.schema/Component)
         'style-app $ %{} 'CodeEntry (:doc |)
@@ -500,6 +751,21 @@
         'style-crumbs $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-crumbs
             {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 2) (:flex 1) (:min-width 0) (:overflow :hidden) (:font-family "|var(--font-code)") (:font-size 12) (:padding "|0 6px")
+          :examples $ []
+          :schema $ quote String
+        'style-empty $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-empty
+            {} $ |& $ {} (:flex 1) (:display :flex) (:flex-direction :column) (:align-items :center) (:justify-content :center) (:gap 8) (:color "|var(--text-2)") (:animation "|viewer-fade var(--ease-enter)")
+          :examples $ []
+          :schema $ quote String
+        'style-empty-hint $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-empty-hint
+            {} $ |& $ {} (:font-size 13) (:margin-bottom 8)
+          :examples $ []
+          :schema $ quote String
+        'style-empty-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-empty-title
+            {} $ |& $ {} (:font-size 15) (:font-weight 600) (:color "|var(--text)")
           :examples $ []
           :schema $ quote String
         'style-error $ %{} 'CodeEntry (:doc |)
@@ -527,7 +793,7 @@
           :schema $ quote String
         'style-palette $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-palette
-            {} $ |& $ {} (:width 560) (:max-width |90vw) (:background-color "|var(--surface)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius-float)") (:box-shadow "|var(--shadow-float)") (:overflow :hidden)
+            {} $ |& $ {} (:width 560) (:max-width |90vw) (:background-color "|var(--surface)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius-float)") (:box-shadow "|var(--shadow-float)") (:overflow :hidden) (:animation "|viewer-pop var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-palette-current $ %{} 'CodeEntry (:doc |)
@@ -550,7 +816,7 @@
         'style-palette-item $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-palette-item
             {}
-              |& $ {} (:display :flex) (:align-items :baseline) (:gap 10) (:height 28) (:padding "|0 14px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 13)
+              |& $ {} (:display :flex) (:align-items :baseline) (:gap 10) (:height 28) (:padding "|0 14px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 13) (:transition "|background-color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--surface-2)"
           :examples $ []
           :schema $ quote String
@@ -561,7 +827,7 @@
           :schema $ quote String
         'style-palette-mask $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-palette-mask
-            {} $ |& $ {} (:position :fixed) (:inset 0) (:z-index 50) (:background-color "|rgb(0 0 0 / 0.2)") (:display :flex) (:justify-content :center) (:align-items :flex-start) (:padding-top |12vh)
+            {} $ |& $ {} (:position :fixed) (:inset 0) (:z-index 50) (:background-color "|rgb(0 0 0 / 0.2)") (:display :flex) (:justify-content :center) (:align-items :flex-start) (:padding-top |12vh) (:animation "|viewer-fade var(--ease)")
           :examples $ []
           :schema $ quote String
         'style-palette-name $ %{} 'CodeEntry (:doc |)
@@ -579,11 +845,43 @@
             {} $ |& $ {} (:flex 1) (:min-height 0) (:display :flex) (:overflow-x :auto)
           :examples $ []
           :schema $ quote String
+        'style-primary $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-primary
+            {}
+              |& $ {} (:position :relative) (:overflow :hidden) (:height 30) (:padding "|0 14px") (:display :inline-flex) (:align-items :center) (:border-radius "|var(--radius)") (:background-color "|var(--accent)") (:color |#ffffff) (:cursor :pointer) (:transition "|filter var(--ease)")
+              |&:hover $ {} $ :filter "|brightness(1.08)"
+          :examples $ []
+          :schema $ quote String
         'style-search $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-search
             {}
               |& $ {} (:height 24) (:padding "|0 10px") (:display :inline-flex) (:align-items :center) (:min-width 200) (:font-size 12) (:color "|var(--text-3)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:background-color "|var(--bg)") (:cursor :pointer) (:flex-shrink 0)
               |&:hover $ {} (:border-color "|var(--accent)") (:color "|var(--text-2)")
+          :examples $ []
+          :schema $ quote String
+        'style-secondary $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-secondary
+            {}
+              |& $ {} (:height 30) (:padding "|0 14px") (:display :inline-flex) (:align-items :center) (:border-radius "|var(--radius)") (:border "|1px solid var(--border)") (:color "|var(--text)") (:cursor :pointer) (:transition "|border-color var(--ease), color var(--ease)")
+              |&:hover $ {} (:border-color "|var(--accent)") (:color "|var(--accent)")
+          :examples $ []
+          :schema $ quote String
+        'style-skeleton-line $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-skeleton-line
+            {} $ |& $ {} (:height 12) (:border-radius "|var(--radius)")
+              :background "|linear-gradient(90deg, var(--skeleton) 25%, var(--skeleton-shine) 50%, var(--skeleton) 75%)"
+              :background-size "|200% 100%"
+              :animation "|viewer-shine 1.4s linear infinite"
+          :examples $ []
+          :schema $ quote String
+        'style-skeleton-panel $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-skeleton-panel
+            {} $ |& $ {} (:width 640) (:padding |16px) (:display :flex) (:flex-direction :column) (:gap 10) (:background-color "|var(--surface)") (:border-right "|1px solid var(--border)")
+          :examples $ []
+          :schema $ quote String
+        'style-spinner $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-spinner
+            {} $ |& $ {} (:display :inline-block) (:width 10) (:height 10) (:margin-right 6) (:vertical-align |-1px) (:border "|2px solid var(--border)") (:border-top-color "|var(--accent)") (:border-radius |50%) (:animation "|viewer-spin 0.8s linear infinite")
           :examples $ []
           :schema $ quote String
         'style-status-button $ %{} 'CodeEntry (:doc |)
@@ -644,7 +942,32 @@
           :schema $ quote String
         'style-welcome $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-welcome
-            {} $ |& $ {} (:flex 1) (:padding "|40px 48px") (:max-width 680) (:color "|var(--text-2)")
+            {} $ |& $ {} (:flex 1) (:display :flex) (:align-items :center) (:justify-content :center) (:padding 24) (:animation "|viewer-fade var(--ease-enter)")
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-actions $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-actions
+            {} $ |& $ {} (:display :flex) (:gap 8) (:margin-bottom 16)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-card $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-card
+            {} $ |& $ {} (:max-width 560) (:padding "|32px 36px") (:background-color "|var(--surface)") (:border "|1px solid var(--border)") (:border-radius "|var(--radius-float)")
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-lead $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-lead
+            {} $ |& $ {} (:color "|var(--text-2)") (:margin-bottom 20)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-md $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-md
+            {} $ |& $ {} (:color "|var(--text-2)") (:font-size 13)
+          :examples $ []
+          :schema $ quote String
+        'style-welcome-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-welcome-title
+            {} $ |& $ {} (:font-size 20) (:font-weight 600) (:color "|var(--text)") (:margin-bottom 4)
           :examples $ []
           :schema $ quote String
       :ns $ %{} 'NsEntry (:doc "|Root component.")
@@ -665,40 +988,9 @@
             app.prompt :refer $ compose-prompt
     'app.comp.graph $ %{} 'FileEntry
       :defs $ {}
-        'arc-path $ %{} 'CodeEntry
-          :doc "|SVG path of a ring segment between radii `r0` and `r1` and angles `a0` to `a1`, in radians from 12 o'clock."
-          :code $ quote $ defn arc-path (r0 r1 a0 raw-a1)
-            let
-                ; "|a full turn would start and end on the same point, which draws nothing"
-                a1 $ at-most
-                  + a0 $ - (* 2 &PI) 0.0001
-                  , raw-a1
-                point $ fn (r a)
-                  hint-fn $ Fn Number Number $ -> String
-                  str
-                    .format
-                      * r $ sin a
-                      , 2
-                    , |, $ .format
-                      negate $ * r $ cos a
-                      , 2
-                large $ if
-                  > (- a1 a0) &PI
-                  , |1 |0
-              str |M (point r0 a0) "| L" (point r1 a0) "| A" r1 |, r1 "| 0 " large "| 1 " (point r1 a1) "| L" (point r0 a1) "| A" r0 |, r0 "| 0 " large "| 0 " (point r0 a0) "| Z"
-          :examples $ []
-          :schema $ quote $ Fn Number Number Number Number (-> String)
-          :tests $ [] $ %{} 'TestEntry (:name |quarter-ring)
-            :code $ quote $ assert= "|M0.00,-10.00 L0.00,-20.00 A20,20 0 0 1 20.00,-0.00 L10.00,-0.00 A10,10 0 0 0 0.00,-10.00 Z"
-              arc-path 10 20 0 $ / &PI 2
         'at-least $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn at-least (lo x)
             if (< x lo) lo x
-          :examples $ []
-          :schema $ quote $ Fn Number Number (-> Number)
-        'at-most $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn at-most (hi x)
-            if (> x hi) hi x
           :examples $ []
           :schema $ quote $ Fn Number Number (-> Number)
         'call-children $ %{} 'CodeEntry
@@ -720,6 +1012,47 @@
           :examples $ []
           :schema $ quote $ Fn app.types/Program Bool String
             -> $ List String
+        'call-json $ %{} 'CodeEntry
+          :doc "|Call tree from `root` as JSON for the sunburst, breadth first: each definition appears once, under the first caller that reaches it, down to 6 levels."
+          :code $ quote $ defn call-json (program show-libs? root)
+            let
+                state $ foldl (range 6)
+                  {}
+                    :seen $ #{} root
+                    :owner $ {}
+                    :frontier $ [] root
+                  fn (state depth)
+                    hint-fn $ Fn (Map Tag Dynamic) Number $ -> (Map Tag Dynamic)
+                    foldl
+                      decode-map-as
+                        .unwrap $ .get state :frontier
+                        quote $ List String
+                      assoc state :frontier $ []
+                      fn (acc parent)
+                        hint-fn $ Fn (Map Tag Dynamic) String $ -> (Map Tag Dynamic)
+                        foldl (call-children program show-libs? parent) acc $ fn (acc2 child)
+                          hint-fn $ Fn (Map Tag Dynamic) String $ -> (Map Tag Dynamic)
+                          let
+                              seen $ decode-map-as
+                                .unwrap $ .get acc2 :seen
+                                quote $ Set String
+                            if (.includes? seen child) acc2 $ -> acc2
+                              assoc :seen $ .include seen child
+                              assoc :owner $ .assoc
+                                decode-map-as
+                                  .unwrap $ .get acc2 :owner
+                                  quote $ Map String String
+                                , child parent
+                              assoc :frontier $ .concat
+                                decode-map-as
+                                  .unwrap $ .get acc2 :frontier
+                                  quote $ List String
+                                [] child
+              node-json program root $ decode-map-as
+                .unwrap $ .get state :owner
+                quote $ Map String String
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program Bool String (-> String)
         'comp-call-node $ %{} 'CodeEntry
           :doc "|One call tree row and, when expanded, its callees. A definition already on the path is marked instead of expanded again."
           :code $ quote $ defn comp-call-node (program show-libs? expanded path id)
@@ -744,13 +1077,33 @@
                         not $ .empty? children
                         d! $ Op :toggle-node key
                         , &unit
-                  span $ {} (:class-name style-tree-name) (:inner-text id)
+                  span
+                    {} (:class-name style-tree-name) (:title "|Click to expand, ↗ to read the code")
+                      :on-click $ fn (e d!)
+                        if
+                          not $ .empty? children
+                          d! $ Op :toggle-node key
+                          , &unit
+                    span $ {} (:class-name style-tree-ns)
+                      :inner-text $ str
+                        .unwrap-or
+                          .get (split-id id) 0
+                          , |
+                        , |/
+                    span $ {} (:class-name style-tree-def)
+                      :inner-text $ .unwrap-or
+                        .get (split-id id) 1
+                        , id
+                  span $ {} (:class-name style-tree-open) (:inner-text "|↗") (:title "|Read the code")
                     :on-click $ fn (e d!)
                       d! $ Op :focus id
                   if looped?
                     span $ {} (:class-name style-tree-note) (:inner-text "|↻ already on this path")
                     span $ {} (:class-name style-tree-note)
                       :inner-text $ if (.empty? children) | $ str (.len children)
+                        if
+                          = 1 $ .len children
+                          , "| callee" "| callees"
                 if
                   and open? $ not looped?
                   list->
@@ -764,190 +1117,312 @@
           :examples $ []
           :schema $ quote $ Fn app.types/Program Bool (Set String) (List String) String (-> respo.schema/Element)
         'comp-call-tree $ %{} 'CodeEntry
-          :doc "|Collapsible call tree from the first open panel, or the entry when nothing is open."
-          :code $ quote $ defcomp comp-call-tree (program prefs expanded)
+          :doc "|Collapsible call tree from a chosen root: an entry or the first open panel. Rows expand in place; ↗ opens the code."
+          :code $ quote $ defcomp comp-call-tree (program prefs expanded tree-root)
             let
-                root $ .unwrap-or
-                  .first $ :stack prefs
-                  :init-fn program
+                root $ structure-root program prefs tree-root
+                show-libs? $ :show-libs? prefs
               div
                 {} $ :class-name style-graph
-                div
-                  {} $ :class-name style-graph-hint
-                  <> "|Click ▸ to expand callees, a name to read it. Starts from the first open panel."
+                comp-root-picker program prefs root $ div
+                  {} $ :class-name style-graph-actions
+                  span $ {} (:class-name style-graph-button) (:inner-text "|Expand 3 levels")
+                    :on-click $ fn (e d!)
+                      d! $ Op :set-expanded $ expand-keys program show-libs? ([]) root 3
+                  span $ {} (:class-name style-graph-button) (:inner-text |Collapse)
+                    :on-click $ fn (e d!)
+                      d! $ Op :set-expanded $ #{}
                 if
                   .some? $ lookup-def program root
-                  comp-call-node program (:show-libs? prefs) (.include expanded root) ([]) root
-                  <> "|Open a definition first."
+                  div
+                    {} $ :class-name style-tree
+                    comp-call-node program show-libs? (.include expanded root) ([]) root
+                  div $ {} (:class-name style-graph-hint) (:inner-text "|Pick a root above.")
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (-> respo.schema/Component)
-        'comp-sunburst $ %{} 'CodeEntry
-          :doc "|Namespaces (inner ring) and their definitions (outer ring), sized by source leaves and coloured by Dynamic share. Click a namespace to zoom in, the centre to zoom out, a definition to read it."
-          :code $ quote $ defcomp comp-sunburst (program prefs zoom)
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (Option String) (-> respo.schema/Component)
+        'comp-root-picker $ %{} 'CodeEntry
+          :doc "|Choose the structure root among the program entries and the first open panel; extra controls go on the right."
+          :code $ quote $ defn comp-root-picker (program prefs root extra)
             let
-                namespaces $ ->
-                  map-values $ :namespaces program
-                  .filter $ fn (ns-info)
-                    hint-fn $ Fn NsInfo $ -> Bool
-                    and
-                      or (:show-libs? prefs)
-                        = :project $ :origin ns-info
-                      match zoom
-                        (:some name)
-                          = name $ :name ns-info
-                        (:none) true
-                sizes $ .map namespaces $ fn (ns-info)
-                  hint-fn $ Fn NsInfo $ -> Number
-                  ns-size ns-info
-                total $ at-least 1 $ foldl sizes 0
-                  fn (acc x)
-                    hint-fn $ Fn Number Number $ -> Number
-                    + acc x
-                starts $ .map-indexed sizes $ fn (idx x)
-                  hint-fn $ Fn Number Number $ -> Number
-                  * 2 &PI $ /
-                    foldl (.take sizes idx) 0 &+
-                    , total
+                panel $ .first $ :stack prefs
+                entry-roots $ .flat-map (:entries program)
+                  fn (entry)
+                    hint-fn $ Fn EntryInfo $ ->
+                      List $ List String
+                    if
+                      .empty? $ :init-fn entry
+                      []
+                      [] $ [] (:name entry) (:init-fn entry)
+                choices $ match panel
+                  (:some id)
+                    if
+                      .any? entry-roots $ fn (pair)
+                        hint-fn $ Fn (List String) (-> Bool)
+                        = (.get pair 1) (Option :some id)
+                      , entry-roots $ .concat entry-roots $ [] ([] |panel id)
+                  (:none) entry-roots
               div
-                {} $ :class-name style-graph
-                div
-                  {} $ :class-name style-graph-hint
-                  <> $ match zoom
-                    (:some name) (str name "| · click the centre to zoom out")
-                    (:none) "|Inner ring: namespaces (click to zoom). Outer ring: definitions sized by source, green to orange by Dynamic share."
-                div
-                  {} $ :class-name style-chart
-                  match zoom
-                    (:some name)
-                      match (.first namespaces)
-                        (:some ns-info) (def-labels ns-info)
-                        (:none)
-                          span $ {}
-                    (:none) (sunburst-labels namespaces starts sizes total)
-                  create-element :svg
-                    {} (:width 640) (:height 640) (:viewBox "|-320 -320 640 640")
-                    create-element :circle $ {} (:r 56) (:fill "|hsl(0, 0%, 96%)") (:class-name style-center)
-                      :on-click $ fn (e d!)
-                        d! $ Op :zoom $ Option :none
-                    create-element :g ({}) & $ .flat-map
-                      .map-indexed namespaces $ fn (idx ns-info) ([] idx ns-info)
-                      fn (pair)
-                        hint-fn $ Fn (List Dynamic)
-                          -> $ List respo.schema/Element
-                        let
-                            idx $ decode-map-as
-                              .unwrap $ .get pair 0
-                              , 'Number
-                            ns-info $ decode-map-as
-                              .unwrap $ .get pair 1
-                              , 'app.types/NsInfo
-                            a0 $ .unwrap-or (.get starts idx) 0
-                            span-angle $ * 2 &PI $ /
-                              .unwrap-or (.get sizes idx) 0
-                              , total
-                          sunburst-segments ns-info idx a0 span-angle
+                {} $ :class-name style-graph-bar
+                span $ {} (:class-name style-graph-label) (:inner-text |Root)
+                list->
+                  {} $ :class-name style-graph-roots
+                  .map choices $ fn (pair)
+                    hint-fn $ Fn (List String)
+                      -> $ List Dynamic
+                    let
+                        label $ .unwrap-or (.get pair 0) |
+                        id $ .unwrap-or (.get pair 1) |
+                      [] (str label |: id)
+                        span
+                          {} (:title id)
+                            :class-name $ str-spaced style-graph-root $ if (= id root) style-graph-root-active |
+                            :on-click $ fn (e d!)
+                              d! $ Op :tree-root id
+                          span $ {} (:class-name style-graph-root-label) (:inner-text label)
+                          span $ {} $ :inner-text
+                            .unwrap-or
+                              .get (split-id id) 1
+                              , id
+                , extra
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs (Option String) (-> respo.schema/Component)
-        'def-labels $ %{} 'CodeEntry
-          :doc "|Definition names over the outer ring of a zoomed namespace."
-          :code $ quote $ defn def-labels (ns-info)
+          :schema $ quote $ Fn app.types/Program app.types/Prefs String respo.schema/Element (-> respo.schema/Element)
+        'comp-sunburst $ %{} 'CodeEntry
+          :doc "|Canvas sunburst centred in the view: calls from the root, rings by depth and sized by source, or namespaces and their definitions. Clicking zooms; the corner card links to the code."
+          :code $ quote $ defcomp comp-sunburst (program prefs tree-root mode)
             let
-                defs $ map-values $ :defs ns-info
-                sizes $ .map defs $ fn (info)
-                  hint-fn $ Fn DefInfo $ -> Number
-                  at-least 1 $ :size info
-                total $ at-least 1 $ ns-size ns-info
-              list->
-                {} $ :style $ {} (:position :absolute) (:inset 0) (:pointer-events :none)
-                .map-indexed defs $ fn (idx info)
-                  hint-fn $ Fn Number DefInfo $ -> (List Dynamic)
-                  let
-                      b0 $ * 2 &PI $ /
-                        foldl (.take sizes idx) 0 &+
-                        , total
-                      span-angle $ * 2 &PI $ /
-                        .unwrap-or (.get sizes idx) 1
-                        , total
-                      mid $ + b0 $ / span-angle 2
-                    [] (:name info)
-                      if (< span-angle 0.12)
-                        span $ {}
-                        span $ {} (:class-name style-label)
-                          :inner-text $ :name info
-                          :style $ {}
-                            :left $ str
-                              .format
-                                + 320 $ * 220 $ sin mid
-                                , 1
-                              , |px
-                            :top $ str
-                              .format
-                                - 320 $ * 220 $ cos mid
-                                , 1
-                              , |px
+                root $ structure-root program prefs tree-root
+                show-libs? $ :show-libs? prefs
+                json $ if (= mode :namespaces) (namespace-json program show-libs?) (call-json program show-libs? root)
+              div
+                {} $ :class-name style-graph-column
+                comp-root-picker program prefs root $ list->
+                  {} $ :class-name style-graph-actions
+                  .map
+                    [] ([] :calls |Calls) ([] :namespaces |Namespaces)
+                    fn (pair)
+                      hint-fn $ Fn (List Dynamic)
+                        -> $ List Dynamic
+                      let
+                          tag $ decode-map-as
+                            .unwrap $ .get pair 0
+                            , 'Tag
+                        [] tag $ span $ {}
+                          :class-name $ str-spaced style-graph-button $ if (= tag mode) style-graph-button-active |
+                          :inner-text $ decode-map-as
+                            .unwrap $ .get pair 1
+                            , 'String
+                          :on-click $ fn (e d!)
+                            d! $ Op :sun-mode tag
+                div $ {} (:class-name style-graph-hint)
+                  :inner-text "|Click a ring to zoom in, the centre to go up. The card in the corner opens the code."
+                div $ {} (:class-name style-sun-host) (:data-sunburst json)
+                  :data-depth $ if (= mode :namespaces) |2 |6
           :examples $ []
-          :schema $ quote $ Fn app.types/NsInfo (-> respo.schema/Element)
-        'dynamic-color $ %{} 'CodeEntry
-          :doc "|Gray without recorded types, otherwise green to orange as the Dynamic share grows."
-          :code $ quote $ defn dynamic-color (ratio)
-            if (< ratio 0) "|hsl(0, 0%, 82%)" $ str "|hsl("
-              .format
-                - 140 $ * 115 $ at-most 1 (* 4 ratio)
-                , 0
-              , "|, 60%, 58%)"
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Option String) Tag (-> respo.schema/Component)
+        'expand-keys $ %{} 'CodeEntry
+          :doc "|Call tree row keys to expand `depth` levels below `id`, stopping at definitions already on the path."
+          :code $ quote $ defn expand-keys (program show-libs? path id depth)
+            let
+                key $ .join-string
+                  .concat path $ [] id
+                  , "| > "
+              if
+                or (<= depth 0) (.includes? path id)
+                #{}
+                .union (#{} key)
+                  foldl (call-children program show-libs? id) (#{})
+                    fn (acc child)
+                      hint-fn $ Fn (Set String) String $ -> (Set String)
+                      .union acc $ expand-keys program show-libs?
+                        .concat path $ [] id
+                        , child $ dec depth
           :examples $ []
-          :schema $ quote $ Fn Number (-> String)
-        'ns-size $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn ns-size (ns-info)
-            foldl
-              map-values $ :defs ns-info
-              , 0 $ fn (acc info)
-                hint-fn $ Fn Number DefInfo $ -> Number
-                + acc $ at-least 1 $ :size info
+          :schema $ quote $ Fn app.types/Program Bool (List String) String Number
+            -> $ Set String
+        'json-node $ %{} 'CodeEntry
+          :doc "|JSON object for a definition with its already encoded children."
+          :code $ quote $ defn json-node (program id children)
+            let
+                info $ lookup-def program id
+                name $ .unwrap-or
+                  .get (split-id id) 1
+                  , id
+              str "|{\"n\":" (json-string name) "|,\"i\":" (json-string id) "|,\"s\":"
+                match info
+                  (:some d) (:size d)
+                  (:none) 1
+                , "|,\"t\":"
+                  json-string $ match info
+                    (:some d)
+                      .unwrap-or (:type d) |
+                    (:none) |
+                  , "|,\"k\":"
+                    json-string $ match info
+                      (:some d) (:head d)
+                      (:none) |
+                    , "|,\"c\":[" (.join-string children |,) |]}
           :examples $ []
-          :schema $ quote $ Fn app.types/NsInfo (-> Number)
-        'style-center $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-center
-            {} $ |& $ {} (:cursor :pointer) (:fill "|var(--surface-2)")
+          :schema $ quote $ Fn app.types/Program String (List String) (-> String)
+        'json-string $ %{} 'CodeEntry (:doc "|JSON string literal.")
+          :code $ quote $ defn json-string (text)
+            str "|\""
+              -> text (.replace |\ |\\) (.replace "|\"" "|\\\"") (.replace &newline |\n)
+              , "|\""
           :examples $ []
-          :schema $ quote String
-        'style-chart $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-chart
-            {} $ |& $ {} (:position :relative) (:width 640) (:height 640)
+          :schema $ quote $ Fn String (-> String)
+          :tests $ [] $ %{} 'TestEntry (:name |escapes)
+            :code $ quote $ assert= "|\"a\\\"b\"" (json-string "|a\"b")
+        'namespace-json $ %{} 'CodeEntry
+          :doc "|Package → namespaces → definitions as JSON for the sunburst."
+          :code $ quote $ defn namespace-json (program show-libs?)
+            let
+                visible $ .filter
+                  map-values $ :namespaces program
+                  fn (ns-info)
+                    hint-fn $ Fn NsInfo $ -> Bool
+                    or show-libs? $ = :project $ :origin ns-info
+              str "|{\"n\":"
+                json-string $ :package program
+                , "|,\"i\":"
+                  json-string $ :package program
+                  , "|,\"s\":1,\"t\":\"\",\"k\":\"package\",\"c\":["
+                    .join-string
+                      .map visible $ fn (ns-info)
+                        hint-fn $ Fn NsInfo $ -> String
+                        str "|{\"n\":"
+                          json-string $ :name ns-info
+                          , "|,\"i\":"
+                            json-string $ :name ns-info
+                            , "|,\"s\":1,\"t\":\"\",\"k\":\"namespace\",\"c\":["
+                              .join-string
+                                .map
+                                  map-values $ :defs ns-info
+                                  fn (info)
+                                    hint-fn $ Fn DefInfo $ -> String
+                                    json-node program (:id info) ([])
+                                , |,
+                              , |]}
+                      , |,
+                    , |]}
           :examples $ []
-          :schema $ quote String
+          :schema $ quote $ Fn app.types/Program Bool (-> String)
+        'node-json $ %{} 'CodeEntry
+          :doc "|One sunburst node and the children whose owner is it."
+          :code $ quote $ defn node-json (program id owner)
+            let
+                children $ -> owner
+                  .filter-kv $ fn (child parent) (= parent id)
+                  .keys
+                  .to-list
+                  .sort $ fn (a b)
+                    hint-fn $ Fn String String $ -> Number
+                    .compare a b
+              json-node program id $ .map children $ fn (child)
+                hint-fn $ Fn String $ -> String
+                node-json program child owner
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program String (Map String String) (-> String)
+        'structure-root $ %{} 'CodeEntry
+          :doc "|Root of the structure views: the chosen one, else the first open panel, else the default entry."
+          :code $ quote $ defn structure-root (program prefs tree-root)
+            match tree-root
+              (:some id) id
+              (:none)
+                .unwrap-or
+                  .first $ :stack prefs
+                  :init-fn program
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Option String) (-> String)
         'style-graph $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-graph
             {} $ |& $ {} (:flex 1) (:overflow :auto) (:padding "|12px 20px 40px") (:background-color "|var(--surface)")
           :examples $ []
           :schema $ quote String
+        'style-graph-actions $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-actions
+            {} $ |& $ {} (:display :flex) (:gap 4)
+          :examples $ []
+          :schema $ quote String
+        'style-graph-bar $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-bar
+            {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 8) (:flex-wrap :wrap) (:padding-bottom 8) (:border-bottom "|1px solid var(--border)")
+          :examples $ []
+          :schema $ quote String
+        'style-graph-button $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-button
+            {}
+              |& $ {} (:height 26) (:padding "|0 10px") (:display :inline-flex) (:align-items :center) (:border-radius "|var(--radius)") (:font-size 12) (:color "|var(--text-2)") (:cursor :pointer) (:user-select :none)
+              |&:hover $ {} (:background-color "|var(--surface-2)") (:color "|var(--text)")
+          :examples $ []
+          :schema $ quote String
+        'style-graph-button-active $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-button-active
+            {} $ |& $ {} (:color "|var(--accent)") (:background-color "|var(--accent-soft)")
+          :examples $ []
+          :schema $ quote String
+        'style-graph-column $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-column
+            {} $ |& $ {} (:flex 1) (:min-height 0) (:display :flex) (:flex-direction :column) (:padding "|12px 20px") (:background-color "|var(--surface)")
+          :examples $ []
+          :schema $ quote String
         'style-graph-hint $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-graph-hint
-            {} $ |& $ {} (:font-size 12) (:color "|var(--text-3)") (:margin-bottom 8)
+            {} $ |& $ {} (:font-size 12) (:color "|var(--text-3)") (:margin "|6px 0")
           :examples $ []
           :schema $ quote String
-        'style-label $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-label
-            {} $ |& $ {} (:position :absolute) (:transform "|translate(-50%, -50%)") (:font-size 11) (:color |#1d2330) (:pointer-events :none) (:white-space :nowrap) (:z-index 1)
+        'style-graph-label $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-label
+            {} $ |& $ {} (:font-size 11) (:font-weight 600) (:text-transform :uppercase) (:letter-spacing |0.06em) (:color "|var(--text-3)")
           :examples $ []
           :schema $ quote String
-        'style-segment $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-segment
+        'style-graph-root $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-root
             {}
-              |& $ {} (:cursor :pointer) (:stroke "|var(--surface)") (:stroke-width |0.6) (:transition "|opacity var(--ease)")
-              |&:hover $ {} $ :opacity |0.75
+              |& $ {} (:display :inline-flex) (:align-items :center) (:gap 6) (:height 26) (:padding "|0 10px") (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--text)") (:cursor :pointer)
+                :transition "|border-color var(--ease), background-color var(--ease)"
+              |&:hover $ {} $ :border-color "|var(--accent)"
+          :examples $ []
+          :schema $ quote String
+        'style-graph-root-active $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-root-active
+            {} $ |& $ {} (:border-color "|var(--accent)") (:background-color "|var(--accent-soft)") (:color "|var(--accent)")
+          :examples $ []
+          :schema $ quote String
+        'style-graph-root-label $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-root-label
+            {} $ |& $ {} (:font-family "|var(--font-ui)") (:font-size 10) (:color "|var(--text-3)")
+          :examples $ []
+          :schema $ quote String
+        'style-graph-roots $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-graph-roots
+            {} $ |& $ {} (:display :flex) (:gap 4) (:flex-wrap :wrap) (:flex 1)
+          :examples $ []
+          :schema $ quote String
+        'style-sun-host $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sun-host
+            {} $ |& $ {} (:position :relative) (:flex 1) (:min-height 360) (:display :flex) (:align-items :center) (:justify-content :center) (:overflow :hidden) (:animation "|viewer-fade var(--ease-enter)")
+          :examples $ []
+          :schema $ quote String
+        'style-tree $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tree
+            {} $ |& $ {} (:padding-top 8) (:animation "|viewer-fade var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-tree-children $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-tree-children
-            {} $ |& $ {} (:margin-left 7) (:padding-left 12) (:border-left "|1px solid var(--border)")
+            {} $ |& $ {} (:margin-left 7) (:padding-left 12) (:border-left "|1px solid var(--code-guide)") (:animation "|viewer-fade var(--ease-enter)")
+          :examples $ []
+          :schema $ quote String
+        'style-tree-def $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tree-def
+            {} $ |& $ {} (:color "|var(--text)")
           :examples $ []
           :schema $ quote String
         'style-tree-name $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-tree-name
             {}
-              |& $ {} (:cursor :pointer) (:color "|var(--accent)")
-              |&:hover $ {} $ :text-decoration :underline
+              |& $ {} (:display :inline-flex) (:align-items :baseline) (:gap 2) (:cursor :pointer) (:padding "|0 4px") (:border-radius "|var(--radius-chip)")
+              |&:hover $ {} $ :background-color "|var(--surface-2)"
           :examples $ []
           :schema $ quote String
         'style-tree-note $ %{} 'CodeEntry (:doc |)
@@ -955,9 +1430,21 @@
             {} $ |& $ {} (:margin-left 8) (:font-size 11) (:color "|var(--text-3)")
           :examples $ []
           :schema $ quote String
+        'style-tree-ns $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tree-ns
+            {} $ |& $ {} (:font-size 11) (:color "|var(--text-3)")
+          :examples $ []
+          :schema $ quote String
+        'style-tree-open $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tree-open
+            {} $ |& $ {} (:margin-left 4) (:padding "|0 4px") (:color "|var(--accent)") (:cursor :pointer) (:opacity 0) (:transition "|opacity var(--ease)")
+          :examples $ []
+          :schema $ quote String
         'style-tree-row $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-tree-row
-            {} $ |& $ {} (:display :flex) (:align-items :center) (:font-family "|var(--font-code)") (:font-size 13) (:line-height |22px) (:white-space :nowrap)
+            {}
+              |& $ {} (:display :flex) (:align-items :center) (:font-family "|var(--font-code)") (:font-size 13) (:line-height |24px) (:white-space :nowrap)
+              "|&:hover [class*=style-tree-open]" $ {} $ :opacity 1
           :examples $ []
           :schema $ quote String
         'style-tree-toggle $ %{} 'CodeEntry (:doc |)
@@ -965,89 +1452,18 @@
             {} $ |& $ {} (:display :inline-block) (:width 16) (:cursor :pointer) (:color "|var(--text-3)") (:user-select :none)
           :examples $ []
           :schema $ quote String
-        'sunburst-labels $ %{} 'CodeEntry
-          :doc "|Namespace names laid over the inner ring; Respo SVG elements carry no text, so labels are HTML."
-          :code $ quote $ defn sunburst-labels (namespaces starts sizes total)
-            list->
-              {} $ :style $ {} (:position :absolute) (:inset 0) (:pointer-events :none)
-              .map-indexed namespaces $ fn (idx ns-info)
-                hint-fn $ Fn Number NsInfo $ -> (List Dynamic)
-                let
-                    span-angle $ * 2 &PI $ /
-                      .unwrap-or (.get sizes idx) 0
-                      , total
-                    mid $ +
-                      .unwrap-or (.get starts idx) 0
-                      / span-angle 2
-                  [] (:name ns-info)
-                    if (< span-angle 0.3)
-                      span $ {}
-                      span $ {} (:class-name style-label)
-                        :inner-text $ .unwrap-or
-                          .last $ .split (:name ns-info) |.
-                          , |
-                        :style $ {}
-                          :left $ str
-                            .format
-                              + 320 $ * 103 $ sin mid
-                              , 1
-                            , |px
-                          :top $ str
-                            .format
-                              - 320 $ * 103 $ cos mid
-                              , 1
-                            , |px
-          :examples $ []
-          :schema $ quote $ Fn (List app.types/NsInfo) (List Number) (List Number) Number (-> respo.schema/Element)
-        'sunburst-segments $ %{} 'CodeEntry
-          :doc "|Inner ring segment for a namespace and outer segments for its definitions."
-          :code $ quote $ defn sunburst-segments (ns-info idx a0 span-angle)
-            let
-                defs $ map-values $ :defs ns-info
-                total $ at-least 1 $ ns-size ns-info
-                sizes $ .map defs $ fn (info)
-                  hint-fn $ Fn DefInfo $ -> Number
-                  at-least 1 $ :size info
-                outer $ .map-indexed defs $ fn (i info)
-                  hint-fn $ Fn Number DefInfo $ -> respo.schema/Element
-                  let
-                      b0 $ + a0 $ * span-angle
-                        /
-                          foldl (.take sizes i) 0 &+
-                          , total
-                      b1 $ + b0 $ * span-angle
-                        /
-                          .unwrap-or (.get sizes i) 1
-                          , total
-                    create-element :path $ {} (:class-name style-segment)
-                      :d $ arc-path 150 290 b0 b1
-                      :fill $ dynamic-color $ dynamic-ratio info
-                      :on-click $ fn (e d!)
-                        d! $ Op :focus $ :id info
-              .concat
-                [] $ create-element :path $ {} (:class-name style-segment)
-                  :d $ arc-path 60 146 a0 $ + a0 span-angle
-                  :fill $ str "|hsl("
-                    .rem (* idx 47) 360
-                    , "|, 45%, 72%)"
-                  :on-click $ fn (e d!)
-                    d! $ Op :zoom $ Option :some (:name ns-info)
-                , outer
-          :examples $ []
-          :schema $ quote $ Fn app.types/NsInfo Number Number Number
-            -> $ List respo.schema/Element
-      :ns $ %{} 'NsEntry (:doc "|Call tree and sunburst views.")
+      :ns $ %{} 'NsEntry (:doc "|Call tree and sunburst structure views.")
         :code $ quote $ ns app.comp.graph
           :require
-            respo.core :refer $ defcomp div span <> list-> create-element
+            respo.core :refer $ defcomp div span <> list->
             respo.css :refer $ defstyle
-            app.types :refer $ Op NsInfo DefInfo
-            app.program :refer $ lookup-def split-id map-values dynamic-ratio
+            app.types :refer $ Op NsInfo DefInfo EntryInfo
+            app.program :refer $ lookup-def split-id map-values
     'app.comp.nav $ %{} 'FileEntry
       :defs $ {}
         'comp-nav $ %{} 'CodeEntry
-          :doc "|Namespace and definition tree with a filter; libraries are hidden unless toggled."
-          :code $ quote $ defcomp comp-nav (program prefs changed toggled)
+          :doc "|Sidebar: the call tree from each program entry by default; typing a filter switches to matching definitions grouped by namespace."
+          :code $ quote $ defcomp comp-nav (program prefs changed toggled side-toggled)
             let
                 query $ .trim $ :filter prefs
                 open-ids $ .to-set $ :stack prefs
@@ -1061,7 +1477,7 @@
                 {} $ :class-name style-nav
                 div
                   {} $ :class-name style-nav-tools
-                  input $ {} (:class-name style-filter) (:placeholder "|Filter definitions")
+                  input $ {} (:class-name style-filter) (:placeholder "|Search definitions")
                     :value $ :filter prefs
                     :on-input $ fn (e d!)
                       d! $ Op :filter $ event-value e
@@ -1070,31 +1486,13 @@
                       :on-click $ fn (e d!)
                         d! $ Op :toggle-libs
                     <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
-                list->
-                  {} $ :class-name style-nav-list
-                  .map visible $ fn (ns-info)
-                    hint-fn $ Fn NsInfo $ -> (List Dynamic)
-                    let
-                        defs $ ->
-                          map-values $ :defs ns-info
-                          .filter $ fn (info)
-                            hint-fn $ Fn DefInfo $ -> Bool
-                            or (.empty? query)
-                              .includes? (:id info) query
-                      [] (:name ns-info)
-                        if (.empty? defs)
-                          span $ {}
-                          let
-                              default-open? $ or
-                                not $ .empty? query
-                                = :project $ :origin ns-info
-                                .any? defs $ fn (info)
-                                  hint-fn $ Fn DefInfo $ -> Bool
-                                  .includes? open-ids $ :id info
-                              open? $ not= default-open? $ .includes? toggled (:name ns-info)
-                            comp-nav-ns ns-info defs open? open-ids changed
+                if
+                  and (.empty? query)
+                    not $ .empty? $ :entries program
+                  comp-side-tree program (:show-libs? prefs) open-ids changed side-toggled
+                  comp-nav-results program visible query open-ids changed toggled
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (Set String) (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Program app.types/Prefs (Set String) (Set String) (Set String) (-> respo.schema/Component)
         'comp-nav-def $ %{} 'CodeEntry
           :doc "|One definition row; the dot shows how much of its source types still mention Dynamic."
           :code $ quote $ defcomp comp-nav-def (info open? changed?)
@@ -1124,15 +1522,15 @@
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo Bool Bool (-> respo.schema/Component)
         'comp-nav-ns $ %{} 'CodeEntry
-          :doc "|A namespace header that folds its definitions; libraries start folded, namespaces with open or matching definitions stay open."
+          :doc "|A namespace header that folds its definitions; namespaces start folded, and those with open or matching definitions open."
           :code $ quote $ defn comp-nav-ns (ns-info defs open? open-ids changed)
             div ({})
               div
                 {} (:class-name style-ns-name)
                   :on-click $ fn (e d!)
                     d! $ Op :toggle-ns $ :name ns-info
-                span $ {} (:class-name style-fold)
-                  :inner-text $ if open? "|▾" "|▸"
+                span $ {} (:inner-text "|▸")
+                  :class-name $ str-spaced style-fold $ if open? style-fold-open |
                 <> $ :name ns-info
                 if
                   = :project $ :origin ns-info
@@ -1142,7 +1540,8 @@
                 span $ {} (:class-name style-count)
                   :inner-text $ str $ .len defs
               if open?
-                list-> ({})
+                list->
+                  {} $ :class-name style-ns-defs
                   .map defs $ fn (info)
                     hint-fn $ Fn DefInfo $ -> (List Dynamic)
                     [] (:name info)
@@ -1152,6 +1551,70 @@
                 span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/NsInfo (List app.types/DefInfo) Bool (Set String) (Set String) (-> respo.schema/Element)
+        'comp-nav-results $ %{} 'CodeEntry
+          :doc "|Search mode: definitions whose id contains the query, grouped by namespace."
+          :code $ quote $ defn comp-nav-results (program visible query open-ids changed toggled)
+            div
+              {} $ :class-name style-nav-list
+              if (no-match? visible query)
+                div $ {} (:class-name style-nav-empty)
+                  :inner-text $ str "|No definitions match “" query "|”"
+                span $ {}
+              list-> ({})
+                .map visible $ fn (ns-info)
+                  hint-fn $ Fn NsInfo $ -> (List Dynamic)
+                  let
+                      defs $ ->
+                        map-values $ :defs ns-info
+                        .filter $ fn (info)
+                          hint-fn $ Fn DefInfo $ -> Bool
+                          or (.empty? query)
+                            .includes? (:id info) query
+                    [] (:name ns-info)
+                      if (.empty? defs)
+                        span $ {}
+                        let
+                            default-open? $ or
+                              not $ .empty? query
+                              .any? defs $ fn (info)
+                                hint-fn $ Fn DefInfo $ -> Bool
+                                .includes? open-ids $ :id info
+                            open? $ not= default-open? $ .includes? toggled (:name ns-info)
+                          comp-nav-ns ns-info defs open? open-ids changed
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program (List app.types/NsInfo) String (Set String) (Set String) (Set String) (-> respo.schema/Element)
+        'comp-side-tree $ %{} 'CodeEntry
+          :doc "|Call tree from every program entry: init and reload roots start open, other rows open on the arrow; clicking a name opens it as the first panel."
+          :code $ quote $ defn comp-side-tree (program show-libs? open-ids changed toggled)
+            list->
+              {} $ :class-name style-nav-list
+              .map (:entries program)
+                fn (entry)
+                  hint-fn $ Fn EntryInfo $ -> (List Dynamic)
+                  let
+                      roots $ if
+                        = (:reload-fn entry) (:init-fn entry)
+                        [] $ :init-fn entry
+                        [] (:init-fn entry) (:reload-fn entry)
+                    [] (:name entry)
+                      div
+                        {} $ :class-name style-side-entry
+                        div
+                          {} (:class-name style-entries-title)
+                            :title $ if
+                              .empty? $ :description entry
+                              :name entry
+                              :description entry
+                          <> $ :name entry
+                        list-> ({})
+                          .map
+                            .filter roots $ fn (id)
+                              not $ .empty? id
+                            fn (id)
+                              hint-fn $ Fn String $ -> (List Dynamic)
+                              [] id $ side-node program show-libs? open-ids changed toggled (:name entry) ([]) id
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program Bool (Set String) (Set String) (Set String) (-> respo.schema/Element)
         'head-label $ %{} 'CodeEntry
           :doc "|Short kind label from a definition's leading leaf."
           :code $ quote $ defn head-label (head)
@@ -1168,6 +1631,71 @@
               true head
           :examples $ []
           :schema $ quote $ Fn String (-> String)
+        'no-match? $ %{} 'CodeEntry
+          :doc "|Whether a non-empty filter matches no definition in the visible namespaces."
+          :code $ quote $ defn no-match? (visible query)
+            and
+              not $ .empty? query
+              not $ .any? visible $ fn (ns-info)
+                hint-fn $ Fn NsInfo $ -> Bool
+                .any?
+                  map-values $ :defs ns-info
+                  fn (info)
+                    hint-fn $ Fn DefInfo $ -> Bool
+                    .includes? (:id info) query
+          :examples $ []
+          :schema $ quote $ Fn (List app.types/NsInfo) String (-> Bool)
+        'side-node $ %{} 'CodeEntry
+          :doc "|One sidebar tree row and its callees when open. A definition already on the path is marked instead of repeated."
+          :code $ quote $ defn side-node (program show-libs? open-ids changed toggled prefix path id)
+            let
+                key $ str prefix |: $ .join-string
+                  .concat path $ [] id
+                  , "| > "
+                looped? $ .includes? path id
+                children $ if looped? ([]) (call-children program show-libs? id)
+                open? $ and (not looped?)
+                  not= (.empty? path) (.includes? toggled key)
+                info $ lookup-def program id
+                depth $ .len path
+              div ({})
+                div
+                  {}
+                    :class-name $ str-spaced style-side-row
+                      if (.includes? open-ids id) style-side-open |
+                      if (.includes? changed id) style-side-changed |
+                    :style $ {} $ :padding-left
+                      + 6 $ * 12 depth
+                    :title id
+                  span $ {}
+                    :inner-text $ cond (looped? "|↻")
+                      (.empty? children) "|·"
+                      true "|▸"
+                    :class-name $ str-spaced style-side-toggle $ if open? style-fold-open |
+                    :on-click $ fn (e d!)
+                      if (.empty? children) &unit $ d! $ Op :toggle-side key
+                  span $ {} (:class-name style-def-name)
+                    :inner-text $ .unwrap-or
+                      .get (split-id id) 1
+                      , id
+                    :on-click $ fn (e d!)
+                      d! $ Op :open 0 id
+                  span $ {} (:class-name style-kind)
+                    :inner-text $ match info
+                      (:some d)
+                        head-label $ :head d
+                      (:none) |
+                if open?
+                  list->
+                    {} $ :class-name style-ns-defs
+                    .map children $ fn (child)
+                      hint-fn $ Fn String $ -> (List Dynamic)
+                      [] child $ side-node program show-libs? open-ids changed toggled prefix
+                        .concat path $ [] id
+                        , child
+                  span $ {}
+          :examples $ []
+          :schema $ quote $ Fn app.types/Program Bool (Set String) (Set String) (Set String) String (List String) String (-> respo.schema/Element)
         'style-check $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-check
             {}
@@ -1190,6 +1718,11 @@
             {} $ |& $ {} (:display :inline-block) (:width 6) (:height 6) (:border-radius |50%) (:margin-right 8) (:flex-shrink 0)
           :examples $ []
           :schema $ quote String
+        'style-entries-title $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-entries-title
+            {} $ |& $ {} (:padding "|4px 10px") (:font-size 11) (:font-weight 600) (:letter-spacing |0.06em) (:text-transform :uppercase) (:color "|var(--sidebar-text-2)")
+          :examples $ []
+          :schema $ quote String
         'style-filter $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-filter
             {}
@@ -1200,7 +1733,12 @@
           :schema $ quote String
         'style-fold $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-fold
-            {} $ |& $ {} (:width 10) (:color "|var(--sidebar-text-2)") (:flex-shrink 0)
+            {} $ |& $ {} (:width 10) (:color "|var(--sidebar-text-2)") (:flex-shrink 0) (:display :inline-block) (:transition "|transform var(--ease)")
+          :examples $ []
+          :schema $ quote String
+        'style-fold-open $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-fold-open
+            {} $ |& $ {} (:transform "|rotate(90deg)")
           :examples $ []
           :schema $ quote String
         'style-kind $ %{} 'CodeEntry (:doc |)
@@ -1221,13 +1759,20 @@
         'style-nav-def $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav-def
             {}
-              |& $ {} (:display :flex) (:align-items :center) (:height 22) (:padding "|0 8px 0 22px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 12) (:white-space :nowrap) (:border-left "|2px solid transparent")
+              |& $ {} (:display :flex) (:align-items :center) (:height 22) (:padding "|0 8px 0 22px") (:cursor :pointer) (:font-family "|var(--font-code)") (:font-size 12) (:white-space :nowrap) (:border-left "|2px solid transparent") (:transition "|background-color var(--ease), color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--sidebar-hover)"
+          :examples $ []
+          :schema $ quote String
+        'style-nav-empty $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-nav-empty
+            {} $ |& $ {} (:padding "|12px 16px") (:font-size 12) (:color "|var(--sidebar-text-2)")
           :examples $ []
           :schema $ quote String
         'style-nav-list $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav-list
-            {} $ |& $ {} (:flex 1) (:overflow :auto) (:padding-bottom 40)
+            {}
+              |& $ {} (:flex 1) (:overflow :auto) (:padding-bottom 40) (:scrollbar-color "|var(--sidebar-scrollbar-thumb) transparent")
+              |&::-webkit-scrollbar-thumb $ {} $ :background-color "|var(--sidebar-scrollbar-thumb)"
           :examples $ []
           :schema $ quote String
         'style-nav-open $ %{} 'CodeEntry (:doc |)
@@ -1238,6 +1783,11 @@
         'style-nav-tools $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-nav-tools
             {} $ |& $ {} (:padding 8) (:display :flex) (:flex-direction :column) (:gap 6)
+          :examples $ []
+          :schema $ quote String
+        'style-ns-defs $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ns-defs
+            {} $ |& $ {} (:animation "|viewer-fade var(--ease-enter)")
           :examples $ []
           :schema $ quote String
         'style-ns-name $ %{} 'CodeEntry (:doc |)
@@ -1252,32 +1802,70 @@
             {} $ |& $ {} (:font-size 10) (:padding "|0 4px") (:border-radius "|var(--radius-chip)") (:background-color "|var(--sidebar-hover)")
           :examples $ []
           :schema $ quote String
+        'style-side-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-changed
+            {} $ |& $ {} (:color "|var(--ok)") (:font-weight 600)
+          :examples $ []
+          :schema $ quote String
+        'style-side-entry $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-entry
+            {} $ |& $ {} (:padding-bottom 6)
+          :examples $ []
+          :schema $ quote String
+        'style-side-open $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-open
+            {} $ |& $ {} (:color |#ffffff) (:background-color "|var(--sidebar-active)") (:border-left-color "|var(--accent)")
+          :examples $ []
+          :schema $ quote String
+        'style-side-row $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-row
+            {}
+              |& $ {} (:display :flex) (:align-items :center) (:height 22) (:padding-right 8) (:font-family "|var(--font-code)") (:font-size 12) (:white-space :nowrap) (:cursor :pointer) (:border-left "|2px solid transparent") (:transition "|background-color var(--ease)")
+              |&:hover $ {} $ :background-color "|var(--sidebar-hover)"
+          :examples $ []
+          :schema $ quote String
+        'style-side-toggle $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-side-toggle
+            {} $ |& $ {} (:display :inline-block) (:width 14) (:flex-shrink 0) (:text-align :center) (:color "|var(--sidebar-text-2)") (:transition "|transform var(--ease)")
+          :examples $ []
+          :schema $ quote String
       :ns $ %{} 'NsEntry (:doc "|Left navigation.")
         :code $ quote $ ns app.comp.nav
           :require
             respo.core :refer $ defcomp div span <> list-> input event-value
             respo.css :refer $ defstyle
-            app.types :refer $ Op NsInfo DefInfo
-            app.program :refer $ map-values dynamic-ratio
+            app.types :refer $ Op NsInfo DefInfo EntryInfo
+            app.program :refer $ map-values dynamic-ratio split-id lookup-def
+            app.comp.graph :refer $ call-children
     'app.comp.panel $ %{} 'FileEntry
       :defs $ {}
         'comp-def-list $ %{} 'CodeEntry
-          :doc "|Clickable list of definition ids; ids missing from the program are shown plain."
+          :doc "|Definitions as two-line cards: the namespace small and muted above, the name below; ids missing from the program are not clickable."
           :code $ quote $ defcomp comp-def-list (program title ids next-idx)
             div ({})
               div
                 {} $ :class-name style-section-title
                 <> $ str title "| (" (.len ids) "|)"
-              list->
-                {} $ :class-name style-def-list
-                .map ids $ fn (id)
-                  hint-fn $ Fn String $ -> (List Dynamic)
-                  [] id $ if
-                    .some? $ lookup-def program id
-                    span $ {} (:class-name style-ref) (:inner-text id)
-                      :on-click $ fn (e d!)
-                        d! $ Op :open next-idx id
-                    span $ {} (:class-name style-ref-missing) (:inner-text id)
+              if (.empty? ids)
+                div $ {} (:class-name style-none) (:inner-text |None)
+                list->
+                  {} $ :class-name style-def-list
+                  .map ids $ fn (id)
+                    hint-fn $ Fn String $ -> (List Dynamic)
+                    let
+                        parts $ split-id id
+                        known? $ .some? $ lookup-def program id
+                      [] id $ div
+                        {} (:title id)
+                          :class-name $ str-spaced style-ref-card $ if known? | style-ref-missing
+                          :on-click $ fn (e d!)
+                            if known?
+                              d! $ Op :open next-idx id
+                              , &unit
+                        div $ {} (:class-name style-ref-ns)
+                          :inner-text $ .unwrap-or (.get parts 0) |
+                        div $ {} (:class-name style-ref-name)
+                          :inner-text $ .unwrap-or (.get parts 1) id
           :examples $ []
           :schema $ quote $ Fn app.types/Program String (List String) Number (-> respo.schema/Component)
         'comp-panel $ %{} 'CodeEntry
@@ -1321,7 +1909,8 @@
                   div
                     {}
                       :data-panel $ str idx
-                      :class-name $ str-spaced style-panel (if changed? style-changed |) (if active? style-panel-active |)
+                      :class-name $ str-spaced style-panel (if changed? style-panel-changed |) (if active? style-panel-active |)
+                      :style $ {} $ :width (panel-width info)
                     comp-panel-header idx id (:head info) changed?
                     comp-signature info
                     if
@@ -1337,6 +1926,7 @@
                       (:none)
                         span $ {}
                     comp-code ctx $ :source info
+                    comp-tests ctx $ :tests info
                     comp-def-list program |Uses (:deps info) (inc idx)
                     comp-def-list program "|Used by" users $ inc idx
           :examples $ []
@@ -1382,7 +1972,7 @@
                     {} $ :class-name style-sig-row
                     span $ {} (:class-name style-sig-label) (:inner-text label)
                     span $ {} (:inner-text text)
-                      :class-name $ str-spaced style-sig-text $ if (.includes? text |Dynamic) style-sig-dynamic |
+                      :class-name $ str-spaced style-sig-text $ if (.includes? text |Dynamic) style-sig-text-dynamic |
               div
                 {} $ :class-name style-sig
                 match schema
@@ -1397,6 +1987,53 @@
                     span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/DefInfo (-> respo.schema/Component)
+        'comp-tests $ %{} 'CodeEntry
+          :doc "|Tests attached to the definition, each with its name and code; symbols link like in the source, without recorded types."
+          :code $ quote $ defn comp-tests (ctx tests)
+            if (.empty? tests)
+              span $ {}
+              div ({})
+                div
+                  {} $ :class-name style-section-title
+                  <> $ str "|Tests (" (.len tests) "|)"
+                list->
+                  {} $ :class-name style-tests
+                  .map tests $ fn (test)
+                    hint-fn $ Fn TestInfo $ -> (List Dynamic)
+                    [] (:name test)
+                      div
+                        {} $ :class-name style-test
+                        div
+                          {} $ :class-name style-test-name
+                          <> $ :name test
+                        comp-code
+                          assoc ctx :types $ {}
+                          :source test
+          :examples $ []
+          :schema $ quote $ Fn app.types/CodeCtx (List app.types/TestInfo) (-> respo.schema/Element)
+        'panel-width $ %{} 'CodeEntry
+          :doc "|Panel width in pixels from the longest line of the formatted source: 640 by default, narrower only for clearly short code, wider up to 880 for long lines."
+          :code $ quote $ defn panel-width (info)
+            let
+                longest $ foldl
+                  .split
+                    format-cirru $ [] $ code->tree (:source info)
+                    , &newline
+                  , 0 $ fn (acc line)
+                    hint-fn $ Fn Number String $ -> Number
+                    if
+                      > (.len line) acc
+                      .len line
+                      , acc
+                estimate $ + 96 $ * 8.6 longest
+              cond
+                  < longest 36
+                  , 480
+                (< estimate 640) 640
+                (> estimate 880) 880
+                true $ .round estimate
+          :examples $ []
+          :schema $ quote $ Fn app.types/DefInfo (-> Number)
         'style-badge $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-badge
             {} $ |& $ {} (:font-size 11) (:padding "|0 6px") (:margin-left 8) (:border-radius "|var(--radius-chip)") (:color "|var(--text-2)") (:background-color "|var(--surface-2)") (:font-family "|var(--font-code)") (:flex-shrink 0)
@@ -1405,11 +2042,6 @@
         'style-badge-changed $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-badge-changed
             {} $ |& $ {} (:font-size 11) (:padding "|0 6px") (:margin-left 8) (:border-radius "|var(--radius-chip)") (:color "|var(--ok)") (:background-color "|color-mix(in srgb, var(--ok) 14%, transparent)") (:flex-shrink 0)
-          :examples $ []
-          :schema $ quote String
-        'style-changed $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-changed
-            {} $ |& $ {} (:box-shadow "|inset 3px 0 0 var(--ok)")
           :examples $ []
           :schema $ quote String
         'style-close $ %{} 'CodeEntry (:doc |)
@@ -1421,7 +2053,7 @@
           :schema $ quote String
         'style-def-list $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-def-list
-            {} $ |& $ {} (:display :flex) (:flex-wrap :wrap) (:gap "|2px 12px") (:font-family "|var(--font-code)") (:font-size 12)
+            {} $ |& $ {} (:display :flex) (:flex-wrap :wrap) (:gap 6)
           :examples $ []
           :schema $ quote String
         'style-doc $ %{} 'CodeEntry (:doc |)
@@ -1439,6 +2071,11 @@
             {} $ |& $ {} (:display :flex) (:align-items :center) (:gap 4) (:position :sticky) (:top 0) (:background-color "|var(--surface)") (:padding "|10px 0 8px") (:z-index 2)
           :examples $ []
           :schema $ quote String
+        'style-none $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-none
+            {} $ |& $ {} (:font-size 12) (:color "|var(--text-3)")
+          :examples $ []
+          :schema $ quote String
         'style-note $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-note
             {} $ |& $ {} (:color "|var(--text-3)") (:font-size 13)
@@ -1446,7 +2083,7 @@
           :schema $ quote String
         'style-panel $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-panel
-            {} $ |& $ {} (:width 520) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:border-top "|2px solid transparent")
+            {} $ |& $ {} (:width 640) (:flex-shrink 0) (:overflow :auto) (:padding "|0 16px 40px") (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:border-top "|2px solid transparent") (:animation "|viewer-enter var(--ease-enter)") (:transition "|border-color var(--ease)")
           :examples $ []
           :schema $ quote String
         'style-panel-active $ %{} 'CodeEntry (:doc |)
@@ -1454,16 +2091,34 @@
             {} $ |& $ {} (:border-top-color "|var(--accent)")
           :examples $ []
           :schema $ quote String
-        'style-ref $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-ref
+        'style-panel-changed $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-panel-changed
+            {} $ |& $ {} (:box-shadow "|inset 3px 0 0 var(--ok)") (:animation "|viewer-flash 1.2s ease-out")
+          :examples $ []
+          :schema $ quote String
+        'style-ref-card $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-card
             {}
-              |& $ {} (:color "|var(--accent)") (:cursor :pointer)
-              |&:hover $ {} $ :text-decoration :underline
+              |& $ {} (:max-width |100%) (:padding "|3px 8px") (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:cursor :pointer) (:font-family "|var(--font-code)")
+                :transition "|border-color var(--ease), background-color var(--ease)"
+              |&:hover $ {} (:border-color "|var(--accent)") (:background-color "|var(--accent-soft)")
           :examples $ []
           :schema $ quote String
         'style-ref-missing $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-ref-missing
-            {} $ |& $ {} (:color "|var(--text-3)")
+            {}
+              |& $ {} (:cursor :default) (:opacity |0.6)
+              |&:hover $ {} (:border-color "|var(--border)") (:background-color :transparent)
+          :examples $ []
+          :schema $ quote String
+        'style-ref-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-name
+            {} $ |& $ {} (:font-size 13) (:line-height |18px) (:color "|var(--accent)") (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
+          :examples $ []
+          :schema $ quote String
+        'style-ref-ns $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-ref-ns
+            {} $ |& $ {} (:font-size 10) (:line-height |14px) (:color "|var(--text-2)") (:overflow :hidden) (:text-overflow :ellipsis) (:white-space :nowrap)
           :examples $ []
           :schema $ quote String
         'style-section-title $ %{} 'CodeEntry (:doc |)
@@ -1474,11 +2129,6 @@
         'style-sig $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-sig
             {} $ |& $ {} (:margin "|0 0 8px") (:font-family "|var(--font-code)") (:font-size 12)
-          :examples $ []
-          :schema $ quote String
-        'style-sig-dynamic $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstyle style-sig-dynamic
-            {} $ |& $ {} (:color "|var(--dynamic)")
           :examples $ []
           :schema $ quote String
         'style-sig-label $ %{} 'CodeEntry (:doc |)
@@ -1496,16 +2146,39 @@
             {} $ |& $ {} (:color "|var(--type)") (:white-space :pre-wrap) (:min-width 0)
           :examples $ []
           :schema $ quote String
+        'style-sig-text-dynamic $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-sig-text-dynamic
+            {} $ |& $ {} (:color "|var(--dynamic)")
+          :examples $ []
+          :schema $ quote String
         'style-strip $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-strip
             {}
-              |& $ {} (:width 28) (:flex-shrink 0) (:cursor :pointer) (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:display :flex) (:justify-content :center) (:padding-top 12)
+              |& $ {} (:width 28) (:flex-shrink 0) (:cursor :pointer) (:border-right "|1px solid var(--border)") (:background-color "|var(--surface)") (:display :flex) (:justify-content :center) (:padding-top 12) (:animation "|viewer-fade var(--ease)") (:transition "|background-color var(--ease)")
               |&:hover $ {} $ :background-color "|var(--surface-2)"
           :examples $ []
           :schema $ quote String
         'style-strip-text $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-strip-text
             {} $ |& $ {} (:writing-mode :vertical-rl) (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--text-2)") (:white-space :nowrap)
+          :examples $ []
+          :schema $ quote String
+        'style-test $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-test
+            {} $ |& $ {} (:border "|1px solid var(--border)") (:border-radius "|var(--radius)") (:padding "|4px 8px 2px")
+              :background-color "|color-mix(in srgb, var(--surface-2) 45%, transparent)"
+          :examples $ []
+          :schema $ quote String
+        'style-test-name $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-test-name
+            {}
+              |& $ {} (:font-family "|var(--font-code)") (:font-size 12) (:color "|var(--ok)")
+              |&::before $ {} (:content "|\"✓ \"") (:color "|var(--text-3)")
+          :examples $ []
+          :schema $ quote String
+        'style-tests $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstyle style-tests
+            {} $ |& $ {} (:display :flex) (:flex-direction :column) (:gap 6)
           :examples $ []
           :schema $ quote String
         'style-title $ %{} 'CodeEntry (:doc |)
@@ -1529,7 +2202,7 @@
             respo.core :refer $ defcomp div span <> list->
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
-            app.types :refer $ Op CodeCtx
+            app.types :refer $ Op CodeCtx TestInfo
             app.program :refer $ lookup-def split-id ns-imports code->tree
             app.comp.code :refer $ comp-code
     'app.comp.prompt $ %{} 'FileEntry
@@ -1727,6 +2400,7 @@
                         file $ js-cast maybe-file 'app.loader/FileHost
                         filename $ .-name file
                         reader $ js-cast (new js/FileReader) 'app.loader/FileReaderHost
+                      d! $ Op :loading filename
                       js-set reader :onload $ fn (event)
                         let
                             result $ .-result reader
@@ -1848,6 +2522,9 @@
             restore-cached! dispatch!
             check-resumable! dispatch!
             listen-keys on-key!
+            install-tooltips
+            install-sunburst $ fn (id)
+              dispatch! $ Op :focus $ decode-map-as id 'String
             browser/set-before-unload! $ fn (event) (persist-prefs!)
             browser/document-add-event-listener! |visibilitychange $ fn (event) (persist-prefs!)
             println "|App started."
@@ -1948,7 +2625,8 @@
             app.updater :as updater
             app.types :refer $ Op
             app.loader :refer $ restore-cached! check-resumable!
-            |../src/dom-helpers.mjs :refer $ reveal-panel listen-keys focus-later
+            |../src/dom-helpers.mjs :refer $ reveal-panel listen-keys focus-later install-tooltips
+            |../src/sunburst.mjs :refer $ install-sunburst
             app.config :as config
             js-ffi.browser :as browser
             |./calcit.build-errors :default build-errors
@@ -2098,6 +2776,19 @@
           :schema $ quote $ Fn (Map String V)
             -> $ List V
             :generics V
+        'name-text $ %{} 'CodeEntry
+          :doc "|Text of a name stored as a tag, symbol or string; empty for nil."
+          :code $ quote $ defn name-text (raw)
+            cond
+                nil? raw
+                , |
+              (symbol? raw)
+                .to-string $ decode-map-as raw 'Symbol
+              (tag? raw)
+                .to-string $ decode-map-as raw 'Tag
+              true $ decode-map-as raw 'String
+          :examples $ []
+          :schema $ quote $ Fn Dynamic (-> String)
         'ns-imports $ %{} 'CodeEntry
           :doc "|Reads `:require` rules of an `ns` form into referred names and namespace aliases."
           :code $ quote $ defn ns-imports (ns-tree)
@@ -2160,6 +2851,42 @@
                 .get
                   .unwrap $ .get imports :aliases
                   , |config
+        'parse-entries $ %{} 'CodeEntry
+          :doc "|Program entries from a Snapshot `:entries` map or IR `:meta :entries`, `default` first."
+          :code $ quote $ defn parse-entries (raw)
+            if (nil? raw) ([])
+              let
+                  pairs $ .to-list $ decode-map-as raw
+                    quote $ Map Dynamic Dynamic
+                  entries $ .map pairs $ fn (pair)
+                    hint-fn $ Fn (List Dynamic) (-> EntryInfo)
+                    let
+                        config $ .unwrap $ .get pair 1
+                      EntryInfo :name
+                        name-text $ .unwrap $ .get pair 0
+                        , :init-fn
+                          name-text $ read-field config :init-fn
+                          , :reload-fn
+                            name-text $ read-field config :reload-fn
+                            , :description $ read-string config :description
+                .sort entries $ fn (a b)
+                  hint-fn $ Fn EntryInfo EntryInfo $ -> Number
+                  cond
+                      = (:name a) |default
+                      , -1
+                    (= (:name b) |default)
+                      , 1
+                    true $ .compare (:name a) (:name b)
+          :examples $ []
+          :schema $ quote $ Fn Dynamic
+            -> $ List app.types/EntryInfo
+          :tests $ [] $ %{} 'TestEntry (:name |entries-default-first)
+            :code $ quote $ let
+                entries $ parse-entries $ parse-cirru-edn "|{} (:test $ {} (:init-fn 'app.test/run!) (:reload-fn 'app.test/run!)) (:default $ {} (:init-fn 'app.main/main!) (:reload-fn 'app.main/reload!) (:description |App))"
+              assert= ([] |default |test)
+                .map entries $ fn (e) (:name e)
+              assert= |app.main/main! $ :init-fn $ .unwrap (.first entries)
+              assert= |App $ :description $ .unwrap (.first entries)
         'parse-ir $ %{} 'CodeEntry
           :doc "|Reads `program-ir.cirru` written by `calcit ir` (`:sources` section)."
           :code $ quote $ defn parse-ir (data)
@@ -2179,7 +2906,13 @@
                         , :defs $ .filter-map-kv defs
                           fn (def-name d)
                             MapEntryDecision :keep def-name $ parse-ir-def ns-name def-name d
-              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users $ collect-users namespaces
+              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ let
+                  listed $ read-field meta :entries
+                if (nil? listed)
+                  {} $ |default $ {}
+                    :init-fn $ read-field configs :init-fn
+                    :reload-fn $ read-field configs :reload-fn
+                  , listed
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> app.types/Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-sources)
@@ -2215,7 +2948,9 @@
                           .assoc acc
                             .unwrap-or (.get pair 0) |
                             .unwrap-or (.get pair 1) |
-                      , :hash (read-string d :hash) :error (read-option-string d :error) :size $ source-size $ decode-map-as (read-field d :source) 'CirruQuote
+                      , :hash (read-string d :hash) :error (read-option-string d :error) :size
+                        source-size $ decode-map-as (read-field d :source) 'CirruQuote
+                        , :tests $ parse-tests $ read-field d :tests
           :examples $ []
           :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
         'parse-program $ %{} 'CodeEntry
@@ -2247,7 +2982,7 @@
                       MapEntryDecision :keep def-name $ assoc info :deps $ source-deps bare ns-info info
               Program :package (read-string data :package) :calcit-version | :format :snapshot :init-fn
                 if (nil? raw-init) | $ .to-string $ decode-map-as raw-init 'Symbol
-                , :namespaces namespaces :users $ collect-users namespaces
+                , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ read-field data :entries
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> app.types/Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-snapshot)
@@ -2269,7 +3004,7 @@
                 , :kind | :source code :schema
                   if (nil? schema) (Option :none)
                     Option :some $ quote-text $ decode-map-as schema 'CirruQuote
-                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size $ source-size code
+                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size (source-size code) :tests $ parse-tests $ read-field entry :tests
           :examples $ []
           :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
         'parse-snapshot-ns $ %{} 'CodeEntry (:doc "|One `FileEntry` of a Snapshot.")
@@ -2285,6 +3020,29 @@
                     parse-snapshot-def ns-name (.to-string def-sym) entry
           :examples $ []
           :schema $ quote $ Fn String Dynamic (-> app.types/NsInfo)
+        'parse-tests $ %{} 'CodeEntry
+          :doc "|Definition tests from IR `:tests` maps or Snapshot `TestEntry` records."
+          :code $ quote $ defn parse-tests (raw)
+            if (nil? raw) ([])
+              .map
+                decode-map-as raw $ quote $ List Dynamic
+                fn (test)
+                  hint-fn $ Fn Dynamic $ -> TestInfo
+                  TestInfo :name (read-string test :name) :source $ decode-map-as (read-field test :code) 'CirruQuote
+          :examples $ []
+          :schema $ quote $ Fn Dynamic
+            -> $ List app.types/TestInfo
+          :tests $ [] $ %{} 'TestEntry (:name |reads-ir-and-snapshot-tests)
+            :code $ quote $ do
+              assert= ([] |doubles)
+                .map
+                  parse-tests $ parse-cirru-edn "|[] $ {} (:name |doubles) (:code $ quote $ assert= 4 $ double 2)"
+                  fn (t) (:name t)
+              assert= ([] |rec)
+                .map
+                  parse-tests $ parse-cirru-edn "|[] $ %{} 'TestEntry (:name |rec) (:code $ quote $ do 1)"
+                  fn (t) (:name t)
+              assert= ([]) (parse-tests nil)
         'quote-text $ %{} 'CodeEntry
           :doc "|One-line text of a quoted Cirru expression such as a schema."
           :code $ quote $ defn quote-text (code)
@@ -2508,7 +3266,7 @@
       :ns $ %{} 'NsEntry
         :doc "|Reads `calcit ir` artifacts and Snapshots into the viewer's Program data."
         :code $ quote $ ns app.program
-          :require $ app.types :refer $ Program NsInfo DefInfo
+          :require $ app.types :refer $ Program NsInfo DefInfo EntryInfo TestInfo
     'app.prompt $ %{} 'FileEntry
       :defs $ {}
         'compose-prompt $ %{} 'CodeEntry
@@ -2627,6 +3385,12 @@
             :hash 'String
             :error $ quote $ Option String
             :size 'Number
+            :tests $ quote $ List app.types/TestInfo
+          :examples $ []
+          :schema $ quote StructDef
+        'EntryInfo $ %{} 'CodeEntry
+          :doc "|A program entry from the Snapshot: where it starts and reloads."
+          :code $ quote $ defstruct EntryInfo (:name 'String) (:init-fn 'String) (:reload-fn 'String) (:description 'String)
           :examples $ []
           :schema $ quote StructDef
         'NsInfo $ %{} 'CodeEntry
@@ -2655,6 +3419,11 @@
             :palette-close
             :palette-query 'String
             :palette-move 'Number
+            :loading 'String
+            :tree-root 'String
+            :set-expanded $ quote $ Set String
+            :sun-mode 'Tag
+            :toggle-side 'String
             :resumable 'String
           :examples $ []
           :schema $ quote EnumDef
@@ -2676,6 +3445,7 @@
           :code $ quote $ defstruct Program (:package 'String) (:calcit-version 'String) (:format 'Tag) (:init-fn 'String)
             :namespaces $ quote $ Map String app.types/NsInfo
             :users $ quote $ Map String (List String)
+            :entries $ quote $ List app.types/EntryInfo
           :examples $ []
           :schema $ quote StructDef
         'Store $ %{} 'CodeEntry
@@ -2699,6 +3469,14 @@
             :collapsed $ quote $ Set String
             :palette $ quote $ Option String
             :palette-idx 'Number
+            :loading $ quote $ Option String
+            :tree-root $ quote $ Option String
+            :sun-mode 'Tag
+            :side-toggled $ quote $ Set String
+          :examples $ []
+          :schema $ quote StructDef
+        'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
+          :code $ quote $ defstruct TestInfo (:name 'String) (:source 'CirruQuote)
           :examples $ []
           :schema $ quote StructDef
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
@@ -2727,9 +3505,25 @@
                     assoc :error $ Option :none
                     assoc :file-name file-name
                     assoc :loaded-at time
+                    assoc :loading $ Option :none
                     update-prefs $ fn (prefs) (assoc prefs :stack stack)
               (:error message)
-                assoc store :error $ Option :some message
+                -> store
+                  assoc :error $ Option :some message
+                  assoc :loading $ Option :none
+              (:loading file-name)
+                assoc store :loading $ Option :some file-name
+              (:tree-root id)
+                -> store
+                  assoc :tree-root $ Option :some id
+                  assoc :expanded $ #{}
+              (:set-expanded keys) (assoc store :expanded keys)
+              (:sun-mode mode) (assoc store :sun-mode mode)
+              (:toggle-side key)
+                assoc store :side-toggled $ if
+                  .includes? (:side-toggled store) key
+                  .exclude (:side-toggled store) key
+                  .include (:side-toggled store) key
               (:open idx id)
                 update-prefs store $ fn (prefs)
                   assoc prefs :stack $ .concat
@@ -2924,7 +3718,7 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
+            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :loading (Option :none) :tree-root (Option :none) :sun-mode :calls :side-toggled (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
           :examples $ []
           :schema $ quote app.types/Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
