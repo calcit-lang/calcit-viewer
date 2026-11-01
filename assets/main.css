@@ -163,6 +163,8 @@ body * {
   position: fixed;
   z-index: 100;
   max-width: min(560px, 80vw);
+  max-height: calc(100vh - 16px);
+  overflow: hidden;
   padding: 4px 8px;
   border-radius: var(--radius-float);
   background-color: var(--tip-bg);

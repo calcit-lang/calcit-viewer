@@ -6,6 +6,7 @@
 
 const TAU = Math.PI * 2;
 const RING = 64;
+const MIN_RING = 28;
 const CENTER = 54;
 
 let onOpen = () => {};
@@ -44,6 +45,11 @@ function layout(focus, maxDepth) {
   return arcs;
 }
 
+/** Package and namespace nodes group definitions and have no code to open. */
+function isDef(node) {
+  return node.k !== "package" && node.k !== "namespace";
+}
+
 function hue(node) {
   let h = 0;
   for (const ch of (node.i || node.n).split("/")[0]) h = (h * 31 + ch.charCodeAt(0)) % 360;
@@ -60,9 +66,12 @@ function draw(state) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size, size);
   const cx = size / 2;
-  const ring = Math.max(28, Math.min(RING, (size / 2 - CENTER - 8) / maxDepth));
+  // Show fewer rings rather than letting the outer ones leave the canvas.
+  const room = Math.max(MIN_RING, size / 2 - CENTER - 8);
+  const depth = Math.max(1, Math.min(maxDepth, Math.floor(room / MIN_RING)));
+  const ring = Math.min(RING, room / depth);
   state.ring = ring;
-  state.arcs = layout(focus, maxDepth);
+  state.arcs = layout(focus, depth);
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   for (const arc of state.arcs) {
     if (arc.depth === 0) continue;
@@ -163,16 +172,19 @@ function card(state, node) {
   }
   const actions = document.createElement("div");
   actions.className = "viewer-sun-actions";
-  const open = document.createElement("button");
-  open.textContent = "Open code →";
-  open.onclick = () => onOpen(node.i);
-  actions.append(open);
+  if (isDef(node)) {
+    const open = document.createElement("button");
+    open.textContent = "Open code →";
+    open.onclick = () => onOpen(node.i);
+    actions.append(open);
+  }
   if (childCount > 0 && node !== state.focus) {
     const zoom = document.createElement("button");
     zoom.textContent = "Zoom in";
     zoom.onclick = () => {
       state.focus = node;
       draw(state);
+      card(state, node);
     };
     actions.append(zoom);
   }
@@ -191,6 +203,10 @@ function mount(host) {
   const canvas = document.createElement("canvas");
   const cardEl = document.createElement("div");
   cardEl.className = "viewer-sun-card";
+  cardEl.setAttribute("aria-live", "polite");
+  canvas.tabIndex = 0;
+  canvas.setAttribute("role", "application");
+  canvas.setAttribute("aria-label", "Sunburst. Arrow keys move between nodes, Enter zooms in, O opens code, Backspace goes up.");
   host.append(canvas, cardEl);
   const state = { json, root, focus: root, hover: null, canvas, card: cardEl, maxDepth: Number(host.getAttribute("data-depth") || 5) };
   host.__sun = state;
@@ -213,9 +229,35 @@ function mount(host) {
     const target = hit(state, event.offsetX, event.offsetY);
     if (target === "center") {
       if (state.focus.p) state.focus = state.focus.p;
+      card(state, state.focus);
     } else if (target) {
       if ((target.c || []).length > 0) state.focus = target;
       card(state, target);
+    }
+    draw(state);
+  };
+  canvas.onkeydown = (event) => {
+    const current = state.hover || state.focus;
+    const siblings = current.p && current !== state.focus ? current.p.c : [current];
+    const index = siblings.indexOf(current);
+    let next = null;
+    if (event.key === "ArrowDown") next = (current.c || [])[0] || null;
+    else if (event.key === "ArrowUp") next = current === state.focus ? null : current.p;
+    else if (event.key === "ArrowRight") next = siblings[(index + 1) % siblings.length];
+    else if (event.key === "ArrowLeft") next = siblings[(index - 1 + siblings.length) % siblings.length];
+    else if (event.key === "Enter") {
+      if ((current.c || []).length > 0) state.focus = current;
+      next = current;
+    } else if (event.key === "Backspace") {
+      if (state.focus.p) state.focus = state.focus.p;
+      next = state.focus;
+    } else if (event.key === "o" || event.key === "O") {
+      if (isDef(current)) onOpen(current.i);
+    } else return;
+    event.preventDefault();
+    if (next) {
+      state.hover = next === state.focus ? null : next;
+      card(state, next);
     }
     draw(state);
   };

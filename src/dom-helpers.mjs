@@ -40,7 +40,8 @@ let tipEl = null;
 
 /**
  * Show `data-tip` text in one floating element on <body>, so scroll containers
- * never clip it. It sits below the hovered element and flips above near the bottom edge.
+ * never clip it. It sits below the hovered element, flips above near the bottom edge,
+ * and stays inside the viewport; CSS caps its height so a long type scrolls in place.
  */
 export function install_tooltips() {
   if (tipEl) return;
@@ -51,12 +52,15 @@ export function install_tooltips() {
   document.addEventListener("mouseover", (event) => {
     const target = event.target instanceof Element ? event.target.closest("[data-tip]") : null;
     if (!target) return hide();
+    // An empty own title keeps the browser from also showing an ancestor's title.
+    if (!target.hasAttribute("title")) target.setAttribute("title", "");
     tipEl.textContent = target.getAttribute("data-tip");
     const box = target.getBoundingClientRect();
     const tip = tipEl.getBoundingClientRect();
     const left = Math.max(8, Math.min(box.left, window.innerWidth - tip.width - 8));
     const below = box.bottom + 6;
-    const top = below + tip.height > window.innerHeight - 8 ? box.top - tip.height - 6 : below;
+    const preferred = below + tip.height > window.innerHeight - 8 ? box.top - tip.height - 6 : below;
+    const top = Math.max(8, Math.min(preferred, window.innerHeight - tip.height - 8));
     tipEl.style.left = `${left}px`;
     tipEl.style.top = `${top}px`;
     tipEl.classList.add("viewer-tip-on");
