@@ -25,8 +25,10 @@ test('program metadata and entries come from :meta', () => {
   assert.equal(field(program, t.package), 'app');
   assert.equal(field(program, t.format), t.ir);
   assert.equal(field(program, t['init-fn']), 'app.main/main!');
+  // A second entry whose init-fn differs from `:configs`, so the fallback to `:configs` cannot pass this.
   const entries = toArray(field(program, t.entries));
-  assert.deepEqual(entries.map(e => field(e, t['init-fn'])), ['app.main/main!']);
+  assert.deepEqual(entries.map(e => field(e, t.name)), ['default', 'bench']);
+  assert.deepEqual(entries.map(e => field(e, t['init-fn'])), ['app.main/main!', 'app.main/bench!']);
 });
 
 test('namespaces keep their origin, including ones without definitions', () => {
@@ -49,7 +51,13 @@ test('definitions carry source, schema, inferred types, deps and tests', () => {
 });
 
 test('users are derived from deps', () => {
-  assert.deepEqual(toArray(field(field(program, t.users), 'app.main/double')), ['app.main/main!']);
+  assert.deepEqual(toArray(field(field(program, t.users), 'app.main/double')).sort(), ['app.main/bench!', 'app.main/main!']);
+});
+
+test('every :deps entry resolves to a definition in the fixture', () => {
+  const deps = [...text.matchAll(/:deps \$ \[\]((?: \|[^\s()]+)+)/g)].flatMap(m => m[1].trim().split(' ').map(dep => dep.slice(1)));
+  assert.ok(deps.length > 0);
+  for (const dep of new Set(deps)) assert.ok(option(lookup_def(program, dep)) != null, `unresolved dependency ${dep}`);
 });
 
 test('core syntax is marked as syntax', () => {

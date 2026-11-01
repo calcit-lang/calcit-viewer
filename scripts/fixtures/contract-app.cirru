@@ -2,8 +2,12 @@
 {}
   :about "|Machine-generated snapshot. Do not edit directly — changes will be overwritten. Use `calcit query` to inspect and `calcit edit`/`calcit tree` to modify. Run `calcit docs agents --contract` before mutations; use `--full` for first orientation or changed contract digest. Manual edits must follow format and schema conventions, then run `calcit edit format`."
   :package |app
-  :entries $ {} $ :default
-    {} (:description |) (:init-fn 'app.main/main!) (:mode :native) (:reload-fn 'app.main/reload!)
+  :entries $ {}
+    :bench $ {} (:description |Bench) (:init-fn 'app.main/bench!) (:mode :native) (:reload-fn 'app.main/reload!)
+      :feature-policy $ {}
+      :modules $ []
+      :type-slots $ {}
+    :default $ {} (:description |) (:init-fn 'app.main/main!) (:mode :native) (:reload-fn 'app.main/reload!)
       :feature-policy $ {}
       :modules $ []
       :type-slots $ {}
@@ -28,6 +32,10 @@
           :code $ quote $ defstruct Point (:x 'Number)
           :examples $ []
           :schema $ quote StructDef
+        'bench! $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn bench! () (double 2)
+          :examples $ []
+          :schema $ quote $ Fn (-> Number)
         'double $ %{} 'CodeEntry (:doc "|Twice the input")
           :code $ quote $ defn double (n)
             let
