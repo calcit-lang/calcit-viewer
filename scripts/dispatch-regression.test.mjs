@@ -49,7 +49,8 @@ test('loading the own Snapshot opens the entry and renders the panel stack', () 
   assert.deepEqual(toArray(field(field(run.get(), t.prefs), t.stack)), ['app.main/main!']);
   const html = make_string(comp_container(run.get()));
   assert.match(html, /render-app!/);
-  assert.match(html, /app\.comp\.container/);
+  // The sidebar opens as a call tree from the default entry.
+  assert.match(html, /style-side-row[^"]*" style="[^"]*" title="app\.main\/main!"/);
 });
 
 test('clicking a definition in the navigation opens it as the first panel', () => {
