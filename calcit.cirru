@@ -165,53 +165,58 @@
         'render-leaf $ %{} 'CodeEntry
           :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
           :code $ quote $ defn render-leaf (ctx leaf path threaded?)
-            if (text-block? leaf) (render-text-block leaf)
-              let
-                  target $ if (symbol-leaf? leaf)
-                    resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
-                    Option :none
-                  t $ leaf-type ctx leaf path target threaded?
-                  linked? $ match target
-                    (:some id)
-                      not= id $ :self ctx
-                    (:none) false
-                  class-name $ str-spaced style-leaf
-                    leaf-class leaf $ = 0 $ .unwrap-or (.last path) -1
-                    if
-                      > (.len leaf) long-leaf-length
-                      , style-leaf-long |
-                    if linked? style-link |
-                    if
-                      and (.some? t)
-                        .includes? (.unwrap-or t |) |Dynamic
-                      , style-typed-dynamic |
-                    if (.some? t) style-typed |
-                span
-                  if linked?
-                    {} (:class-name class-name)
-                      :data-tip $ if (.some? t)
-                        str (.unwrap-or target |) "| · " $ .unwrap-or t |
-                        .unwrap-or target |
-                      :on-click $ fn (e d!)
-                        d! $ Op :open (:next-idx ctx) (.unwrap target)
-                    if (.some? t)
+            let
+                target $ if (symbol-leaf? leaf)
+                  resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
+                  Option :none
+                t $ leaf-type ctx leaf path target threaded?
+                long? $ > (.len leaf) long-leaf-length
+              if (text-block? leaf) (render-text-block leaf t)
+                let
+                    linked? $ match target
+                      (:some id)
+                        not= id $ :self ctx
+                      (:none) false
+                    class-name $ str-spaced style-leaf
+                      leaf-class leaf $ = 0 $ .unwrap-or (.last path) -1
+                      if linked? style-link |
+                      if
+                        and (.some? t)
+                          .includes? (.unwrap-or t |) |Dynamic
+                        , style-typed-dynamic |
+                      if (.some? t) style-typed |
+                  span
+                    if linked?
                       {} (:class-name class-name)
-                        :data-tip $ .unwrap-or t |
-                      {} (:class-name class-name)
-                        :title $ if
-                          > (.len leaf) long-leaf-length
-                          , leaf |
-                  <> leaf
-                  if
-                    and (:inline-types? ctx) (.some? t)
-                    span $ {} (:class-name style-inline-type)
-                      :inner-text $ .unwrap-or t |
-                    span $ {}
+                        :data-tip $ str
+                          if long? (str leaf &newline) |
+                          .unwrap-or target |
+                          if (.some? t)
+                            str "| · " $ .unwrap-or t |
+                            , |
+                        :on-click $ fn (e d!)
+                          d! $ Op :open (:next-idx ctx) (.unwrap target)
+                      if
+                        or (.some? t) long?
+                        {} (:class-name class-name)
+                          :data-tip $ str (if long? leaf |)
+                            if
+                              and long? $ .some? t
+                              , &newline |
+                            .unwrap-or t |
+                        {} $ :class-name class-name
+                    span $ {} (:inner-text leaf)
+                      :class-name $ if long? style-leaf-long |
+                    if
+                      and (:inline-types? ctx) (.some? t)
+                      span $ {} (:class-name style-inline-type)
+                        :inner-text $ .unwrap-or t |
+                      span $ {}
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx String (List Number) Bool (-> respo.schema/Element)
         'render-text-block $ %{} 'CodeEntry
-          :doc "|Long or multi-line string as its own block: wrapped, with a line and character count, scrolling past 16 lines."
-          :code $ quote $ defn render-text-block (leaf)
+          :doc "|Long or multi-line string as its own block: wrapped, with a line and character count and its inferred type, scrolling past 16 lines."
+          :code $ quote $ defn render-text-block (leaf t)
             let
                 text $ .slice leaf 1 $ Option :none
                 lines $ .len $ .split text &newline
@@ -221,10 +226,12 @@
                   :inner-text $ str "|text · " lines
                     if (= lines 1) "| line · " "| lines · "
                     .len text
-                    , "| chars"
+                    , "| chars" $ match t
+                      (:some type-text) (str "| · " type-text)
+                      (:none) |
                 div $ {} (:class-name style-text-body) (:inner-text text)
           :examples $ []
-          :schema $ quote $ Fn String (-> respo.schema/Element)
+          :schema $ quote $ Fn String (Option String) (-> respo.schema/Element)
         'style-code $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-code
             {} $ |& $ {} (:font-family "|var(--font-code)") (:font-size 13) (:line-height |22px) (:color "|var(--code-plain)") (:padding "|4px 0 8px")
@@ -266,7 +273,7 @@
           :schema $ quote String
         'style-leaf-long $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-leaf-long
-            {} $ |& $ {} (:max-width |26em) (:overflow :hidden) (:text-overflow :ellipsis) (:vertical-align :top)
+            {} $ |& $ {} (:display :inline-block) (:max-width |26em) (:overflow :hidden) (:text-overflow :ellipsis) (:vertical-align :top)
           :examples $ []
           :schema $ quote String
         'style-link $ %{} 'CodeEntry (:doc |)
@@ -328,7 +335,7 @@
           :schema $ quote String
         'style-text-meta $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-text-meta
-            {} $ |& $ {} (:font-family "|var(--font-ui)") (:font-size 10) (:line-height |16px) (:color "|var(--text-3)") (:user-select :none)
+            {} $ |& $ {} (:font-family "|var(--font-ui)") (:font-size 10) (:line-height |16px) (:color "|var(--text-2)") (:user-select :none)
           :examples $ []
           :schema $ quote String
         'style-typed $ %{} 'CodeEntry (:doc |)
