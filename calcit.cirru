@@ -15,32 +15,35 @@
           :code $ quote $ defn child-modes (items)
             let
                 many? $ fn (x size)
-                  hint-fn $ Fn Dynamic Number $ -> Bool
-                  if (list? x)
-                    let
-                        xs $ decode-map-as x $ quote (List Dynamic)
+                  hint-fn $ Fn app.types/SourceTree Number $ -> Bool
+                  match x
+                    (String _) false
+                    (List xs)
                       or
                         > (.len xs) size
                         .any? xs $ fn (y)
-                          hint-fn $ Fn Dynamic $ -> Bool
-                          list? y
-                    , false
+                          hint-fn $ Fn app.types/SourceTree $ -> Bool
+                          match y
+                            (String _) false
+                            (List _) true
               .rest $ foldl items ([] :inline)
                 fn (acc child)
-                  hint-fn $ Fn (List Tag) Dynamic $ -> (List Tag)
+                  hint-fn $ Fn (List Tag) app.types/SourceTree $ -> (List Tag)
                   let
                       prev $ .unwrap-or (.last acc) :inline
-                      mode $ cond
-                          not $ list? child
-                          , :inline
-                        (many? child 6) :block
-                        (= prev :inline) :inline-block
-                        (= prev :inline-block)
-                          if (many? child 2) :block :inline-block
-                        true :block
+                      mode $ match child
+                        (String _) :inline
+                        (List _)
+                          cond
+                              many? child 6
+                              , :block
+                            (= prev :inline) :inline-block
+                            (= prev :inline-block)
+                              if (many? child 2) :block :inline-block
+                            true :block
                     .concat acc $ [] mode
           :examples $ []
-          :schema $ quote $ Fn (List Dynamic)
+          :schema $ quote $ Fn (List app.types/SourceTree)
             -> $ List Tag
           :tests $ [] $ %{} 'TestEntry (:name |editor-layout-modes)
             :code $ quote $ do
@@ -133,35 +136,40 @@
         'render-expr $ %{} 'CodeEntry
           :doc "|Renders a Cirru tree node at `path`, laid out like the Calcit editor's code tree: short lists sit inline with a bottom rule, long or nested ones become blocks with a left guide, and the last list continues the line. `threaded?` marks a step of a threading form such as `->`, whose receiver is not written inside it; a step hands the flag to its head leaf."
           :code $ quote $ defn render-expr (ctx tree path threaded? mode tail?)
-            if (string? tree)
-              render-leaf ctx (decode-map-as tree 'String) path threaded?
-              let
-                  items $ decode-map-as tree $ quote (List Dynamic)
-                  t $ .get (:types ctx) (path-key path)
-                  threading? $ threading-head? $ .unwrap-or (.first items) nil
-                  modes $ child-modes items
-                  last-idx $ dec $ .len items
-                list->
-                  {}
-                    :class-name $ str-spaced style-expr
-                      cond
-                          .empty? items
-                          , style-expr-void
-                        tail? style-tail
-                        (and (not= mode :block) (> (.len items) 0))
-                          , style-simple
-                        true |
-                      if (.some? t) style-typed |
-                    :title $ .unwrap-or t |
-                  .map-indexed items $ fn (idx child)
-                    hint-fn $ Fn Number Dynamic $ -> (List Dynamic)
-                    [] idx $ render-expr ctx child
-                      .concat path $ [] idx
-                      if (= idx 0) threaded? $ and threading? $ > idx 1
-                      .unwrap-or (.get modes idx) :inline
-                      and (= idx last-idx) (> idx 0) (list? child)
+            match tree
+              (String text) (render-leaf ctx text path threaded?)
+              (List items)
+                let
+                    t $ .get (:types ctx) (path-key path)
+                    threading? $ match (.first items)
+                      (:some head) (threading-head? head)
+                      (:none) false
+                    modes $ child-modes items
+                    last-idx $ dec $ .len items
+                  keyed->
+                    {}
+                      :class-name $ str-spaced style-expr
+                        cond
+                            .empty? items
+                            , style-expr-void
+                          tail? style-tail
+                          (and (not= mode :block) (> (.len items) 0))
+                            , style-simple
+                          true |
+                        if (.some? t) style-typed |
+                      :title $ .unwrap-or t |
+                    .map-indexed items $ fn (idx child)
+                      hint-fn $ Fn Number app.types/SourceTree $ -> respo.schema/ChildPair
+                      keyed-element idx $ render-expr ctx child
+                        .concat path $ [] idx
+                        if (= idx 0) threaded? $ and threading? $ > idx 1
+                        .unwrap-or (.get modes idx) :inline
+                        and (= idx last-idx) (> idx 0)
+                          match child
+                            (String _) false
+                            (List _) true
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx Dynamic (List Number) Bool Tag Bool (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/CodeCtx app.types/SourceTree (List Number) Bool Tag Bool (-> respo.schema/Element)
         'render-leaf $ %{} 'CodeEntry
           :doc "|A leaf with its inferred type; symbols that resolve to a definition are links."
           :code $ quote $ defn render-leaf (ctx leaf path threaded?)
@@ -195,6 +203,9 @@
                             str "| · " $ .unwrap-or t |
                             , |
                         :on-click $ fn (e d!)
+                          hint-fn $ Fn respo.schema/RespoEvent
+                            Fn app.types/Op $ -> Unit
+                            -> Unit
                           d! $ Op :open (:next-idx ctx) (.unwrap target)
                       if
                         or (.some? t) long?
@@ -380,10 +391,12 @@
         'threading-head? $ %{} 'CodeEntry
           :doc "|Whether a list head is a threading macro, which passes the previous value into each later step."
           :code $ quote $ defn threading-head? (head)
-            and (string? head)
-              .includes? (#{} |-> |->> |%-> |->% |cond-> |some->) (decode-map-as head 'String)
+            match head
+              (String text)
+                .includes? (#{} |-> |->> |%-> |->% |cond-> |some->) text
+              (List _) false
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Bool)
+          :schema $ quote $ Fn app.types/SourceTree (-> Bool)
           :tests $ [] $ %{} 'TestEntry (:name |threading-heads)
             :code $ quote $ do
               assert= true $ threading-head? |->
@@ -392,7 +405,7 @@
       :ns $ %{} 'NsEntry (:doc "|Rendering definition source with types.")
         :code $ quote $ ns app.comp.code
           :require
-            respo.core :refer $ defcomp div span <> list->
+            respo.core :refer $ defcomp div span <> keyed-> keyed-element
             respo.css :refer $ defstyle
             app.types :refer $ Op
             app.program :refer $ code->tree resolve-with split-id
@@ -424,6 +437,9 @@
                       .get (split-id id) 1
                       , id
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :truncate idx
           :examples $ []
           :schema $ quote $ Fn (List String) Number (-> respo.schema/Component)
@@ -507,6 +523,9 @@
                 <> "|Pick one on the left, or press ⌘K to search."
               span $ {} (:class-name style-secondary) (:inner-text "|Search definitions")
                 :on-click $ fn (e d!)
+                  hint-fn $ Fn respo.schema/RespoEvent
+                    Fn app.types/Op $ -> Unit
+                    -> Unit
                   d! $ Op :palette-open
           :examples $ []
           :schema $ quote $ Fn (-> respo.schema/Component)
@@ -522,14 +541,27 @@
               div
                 {} (:class-name style-palette-mask)
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :palette-close
                 div
                   {} (:class-name style-palette)
-                    :on-click $ fn (e d!) &unit
+                    :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
+                      , &unit
                   input $ {} (:class-name style-palette-input) (:value query) (:id |palette-input) (:placeholder "|Go to definition…")
                     :on-input $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :palette-query $ event-value e
                     :on-keydown $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       let
                           info $ keyboard-info e
                           key $ :key info
@@ -556,6 +588,9 @@
                           {}
                             :class-name $ str-spaced style-palette-item $ if (= i current) style-palette-current |
                             :on-click $ fn (e d!)
+                              hint-fn $ Fn respo.schema/RespoEvent
+                                Fn app.types/Op $ -> Unit
+                                -> Unit
                               d! $ Op :palette-close
                               d! $ Op :focus id
                           span $ {} (:class-name style-palette-name)
@@ -623,6 +658,9 @@
                     .len $ :changed store
                     , "| updated ×"
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :clear-changed
               span $ {} (:class-name style-status-hint)
                 :inner-text "|⌘K search · Alt+← back · Esc close panel · [ ] switch panel · ⌘B sidebar"
@@ -637,25 +675,43 @@
                 {} $ :class-name style-toolbar
                 span $ {} (:class-name style-icon-button) (:inner-text "|☰") (:title "|Toggle sidebar (⌘B)")
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :toggle-nav
                 span $ {} (:class-name style-icon-button) (:inner-text "|←") (:title "|Back (Alt+←)")
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :back
                 span $ {} (:class-name style-icon-button) (:inner-text "|→") (:title "|Forward (Alt+→)")
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :forward
                 comp-view-tabs $ :view prefs
                 comp-breadcrumb (:stack prefs) (:active store)
                 span $ {} (:class-name style-search) (:inner-text "|Search definitions  ⌘K")
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :palette-open
                 span $ {} (:inner-text |Prompt)
                   :class-name $ str-spaced style-tab $ if (:prompt-open? prefs) style-tab-active |
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :toggle-prompt
                 span $ {} (:inner-text |Types) (:title "|Inline types (T)")
                   :class-name $ str-spaced style-tab $ if (:inline-types? prefs) style-tab-active |
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :toggle-inline-types
           :examples $ []
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
@@ -678,6 +734,9 @@
                         .unwrap $ .get pair 1
                         , 'String
                       :on-click $ fn (e d!)
+                        hint-fn $ Fn respo.schema/RespoEvent
+                          Fn app.types/Op $ -> Unit
+                          -> Unit
                         d! $ Op :view tag
           :examples $ []
           :schema $ quote $ Fn Tag (-> respo.schema/Component)
@@ -691,16 +750,31 @@
                 (:some file-name)
                   span $ {} (:class-name style-watching) (:title "|Click to stop watching")
                     :inner-text $ str "|● Watching " file-name
-                    :on-click $ fn (e d!) (stop-watch! d!)
+                    :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
+                        :features :js-ffi
+                      stop-watch! d!
                 (:none)
                   span ({})
                     span $ {} (:class-name style-status-button) (:inner-text "|Watch file…")
-                      :on-click $ fn (e d!) (watch! d!)
+                      :on-click $ fn (e d!)
+                        hint-fn $ Fn respo.schema/RespoEvent
+                          Fn app.types/Op $ -> Unit
+                          -> Unit
+                          :features :js-ffi
+                        watch! d!
                     match (:resumable store)
                       (:some file-name)
                         span $ {} (:class-name style-status-button)
                           :inner-text $ str "|Resume watching " file-name
-                          :on-click $ fn (e d!) (resume-watch! d!)
+                          :on-click $ fn (e d!)
+                            hint-fn $ Fn respo.schema/RespoEvent
+                              Fn app.types/Op $ -> Unit
+                              -> Unit
+                              :features :js-ffi
+                            resume-watch! d!
                       (:none)
                         span $ {}
           :examples $ []
@@ -726,7 +800,12 @@
                     input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
                   if (supports-watch)
                     span $ {} (:class-name style-secondary) (:inner-text "|Watch a file…")
-                      :on-click $ fn (e d!) (watch! d!)
+                      :on-click $ fn (e d!)
+                        hint-fn $ Fn respo.schema/RespoEvent
+                          Fn app.types/Op $ -> Unit
+                          -> Unit
+                          :features :js-ffi
+                        watch! d!
                     span $ {}
                 comp-md-block "|Generate the file in your project, then open `js-out/program-ir.cirru`:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nA `calcit.cirru` Snapshot also opens, with declared schemas but no inferred types." $ {} $ :class-name style-welcome-md
           :examples $ []
@@ -1073,6 +1152,9 @@
                       open? "|▾"
                       true "|▸"
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       if
                         not $ .empty? children
                         d! $ Op :toggle-node key
@@ -1080,6 +1162,9 @@
                   span
                     {} (:class-name style-tree-name) (:title "|Click to expand, ↗ to read the code")
                       :on-click $ fn (e d!)
+                        hint-fn $ Fn respo.schema/RespoEvent
+                          Fn app.types/Op $ -> Unit
+                          -> Unit
                         if
                           not $ .empty? children
                           d! $ Op :toggle-node key
@@ -1096,6 +1181,9 @@
                         , id
                   span $ {} (:class-name style-tree-open) (:inner-text "|↗") (:title "|Read the code")
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :focus id
                   if looped?
                     span $ {} (:class-name style-tree-note) (:inner-text "|↻ already on this path")
@@ -1128,9 +1216,15 @@
                   {} $ :class-name style-graph-actions
                   span $ {} (:class-name style-graph-button) (:inner-text "|Expand 3 levels")
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :set-expanded $ expand-keys program show-libs? ([]) root 3
                   span $ {} (:class-name style-graph-button) (:inner-text |Collapse)
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :set-expanded $ #{}
                 if
                   .some? $ lookup-def program root
@@ -1177,6 +1271,9 @@
                           {} (:title id)
                             :class-name $ str-spaced style-graph-root $ if (= id root) style-graph-root-active |
                             :on-click $ fn (e d!)
+                              hint-fn $ Fn respo.schema/RespoEvent
+                                Fn app.types/Op $ -> Unit
+                                -> Unit
                               d! $ Op :tree-root id
                           span $ {} (:class-name style-graph-root-label) (:inner-text label)
                           span $ {} $ :inner-text
@@ -1212,6 +1309,9 @@
                             .unwrap $ .get pair 1
                             , 'String
                           :on-click $ fn (e d!)
+                            hint-fn $ Fn respo.schema/RespoEvent
+                              Fn app.types/Op $ -> Unit
+                              -> Unit
                             d! $ Op :sun-mode tag
                 div $ {} (:class-name style-graph-hint)
                   :inner-text "|Click a ring to zoom in, the centre to go up. The card in the corner opens the code."
@@ -1480,10 +1580,16 @@
                   input $ {} (:class-name style-filter) (:placeholder "|Search definitions")
                     :value $ :filter prefs
                     :on-input $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :filter $ event-value e
                   div
                     {} (:class-name style-check)
                       :on-click $ fn (e d!)
+                        hint-fn $ Fn respo.schema/RespoEvent
+                          Fn app.types/Op $ -> Unit
+                          -> Unit
                         d! $ Op :toggle-libs
                     <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
                 if
@@ -1512,6 +1618,9 @@
                       .round $ * 100 ratio
                       , "|% of recorded types"
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :open 0 $ :id info
                 span $ {} (:class-name style-dot)
                   :style $ {} $ :background-color color
@@ -1528,6 +1637,9 @@
               div
                 {} (:class-name style-ns-name)
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :toggle-ns $ :name ns-info
                 span $ {} (:inner-text "|▸")
                   :class-name $ str-spaced style-fold $ if open? style-fold-open |
@@ -1673,12 +1785,18 @@
                       true "|▸"
                     :class-name $ str-spaced style-side-toggle $ if open? style-fold-open |
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       if (.empty? children) &unit $ d! $ Op :toggle-side key
                   span $ {} (:class-name style-def-name)
                     :inner-text $ .unwrap-or
                       .get (split-id id) 1
                       , id
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :open 0 id
                   span $ {} (:class-name style-kind)
                     :inner-text $ match info
@@ -1859,6 +1977,9 @@
                         {} (:title id)
                           :class-name $ str-spaced style-ref-card $ if known? | style-ref-missing
                           :on-click $ fn (e d!)
+                            hint-fn $ Fn respo.schema/RespoEvent
+                              Fn app.types/Op $ -> Unit
+                              -> Unit
                             if known?
                               d! $ Op :open next-idx id
                               , &unit
@@ -1878,6 +1999,9 @@
                   :class-name style-strip
                   :title id
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :toggle-collapse id
                 span $ {} (:class-name style-strip-text)
                   :inner-text $ .unwrap-or
@@ -1953,10 +2077,16 @@
                   span $ {}
                 span $ {} (:class-name style-close) (:inner-text "|⇤") (:title "|Fold this panel")
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :toggle-collapse id
                 span $ {} (:class-name style-close) (:inner-text "|×")
                   :title "|Close this and later panels (Esc closes the last)"
                   :on-click $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :close idx
           :examples $ []
           :schema $ quote $ Fn Number String String Bool (-> respo.schema/Component)
@@ -2218,21 +2348,35 @@
                   :value $ :prompt-draft prefs
                   :placeholder "|Ask about the open definitions…"
                   :on-input $ fn (e d!)
+                    hint-fn $ Fn respo.schema/RespoEvent
+                      Fn app.types/Op $ -> Unit
+                      -> Unit
                     d! $ Op :prompt-draft $ event-value e
                 div
                   {} $ :class-name style-drawer-actions
                   span $ {} (:class-name style-copy) (:inner-text "|Copy prompt")
-                    :on-click $ fn (e d!) (browser/clipboard-write-text! text)
+                    :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
+                        :features :js-ffi
+                      browser/clipboard-write-text! text
                       d! $ Op :copied $ shared/now-ms
                   span $ {} (:class-name style-option)
                     :inner-text $ if (:prompt-source? prefs) "|☑ Include source" "|☐ Include source"
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :toggle-prompt-source
                   if (> copied-at 0)
                     span $ {} (:class-name style-copied) (:inner-text |Copied)
                     span $ {}
                   span $ {} (:class-name style-option) (:inner-text |Close)
                     :on-click $ fn (e d!)
+                      hint-fn $ Fn respo.schema/RespoEvent
+                        Fn app.types/Op $ -> Unit
+                        -> Unit
                       d! $ Op :toggle-prompt
               pre $ {} (:class-name style-preview) (:inner-text text)
           :examples $ []
@@ -2385,10 +2529,7 @@
           :code $ quote $ defn on-file-change (e dispatch)
             let
                 d! $ as-dispatch dispatch
-                event $ decode-map-as e $ quote (Map Tag Dynamic)
-                event-host $ js-cast
-                  .unwrap $ get event :event
-                  , 'js-ffi.browser/EventHost
+                event-host $ js-cast (:event e) 'js-ffi.browser/EventHost
                 target $ js-cast (.-target event-host) 'app.loader/FileInputHost
                 raw-files $ .-files target
               when (js-present? raw-files)
@@ -2412,7 +2553,10 @@
                       .read-as-text! reader file
             , &unit
           :examples $ []
-          :schema $ quote $ Fn Dynamic Dynamic (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn respo.schema/RespoEvent
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
         'restore-cached! $ %{} 'CodeEntry
           :doc "|Loads the file text kept by `load-text!`, if any."
           :code $ quote $ defn restore-cached! (d!)
@@ -2601,7 +2745,7 @@
           :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
         'render-app! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn render-app! ()
-            render! (mount-target) (comp-container @*store)
+            with-memo-frame $ fn () $ render! (mount-target) (comp-container @*store)
               fn (op) (dispatch! op)
           :examples $ []
           :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
@@ -2611,7 +2755,7 @@
             match (browser/storage-get prefs-key)
               (:some raw)
                 try
-                  dispatch! $ Op :restore $ decode-map-as (parse-cirru-edn raw) 'app.types/Prefs
+                  dispatch! $ Op :restore $ app.types/parse-prefs raw
                   fn (message) (println "|Ignored stored preferences:" message)
               (:none) &unit
           :examples $ []
@@ -2631,6 +2775,7 @@
             js-ffi.browser :as browser
             |./calcit.build-errors :default build-errors
             |bottom-tip :default hud!
+            respo.memo :refer $ with-memo-frame
     'app.program $ %{} 'FileEntry
       :defs $ {}
         'all-defs $ %{} 'CodeEntry (:doc "|Every definition of every namespace.")
@@ -2650,23 +2795,23 @@
         'cirru-leaves $ %{} 'CodeEntry
           :doc "|All leaf texts in a Cirru tree, in reading order."
           :code $ quote $ defn cirru-leaves (tree)
-            hint-fn $ Fn Dynamic $ -> (List String)
-            if (string? tree)
-              [] $ decode-map-as tree 'String
-              .flat-map
-                decode-map-as tree $ quote $ List Dynamic
-                , cirru-leaves
+            hint-fn $ Fn app.types/SourceTree $ -> (List String)
+            match tree
+              (String text) ([] text)
+              (List items) (.flat-map items cirru-leaves)
           :examples $ []
-          :schema $ quote $ Fn Dynamic
+          :schema $ quote $ Fn app.types/SourceTree
             -> $ List String
         'code->tree $ %{} 'CodeEntry
-          :doc "|Nested lists of leaf strings for a quoted Cirru expression."
+          :doc "|Checked String/List tree for quoted Cirru source; public conversion preserves leaf roots, empty lists and original token text."
           :code $ quote $ defn code->tree (code)
-            if (.leaf? code)
-              .unwrap-or (.leaf-text code) |
-              &cirru-quote:to-list code
+            decode-map-as
+              if (.leaf? code)
+                .unwrap-or (.leaf-text code) |
+                .unwrap $ .to-list code
+              , app.types/SourceTree
           :examples $ []
-          :schema $ quote $ Fn CirruQuote (-> Dynamic)
+          :schema $ quote $ Fn CirruQuote (-> app.types/SourceTree)
         'collect-users $ %{} 'CodeEntry
           :doc "|Reverse dependency index: definition id to the ids that reference it."
           :code $ quote $ defn collect-users (namespaces)
@@ -2711,17 +2856,17 @@
         'first-leaf $ %{} 'CodeEntry
           :doc "|The leading leaf text of a list tree, empty otherwise."
           :code $ quote $ defn first-leaf (tree)
-            if (list? tree)
-              let
-                  head $ .first $ decode-map-as tree
-                    quote $ List Dynamic
-                match head
-                  (:some x)
-                    if (string? x) (decode-map-as x 'String) |
+            match tree
+              (String _) |
+              (List items)
+                match (.first items)
+                  (:some head)
+                    match head
+                      (String text) text
+                      (List _) |
                   (:none) |
-              , |
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> String)
+          :schema $ quote $ Fn app.types/SourceTree (-> String)
         'fuzzy-score $ %{} 'CodeEntry
           :doc "|-1 when `query` is not a subsequence of `id`; higher is a better match."
           :code $ quote $ defn fuzzy-score (query id name)
@@ -2793,15 +2938,20 @@
           :doc "|Reads `:require` rules of an `ns` form into referred names and namespace aliases."
           :code $ quote $ defn ns-imports (ns-tree)
             let
-                forms $ if (list? ns-tree)
-                  decode-map-as ns-tree $ quote $ List Dynamic
-                  []
+                forms $ match ns-tree
+                  (String _) ([])
+                  (List items) items
                 require-form $ .find forms $ fn (form)
-                  and (list? form)
-                    = (first-leaf form) |:require
+                  hint-fn $ Fn app.types/SourceTree $ -> Bool
+                  match form
+                    (String _) false
+                    (List _)
+                      = (first-leaf form) |:require
                 rules $ match require-form
                   (:some form)
-                    .rest $ decode-map-as form $ quote (List Dynamic)
+                    match form
+                      (String _) ([])
+                      (List items) (.rest items)
                   (:none) ([])
               foldl rules
                 {}
@@ -2810,34 +2960,35 @@
                 fn (acc rule)
                   hint-fn $ Fn
                     Map Tag $ Map String String
-                    , Dynamic $ ->
+                    , app.types/SourceTree $ ->
                       Map Tag $ Map String String
-                  if (list? rule)
-                    let
-                        items $ .filter (cirru-leaves rule)
-                          fn (x) (not= x |[])
-                        target $ .strip-prefix
-                          .unwrap-or (.first items) |
-                          , |\|
-                        kind $ .unwrap-or (.get items 1) |
-                      cond
-                          = kind |:as
-                          update-section acc :aliases
-                            .unwrap-or (.get items 2) |
-                            , target
-                        (= kind |:refer)
-                          foldl
-                            .slice items 2 $ Option :none
-                            , acc $ fn (acc2 name)
-                              hint-fn $ Fn
-                                Map Tag $ Map String String
-                                , String $ ->
+                  match rule
+                    (String _) acc
+                    (List _)
+                      let
+                          items $ .filter (cirru-leaves rule)
+                            fn (x) (not= x |[])
+                          target $ .strip-prefix
+                            .unwrap-or (.first items) |
+                            , |\|
+                          kind $ .unwrap-or (.get items 1) |
+                        cond
+                            = kind |:as
+                            update-section acc :aliases
+                              .unwrap-or (.get items 2) |
+                              , target
+                          (= kind |:refer)
+                            foldl
+                              .slice items 2 $ Option :none
+                              , acc $ fn (acc2 name)
+                                hint-fn $ Fn
                                   Map Tag $ Map String String
-                              update-section acc2 :refers name $ def-id target name
-                        true acc
-                    , acc
+                                  , String $ ->
+                                    Map Tag $ Map String String
+                                update-section acc2 :refers name $ def-id target name
+                          true acc
           :examples $ []
-          :schema $ quote $ Fn Dynamic
+          :schema $ quote $ Fn app.types/SourceTree
             -> $ Map Tag $ Map String String
           :tests $ [] $ %{} 'TestEntry (:name |reads-refer-and-as)
             :code $ quote $ let
@@ -3367,118 +3518,143 @@
           :doc "|What rendering one definition's source needs: where symbols resolve and which panel opens next."
           :code $ quote $ defstruct CodeCtx
             :namespaces $ quote $ Map String app.types/NsInfo
-            :ns-info 'app.types/NsInfo
+            :ns-info app.types/NsInfo
             :imports $ quote $ Map Tag (Map String String)
             :types $ quote $ Map String String
-            :self 'String
-            :next-idx 'Number
-            :inline-types? 'Bool
+            :self String
+            :next-idx Number
+            :inline-types? Bool
           :examples $ []
           :schema $ quote StructDef
         'DefInfo $ %{} 'CodeEntry
           :doc "|One definition as shown by the viewer, from `calcit ir` `:sources` or a Snapshot."
-          :code $ quote $ defstruct DefInfo (:id 'String) (:ns 'String) (:name 'String) (:doc 'String) (:head 'String) (:kind 'String) (:source 'CirruQuote)
+          :code $ quote $ defstruct DefInfo (:id String) (:ns String) (:name String) (:doc String) (:head String) (:kind String) (:source CirruQuote)
             :schema $ quote $ Option String
             :type $ quote $ Option String
             :deps $ quote $ List String
             :types $ quote $ Map String String
-            :hash 'String
+            :hash String
             :error $ quote $ Option String
-            :size 'Number
+            :size Number
             :tests $ quote $ List app.types/TestInfo
           :examples $ []
           :schema $ quote StructDef
         'EntryInfo $ %{} 'CodeEntry
           :doc "|A program entry from the Snapshot: where it starts and reloads."
-          :code $ quote $ defstruct EntryInfo (:name 'String) (:init-fn 'String) (:reload-fn 'String) (:description 'String)
+          :code $ quote $ defstruct EntryInfo (:name String) (:init-fn String) (:reload-fn String) (:description String)
           :examples $ []
           :schema $ quote StructDef
         'NsInfo $ %{} 'CodeEntry
           :doc "|A namespace with its definitions; `:origin` is `:project`, `:dep` or `:core`."
-          :code $ quote $ defstruct NsInfo (:name 'String) (:origin 'Tag) (:doc 'String) (:code 'CirruQuote)
+          :code $ quote $ defstruct NsInfo (:name String) (:origin Tag) (:doc String) (:code CirruQuote)
             :defs $ quote $ Map String app.types/DefInfo
           :examples $ []
           :schema $ quote StructDef
         'Op $ %{} 'CodeEntry (:doc "|Store operations.")
-          :code $ quote $ defenum Op (:load 'app.types/Program 'String 'Number) (:error 'String) (:open 'Number 'String) (:close 'Number) (:filter 'String) (:toggle-libs) (:toggle-inline-types) (:restore 'app.types/Prefs) (:watching 'String) (:stop-watching) (:view 'Tag) (:focus 'String) (:toggle-node 'String)
+          :code $ quote $ defenum Op (:load app.types/Program String Number) (:error String) (:open Number String) (:close Number) (:filter String) (:toggle-libs) (:toggle-inline-types) (:restore app.types/Prefs) (:watching String) (:stop-watching) (:view Tag) (:focus String) (:toggle-node String)
             :zoom $ quote $ Option String
-            :prompt-draft 'String
+            :prompt-draft String
             :toggle-prompt
             :toggle-prompt-source
-            :copied 'Number
-            :toggle-ns 'String
+            :copied Number
+            :toggle-ns String
             :clear-changed
-            :append 'String
-            :truncate 'Number
+            :append String
+            :truncate Number
             :back
             :forward
-            :activate 'Number
-            :toggle-collapse 'String
+            :activate Number
+            :toggle-collapse String
             :toggle-nav
             :palette-open
             :palette-close
-            :palette-query 'String
-            :palette-move 'Number
-            :loading 'String
-            :tree-root 'String
+            :palette-query String
+            :palette-move Number
+            :loading String
+            :tree-root String
             :set-expanded $ quote $ Set String
-            :sun-mode 'Tag
-            :toggle-side 'String
-            :resumable 'String
+            :sun-mode Tag
+            :toggle-side String
+            :resumable String
           :examples $ []
           :schema $ quote EnumDef
         'Prefs $ %{} 'CodeEntry (:doc "|View preferences kept in localStorage.")
           :code $ quote $ defstruct Prefs
             :stack $ quote $ List String
-            :filter 'String
-            :show-libs? 'Bool
-            :inline-types? 'Bool
-            :view 'Tag
-            :prompt-open? 'Bool
-            :prompt-draft 'String
-            :prompt-source? 'Bool
-            :nav-hidden? 'Bool
+            :filter String
+            :show-libs? Bool
+            :inline-types? Bool
+            :view Tag
+            :prompt-open? Bool
+            :prompt-draft String
+            :prompt-source? Bool
+            :nav-hidden? Bool
           :examples $ []
           :schema $ quote StructDef
         'Program $ %{} 'CodeEntry
           :doc "|Loaded program; `:users` maps a definition id to the definitions that reference it."
-          :code $ quote $ defstruct Program (:package 'String) (:calcit-version 'String) (:format 'Tag) (:init-fn 'String)
+          :code $ quote $ defstruct Program (:package String) (:calcit-version String) (:format Tag) (:init-fn String)
             :namespaces $ quote $ Map String app.types/NsInfo
             :users $ quote $ Map String (List String)
             :entries $ quote $ List app.types/EntryInfo
           :examples $ []
           :schema $ quote StructDef
+        'SourceTree $ %{} 'CodeEntry
+          :doc "|A Cirru source node: one String token or a recursively nested List of SourceTree. This models quoted source, not arbitrary EDN."
+          :code $ quote $ defunion SourceTree String
+            quote $ List SourceTree
+          :examples $ []
+          :schema $ quote UnionDef
         'Store $ %{} 'CodeEntry
           :doc "|Application state. `:stack` holds the definition ids of the open panels from left to right."
           :code $ quote $ defstruct Store
             :program $ quote $ Option app.types/Program
             :error $ quote $ Option String
-            :file-name 'String
-            :loaded-at 'Number
+            :file-name String
+            :loaded-at Number
             :changed $ quote $ Set String
-            :prefs 'app.types/Prefs
+            :prefs app.types/Prefs
             :watching $ quote $ Option String
             :resumable $ quote $ Option String
             :expanded $ quote $ Set String
             :zoom $ quote $ Option String
-            :copied-at 'Number
+            :copied-at Number
             :ns-toggled $ quote $ Set String
             :history $ quote $ List (List String)
             :future $ quote $ List (List String)
-            :active 'Number
+            :active Number
             :collapsed $ quote $ Set String
             :palette $ quote $ Option String
-            :palette-idx 'Number
+            :palette-idx Number
             :loading $ quote $ Option String
             :tree-root $ quote $ Option String
-            :sun-mode 'Tag
+            :sun-mode Tag
             :side-toggled $ quote $ Set String
           :examples $ []
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
-          :code $ quote $ defstruct TestInfo (:name 'String) (:source 'CirruQuote)
+          :code $ quote $ defstruct TestInfo (:name String) (:source CirruQuote)
           :examples $ []
           :schema $ quote StructDef
+        'parse-prefs $ %{} 'CodeEntry
+          :doc "|Parse saved preference text as data, fully validate fields, and rebuild local Prefs; serialized Struct names do not prove nominal identity."
+          :code $ quote $ defn parse-prefs (text)
+            let
+                data $ parse-cirru-edn text
+              decode-map-as
+                if (struct? data) (&struct:to-map data) data
+                , app.types/Prefs
+          :examples $ []
+          :schema $ quote $ Fn String (-> app.types/Prefs)
+          :tests $ [] $ %{} 'TestEntry (:name |saved-preferences-roundtrip)
+            :code $ quote $ let
+                prefs $ struct-with (:prefs app.updater/store)
+                  :stack $ [] |app.main/render-app!
+                  :prompt-draft "|中文😀"
+                restored $ parse-prefs $ format-cirru-edn prefs
+              assert= prefs restored
+              assert |restored-local-Prefs $ &struct:matches? restored Prefs
+              , &unit
       :ns $ %{} 'NsEntry (:doc "|Data types shared by the viewer.")
         :code $ quote $ ns app.types
     'app.updater $ %{} 'FileEntry

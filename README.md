@@ -5,6 +5,16 @@ Calcit Viewer
 
 Demo http://repo.calcit-lang.org/calcit-viewer/ .
 
+### 当前工具链与使用者影响
+
+CLI / `@calcit/procs` 配对正式 **0.34.2**，同步正式 Respo **0.19.2**、UI **0.14.1**、Markdown **0.7.1**、Feather **0.6.0**、JS-FFI **0.2.10**（传递 Router **0.11.2**）。Feather 自身保留 0.34.3，消费者按本项目 0.34.2 实际验收。升级后重新安装依赖、编译并刷新；不能与原 Respo 0.17 图混装。
+
+源码树经公开 CirruQuote API 受检收敛为递归 `SourceTree = String | List SourceTree`，遍历和布局函数用穷尽匹配，渲染采用 typed keyed children。41 个 DOM 回调及文件读取入口采用真实 RespoEvent，根渲染接入现代 memo 生命周期；Snapshot / IR 其他原始字段仍由原入口受检解码，不伪称任意 EDN 已闭合。
+
+同时修复刷新后偏好丢失：保存的 Prefs Struct 按 wire 数据转为 Map、完整校验字段，再重建本地 Prefs，保留已有序列化格式；名称不作为名义身份或授权。原错误处理、HUD、存储键及服务器路径保持。导入 union 简名的来源归一问题见 [calcit#2577](https://github.com/calcit-lang/calcit/issues/2577)，当前使用同一类型的全限定名，不放宽门禁或增加强转。
+
+本地通过 556 个全定义、完整 strict（diagnostics 为空）、19 项 native 测试、14 项 Node 回归和构建。实际隔离 Chrome 验证官方 0.34.2 IR / 本项目 Snapshot 导入、源码链接、搜索、关系图、合成问题输入及刷新恢复；未验收 Watch 文件权限或系统剪贴板。PR 仅沿用原 dist 隔离 COS 预览，使用 action 内置 verify，不合并部署或发布 tag/npm。
+
 ### Usage
 
 Generate the reader data in your project with a Calcit release that includes `ir --sources-only` ([calcit#2500](https://github.com/calcit-lang/calcit/pull/2500)):
@@ -24,7 +34,7 @@ Then open `js-out/program-ir.cirru` with "Open file…". A `calcit.cirru` Snapsh
 - "Sunburst" draws the calls from the same root on a canvas, one ring per depth and sized by source (or "Namespaces" for namespaces and their definitions). Click a ring to zoom in and the centre to go up; the corner card shows the definition and links to its code.
 - "Watch file…" (Chrome and Edge) reloads the file whenever it changes on disk, for example with `calcit calcit.cirru ir --sources-only -w` or after rerunning `calcit ir`. Open panels stay, changed definitions are marked "updated" and highlighted in the list; click the "updated" count to clear the marks. A later visit offers "Resume watching" for the same file.
 - "Prompt…" opens a drawer: write a question and "Copy prompt" puts a Markdown prompt on the clipboard with the project, the open panels (signature, doc, spots typed `Dynamic`, optionally source) and `calcit query` commands to continue with. Nothing is sent anywhere by the viewer.
-- The last opened file and the open panels are kept in localStorage.
+- Open panels and preferences are kept in localStorage. File caching retains the existing 4,000,000-character limit and browser-quota limits; uncached files must be selected again after reload.
 
 ### Shortcuts
 
@@ -45,7 +55,8 @@ The toolbar breadcrumb shows the open panels; click a step to close the panels a
 
 ```bash
 caps --strict --ci
-yarn install
+yarn install --immutable
+caps verify --toolchain
 yarn compile
 yarn dev
 ```
