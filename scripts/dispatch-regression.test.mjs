@@ -3,14 +3,16 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import * as clt from '../js-out/calcit.core.mjs';
 import { store, updater } from '../js-out/app.updater.mjs';
+import { Op, parse_prefs } from '../js-out/app.types.mjs';
 import { parse_program, lookup_def, sample_ir } from '../js-out/app.program.mjs';
 import { on_file_change, load_text_$x_ } from '../js-out/app.loader.mjs';
 import { comp_container } from '../js-out/app.comp.container.mjs';
 import { comp_nav_def } from '../js-out/app.comp.nav.mjs';
 import { component_$q_, component_tree, render_node_value } from '../js-out/respo.util.detect.mjs';
 import { make_string } from '../js-out/respo.render.html.mjs';
+import { event__GT_edn } from '../js-out/respo.util.format.mjs';
 
-const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name', 'namespaces', 'defs', 'types', 'loading']);
+const t = clt.init_tags(['click', 'event', 'children', 'node', 'some', 'none', 'error', 'program', 'prefs', 'stack', 'file-name', 'namespaces', 'defs', 'types', 'loading', 'focus', 'restore']);
 const map = clt._$n__$M_;
 const field = (v, k) => clt.option_$o_unwrap(clt.get(v, k));
 const toArray = xs => { const out = []; for (let i = 0; i < clt.count(xs); i++) out.push(clt.option_$o_unwrap(clt.nth(xs, i))); return out; };
@@ -39,7 +41,7 @@ function handler(node, tag) {
 function fileEvent(name) {
   const event = new Event('change');
   Object.defineProperty(event, 'target', { value: { files: { item: () => ({ name }) } } });
-  return map(t.event, event);
+  return event__GT_edn(event);
 }
 
 test('loading the own Snapshot opens the entry and renders the panel stack', () => {
@@ -51,6 +53,16 @@ test('loading the own Snapshot opens the entry and renders the panel stack', () 
   assert.match(html, /render-app!/);
   // The sidebar opens as a call tree from the default entry.
   assert.match(html, /style-side-row[^"]*" style="[^"]*" title="app\.main\/main!"/);
+});
+
+test('saved preferences restore the selected panel before the cached file loads', () => {
+  const run = collect(store);
+  load_text_$x_(source, 'calcit.cirru', run.d);
+  run.d(clt._PCT__$o__$o_(Op, t.focus, 'app.main/render-app!'));
+  const restored = parse_prefs(clt.format_cirru_edn(field(run.get(), t.prefs)));
+  const resumed = collect(updater(store, clt._PCT__$o__$o_(Op, t.restore, restored)));
+  load_text_$x_(source, 'calcit.cirru', resumed.d);
+  assert.deepEqual(toArray(field(field(resumed.get(), t.prefs), t.stack)), ['app.main/render-app!']);
 });
 
 test('clicking a definition in the navigation opens it as the first panel', () => {
