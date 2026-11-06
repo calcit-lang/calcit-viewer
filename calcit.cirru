@@ -420,7 +420,7 @@
               (= view :sunburst) sunburst
               true panels
           :examples $ []
-          :schema $ quote $ Fn Tag respo.schema/Component respo.schema/Component Dynamic (-> Dynamic)
+          :schema $ quote $ Fn Tag respo.schema/Component respo.schema/Component respo.schema/NodeValue (-> respo.schema/NodeValue)
         'comp-breadcrumb $ %{} 'CodeEntry
           :doc "|The open panels as a path; clicking a step closes the panels after it."
           :code $ quote $ defcomp comp-breadcrumb (stack active)
@@ -443,6 +443,26 @@
                     d! $ Op :truncate idx
           :examples $ []
           :schema $ quote $ Fn (List String) Number (-> respo.schema/Component)
+        'comp-code-panels $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defn comp-code-panels (store program)
+            let
+                prefs $ :prefs store
+              if
+                .empty? $ :stack prefs
+                comp-empty-stack
+                list->
+                  {} $ :class-name style-panels
+                  .map-indexed (:stack prefs)
+                    fn (idx id)
+                      hint-fn $ Fn Number String $ -> (List Dynamic)
+                      [] (str idx |: id)
+                        comp-panel program idx id
+                          .includes? (:changed store) id
+                          :inline-types? prefs
+                          = idx $ :active store
+                          .includes? (:collapsed store) id
+          :examples $ []
+          :schema $ quote $ Fn app.types/Store app.types/Program (-> respo.schema/NodeValue)
         'comp-container $ %{} 'CodeEntry
           :doc "|Root layout: navigation, toolbar, the current view and the status bar."
           :code $ quote $ defcomp comp-container (store)
@@ -472,20 +492,7 @@
                       case-view (:view prefs)
                         comp-call-tree program prefs (:expanded store) (:tree-root store)
                         comp-sunburst program prefs (:tree-root store) (:sun-mode store)
-                        if
-                          .empty? $ :stack prefs
-                          comp-empty-stack
-                          list->
-                            {} $ :class-name style-panels
-                            .map-indexed (:stack prefs)
-                              fn (idx id)
-                                hint-fn $ Fn Number String $ -> (List Dynamic)
-                                [] (str idx |: id)
-                                  comp-panel program idx id
-                                    .includes? (:changed store) id
-                                    :inline-types? prefs
-                                    = idx $ :active store
-                                    .includes? (:collapsed store) id
+                        comp-code-panels store program
                     (:none)
                       match (:loading store)
                         (:some file-name) (comp-skeleton file-name)
@@ -1105,7 +1112,7 @@
                     foldl
                       decode-map-as
                         .unwrap $ .get state :frontier
-                        quote $ List String
+                        List String
                       assoc state :frontier $ []
                       fn (acc parent)
                         hint-fn $ Fn (Map Tag Dynamic) String $ -> (Map Tag Dynamic)
@@ -1114,22 +1121,22 @@
                           let
                               seen $ decode-map-as
                                 .unwrap $ .get acc2 :seen
-                                quote $ Set String
+                                Set String
                             if (.includes? seen child) acc2 $ -> acc2
                               assoc :seen $ .include seen child
                               assoc :owner $ .assoc
                                 decode-map-as
                                   .unwrap $ .get acc2 :owner
-                                  quote $ Map String String
+                                  Map String String
                                 , child parent
                               assoc :frontier $ .concat
                                 decode-map-as
                                   .unwrap $ .get acc2 :frontier
-                                  quote $ List String
+                                  List String
                                 [] child
               node-json program root $ decode-map-as
                 .unwrap $ .get state :owner
-                quote $ Map String String
+                Map String String
           :examples $ []
           :schema $ quote $ Fn app.types/Program Bool String (-> String)
         'comp-call-node $ %{} 'CodeEntry
@@ -2456,39 +2463,28 @@
           :schema $ quote Trait
         'FileInputHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileInputHost
-            :files $ quote $ JsNullish app.loader/FileListHost
+            :files $ JsNullish app.loader/FileListHost
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
           :schema $ quote Trait
         'FileListHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileListHost
-            .item! $ quote $ Fn app.loader/FileListHost Number
-              -> $ JsNullish app.loader/FileHost
+            .item! $ Fn app.loader/FileListHost Number $ -> (JsNullish app.loader/FileHost)
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
             :names $ {} $ :item! |item
           :schema $ quote Trait
         'FileReaderHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileReaderHost
-            :result $ quote $ JsNullish JsObject
+            :result $ JsNullish JsObject
             :onload 'Dynamic
             :onerror 'Dynamic
-            .read-as-text! $ quote $ Fn app.loader/FileReaderHost app.loader/FileHost (-> Unit)
+            .read-as-text! $ Fn app.loader/FileReaderHost app.loader/FileHost $ -> Unit
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
             :names $ {} $ :read-as-text! |readAsText
             :writable $ #{} :onerror :onload
           :schema $ quote Trait
-        'as-dispatch $ %{} 'CodeEntry
-          :doc "|Narrows the `d!` handed to Respo event handlers into a typed dispatch."
-          :code $ quote $ defn as-dispatch (dispatch)
-            fn (op)
-              hint-fn $ Fn app.types/Op $ -> Unit
-              if (fn? dispatch) (dispatch op) (raise "|Expected dispatch callback")
-              , &unit
-          :examples $ []
-          :schema $ quote $ Fn Dynamic
-            -> $ Fn app.types/Op $ -> Unit
         'cache-key $ %{} 'CodeEntry (:doc "|localStorage key for the last loaded file text.")
           :code $ quote $ def cache-key |calcit-viewer-source
           :examples $ []
@@ -2526,9 +2522,8 @@
             -> Unit
             :features :js-ffi
         'on-file-change $ %{} 'CodeEntry (:doc "|Reads the picked file with FileReader.")
-          :code $ quote $ defn on-file-change (e dispatch)
+          :code $ quote $ defn on-file-change (e d!)
             let
-                d! $ as-dispatch dispatch
                 event-host $ js-cast (:event e) 'js-ffi.browser/EventHost
                 target $ js-cast (.-target event-host) 'app.loader/FileInputHost
                 raw-files $ .-files target
@@ -2577,36 +2572,38 @@
             :features :js-ffi
         'resume-watch! $ %{} 'CodeEntry
           :doc "|Resumes the stored file handle; the browser asks for read permission."
-          :code $ quote $ defn resume-watch! (dispatch)
-            let
-                d! $ as-dispatch dispatch
-              resume-watch (watch-on-text d!) (watch-on-error d!)
-                fn (file-name)
-                  hint-fn $ Fn String $ -> Unit
-                  d! $ Op :watching file-name
-              , &unit
+          :code $ quote $ defn resume-watch! (d!)
+            resume-watch (watch-on-text d!) (watch-on-error d!)
+              fn (file-name)
+                hint-fn $ Fn String $ -> Unit
+                d! $ Op :watching file-name
+            , &unit
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
         'stop-watch! $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defn stop-watch! (dispatch)
-            let
-                d! $ as-dispatch dispatch
-              stop-watch
-              d! $ Op :stop-watching
+          :code $ quote $ defn stop-watch! (d!) (stop-watch)
+            d! $ Op :stop-watching
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
         'watch! $ %{} 'CodeEntry
           :doc "|Picks a file and reloads it whenever it changes on disk."
-          :code $ quote $ defn watch! (dispatch)
-            let
-                d! $ as-dispatch dispatch
-              pick-and-watch (watch-on-text d!) (watch-on-error d!)
-                fn (file-name)
-                  hint-fn $ Fn String $ -> Unit
-                  d! $ Op :watching file-name
-              , &unit
+          :code $ quote $ defn watch! (d!)
+            pick-and-watch (watch-on-text d!) (watch-on-error d!)
+              fn (file-name)
+                hint-fn $ Fn String $ -> Unit
+                d! $ Op :watching file-name
+            , &unit
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn
+            Fn app.types/Op $ -> Unit
+            -> Unit
+            :features :js-ffi
         'watch-on-error $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn watch-on-error (d!)
             fn (message)
@@ -2778,6 +2775,10 @@
             respo.memo :refer $ with-memo-frame
     'app.program $ %{} 'FileEntry
       :defs $ {}
+        'ProgramName $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defunion ProgramName String Tag Symbol
+          :examples $ []
+          :schema $ quote UnionDef
         'all-defs $ %{} 'CodeEntry (:doc "|Every definition of every namespace.")
           :code $ quote $ defn all-defs (namespaces)
             .flat-map (map-values namespaces)
@@ -2924,14 +2925,10 @@
         'name-text $ %{} 'CodeEntry
           :doc "|Text of a name stored as a tag, symbol or string; empty for nil."
           :code $ quote $ defn name-text (raw)
-            cond
-                nil? raw
-                , |
-              (symbol? raw)
-                .to-string $ decode-map-as raw 'Symbol
-              (tag? raw)
-                .to-string $ decode-map-as raw 'Tag
-              true $ decode-map-as raw 'String
+            if (nil? raw) | $ match (decode-map-as raw app.program/ProgramName)
+              (String text) text
+              (Tag tag) (.to-string tag)
+              (Symbol symbol) (.to-string symbol)
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> String)
         'ns-imports $ %{} 'CodeEntry
@@ -3007,8 +3004,7 @@
           :code $ quote $ defn parse-entries (raw)
             if (nil? raw) ([])
               let
-                  pairs $ .to-list $ decode-map-as raw
-                    quote $ Map Dynamic Dynamic
+                  pairs $ .to-list $ decode-map-as raw (Map Dynamic Dynamic)
                   entries $ .map pairs $ fn (pair)
                     hint-fn $ Fn (List Dynamic) (-> EntryInfo)
                     let
@@ -3044,12 +3040,10 @@
             let
                 meta $ read-field data :meta
                 configs $ read-field data :configs
-                sources $ decode-map-as (read-field data :sources)
-                  quote $ Map String Dynamic
+                sources $ decode-map-as (read-field data :sources) (Map String Dynamic)
                 namespaces $ .filter-map-kv sources $ fn (ns-name file)
                   let
-                      defs $ decode-map-as (read-field file :defs)
-                        quote $ Map String Dynamic
+                      defs $ decode-map-as (read-field file :defs) (Map String Dynamic)
                     MapEntryDecision :keep ns-name $ NsInfo :name ns-name :origin
                       decode-map-as (read-field file :origin) 'Tag
                       , :doc (read-string file :ns-doc) :code
@@ -3086,12 +3080,11 @@
                 , :source
                   decode-map-as (read-field d :source) 'CirruQuote
                   , :schema (read-option-string d :schema) :type (read-option-string d :type) :deps
-                    decode-map-as (read-field d :deps)
-                      quote $ List String
+                    decode-map-as (read-field d :deps) (List String)
                     , :types
                       foldl
                         decode-map-as (read-field d :types)
-                          quote $ List $ List String
+                          List $ List String
                         {}
                         fn (acc pair)
                           hint-fn $ Fn (Map String String) (List String)
@@ -3120,8 +3113,7 @@
           :doc "|Reads a `calcit.cirru` Snapshot. Types are only the declared schemas; dependencies are resolved from symbols."
           :code $ quote $ defn parse-snapshot (data)
             let
-                files $ decode-map-as (read-field data :files)
-                  quote $ Map Symbol Dynamic
+                files $ decode-map-as (read-field data :files) (Map Symbol Dynamic)
                 default-entry $ read-field (read-field data :entries) :default
                 raw-init $ read-field default-entry :init-fn
                 bare $ .filter-map-kv files $ fn (ns-sym file)
@@ -3162,8 +3154,7 @@
           :code $ quote $ defn parse-snapshot-ns (ns-name file)
             let
                 ns-entry $ read-field file :ns
-                defs $ decode-map-as (read-field file :defs)
-                  quote $ Map Symbol Dynamic
+                defs $ decode-map-as (read-field file :defs) (Map Symbol Dynamic)
               NsInfo :name ns-name :origin :project :doc (read-string ns-entry :doc) :code
                 decode-map-as (read-field ns-entry :code) 'CirruQuote
                 , :defs $ .filter-map-kv defs $ fn (def-sym entry)
@@ -3176,7 +3167,7 @@
           :code $ quote $ defn parse-tests (raw)
             if (nil? raw) ([])
               .map
-                decode-map-as raw $ quote $ List Dynamic
+                decode-map-as raw $ List Dynamic
                 fn (test)
                   hint-fn $ Fn Dynamic $ -> TestInfo
                   TestInfo :name (read-string test :name) :source $ decode-map-as (read-field test :code) 'CirruQuote
@@ -3517,10 +3508,10 @@
         'CodeCtx $ %{} 'CodeEntry
           :doc "|What rendering one definition's source needs: where symbols resolve and which panel opens next."
           :code $ quote $ defstruct CodeCtx
-            :namespaces $ quote $ Map String app.types/NsInfo
+            :namespaces $ Map String app.types/NsInfo
             :ns-info app.types/NsInfo
-            :imports $ quote $ Map Tag (Map String String)
-            :types $ quote $ Map String String
+            :imports $ Map Tag $ Map String String
+            :types $ Map String String
             :self String
             :next-idx Number
             :inline-types? Bool
@@ -3529,14 +3520,14 @@
         'DefInfo $ %{} 'CodeEntry
           :doc "|One definition as shown by the viewer, from `calcit ir` `:sources` or a Snapshot."
           :code $ quote $ defstruct DefInfo (:id String) (:ns String) (:name String) (:doc String) (:head String) (:kind String) (:source CirruQuote)
-            :schema $ quote $ Option String
-            :type $ quote $ Option String
-            :deps $ quote $ List String
-            :types $ quote $ Map String String
+            :schema $ Option String
+            :type $ Option String
+            :deps $ List String
+            :types $ Map String String
             :hash String
-            :error $ quote $ Option String
+            :error $ Option String
             :size Number
-            :tests $ quote $ List app.types/TestInfo
+            :tests $ List app.types/TestInfo
           :examples $ []
           :schema $ quote StructDef
         'EntryInfo $ %{} 'CodeEntry
@@ -3547,12 +3538,12 @@
         'NsInfo $ %{} 'CodeEntry
           :doc "|A namespace with its definitions; `:origin` is `:project`, `:dep` or `:core`."
           :code $ quote $ defstruct NsInfo (:name String) (:origin Tag) (:doc String) (:code CirruQuote)
-            :defs $ quote $ Map String app.types/DefInfo
+            :defs $ Map String app.types/DefInfo
           :examples $ []
           :schema $ quote StructDef
         'Op $ %{} 'CodeEntry (:doc "|Store operations.")
           :code $ quote $ defenum Op (:load app.types/Program String Number) (:error String) (:open Number String) (:close Number) (:filter String) (:toggle-libs) (:toggle-inline-types) (:restore app.types/Prefs) (:watching String) (:stop-watching) (:view Tag) (:focus String) (:toggle-node String)
-            :zoom $ quote $ Option String
+            :zoom $ Option String
             :prompt-draft String
             :toggle-prompt
             :toggle-prompt-source
@@ -3572,7 +3563,7 @@
             :palette-move Number
             :loading String
             :tree-root String
-            :set-expanded $ quote $ Set String
+            :set-expanded $ Set String
             :sun-mode Tag
             :toggle-side String
             :resumable String
@@ -3580,7 +3571,7 @@
           :schema $ quote EnumDef
         'Prefs $ %{} 'CodeEntry (:doc "|View preferences kept in localStorage.")
           :code $ quote $ defstruct Prefs
-            :stack $ quote $ List String
+            :stack $ List String
             :filter String
             :show-libs? Bool
             :inline-types? Bool
@@ -3594,42 +3585,41 @@
         'Program $ %{} 'CodeEntry
           :doc "|Loaded program; `:users` maps a definition id to the definitions that reference it."
           :code $ quote $ defstruct Program (:package String) (:calcit-version String) (:format Tag) (:init-fn String)
-            :namespaces $ quote $ Map String app.types/NsInfo
-            :users $ quote $ Map String (List String)
-            :entries $ quote $ List app.types/EntryInfo
+            :namespaces $ Map String app.types/NsInfo
+            :users $ Map String $ List String
+            :entries $ List app.types/EntryInfo
           :examples $ []
           :schema $ quote StructDef
         'SourceTree $ %{} 'CodeEntry
           :doc "|A Cirru source node: one String token or a recursively nested List of SourceTree. This models quoted source, not arbitrary EDN."
-          :code $ quote $ defunion SourceTree String
-            quote $ List SourceTree
+          :code $ quote $ defunion SourceTree String (List SourceTree)
           :examples $ []
           :schema $ quote UnionDef
         'Store $ %{} 'CodeEntry
           :doc "|Application state. `:stack` holds the definition ids of the open panels from left to right."
           :code $ quote $ defstruct Store
-            :program $ quote $ Option app.types/Program
-            :error $ quote $ Option String
+            :program $ Option app.types/Program
+            :error $ Option String
             :file-name String
             :loaded-at Number
-            :changed $ quote $ Set String
+            :changed $ Set String
             :prefs app.types/Prefs
-            :watching $ quote $ Option String
-            :resumable $ quote $ Option String
-            :expanded $ quote $ Set String
-            :zoom $ quote $ Option String
+            :watching $ Option String
+            :resumable $ Option String
+            :expanded $ Set String
+            :zoom $ Option String
             :copied-at Number
-            :ns-toggled $ quote $ Set String
-            :history $ quote $ List (List String)
-            :future $ quote $ List (List String)
+            :ns-toggled $ Set String
+            :history $ List $ List String
+            :future $ List $ List String
             :active Number
-            :collapsed $ quote $ Set String
-            :palette $ quote $ Option String
+            :collapsed $ Set String
+            :palette $ Option String
             :palette-idx Number
-            :loading $ quote $ Option String
-            :tree-root $ quote $ Option String
+            :loading $ Option String
+            :tree-root $ Option String
             :sun-mode Tag
-            :side-toggled $ quote $ Set String
+            :side-toggled $ Set String
           :examples $ []
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
