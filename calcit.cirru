@@ -6,7 +6,7 @@
     {} (:description |) (:init-fn 'app.main/main!) (:mode :js) (:reload-fn 'app.main/reload!) (:target :browser)
       :feature-policy $ {}
       :modules $ [] |respo.calcit/ |respo-ui.calcit/ |respo-markdown.calcit/ |respo-feather.calcit/ |js-ffi/
-      :type-slots $ {} $ :dispatch-op |app.types/Op
+      :type-slots $ {} $ :dispatch-op 'app.types/Op
   :files $ {}
     'app.comp.code $ %{} 'FileEntry
       :defs $ {}
@@ -2925,12 +2925,15 @@
         'name-text $ %{} 'CodeEntry
           :doc "|Text of a name stored as a tag, symbol or string; empty for nil."
           :code $ quote $ defn name-text (raw)
-            if (nil? raw) | $ match (decode-map-as raw app.program/ProgramName)
-              (String text) text
-              (Tag tag) (.to-string tag)
-              (Symbol symbol) (.to-string symbol)
+            match raw
+              (:some name)
+                match name
+                  (String text) text
+                  (Tag tag) (.to-string tag)
+                  (Symbol symbol) (.to-string symbol)
+              (:none) |
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> String)
+          :schema $ quote $ Fn (Option app.program/ProgramName) (-> String)
         'ns-imports $ %{} 'CodeEntry
           :doc "|Reads `:require` rules of an `ns` form into referred names and namespace aliases."
           :code $ quote $ defn ns-imports (ns-tree)
@@ -3010,11 +3013,13 @@
                     let
                         config $ .unwrap $ .get pair 1
                       EntryInfo :name
-                        name-text $ .unwrap $ .get pair 0
+                        name-text $ decode-map-as
+                          nil->option $ .unwrap $ .get pair 0
+                          Option app.program/ProgramName
                         , :init-fn
-                          name-text $ read-field config :init-fn
+                          name-text $ decode-map-as (read-field config :init-fn) (Option app.program/ProgramName)
                           , :reload-fn
-                            name-text $ read-field config :reload-fn
+                            name-text $ decode-map-as (read-field config :reload-fn) (Option app.program/ProgramName)
                             , :description $ read-string config :description
                 .sort entries $ fn (a b)
                   hint-fn $ Fn EntryInfo EntryInfo $ -> Number
@@ -3038,26 +3043,35 @@
           :doc "|Reads `program-ir.cirru` written by `calcit ir` (`:sources` section)."
           :code $ quote $ defn parse-ir (data)
             let
-                meta $ read-field data :meta
-                configs $ read-field data :configs
-                sources $ decode-map-as (read-field data :sources) (Map String Dynamic)
+                meta $ .unwrap-or (read-field data :meta) ({})
+                configs $ .unwrap-or (read-field data :configs) ({})
+                sources $ decode-map-as
+                  .unwrap $ read-field data :sources
+                  Map String Dynamic
                 namespaces $ .filter-map-kv sources $ fn (ns-name file)
                   let
-                      defs $ decode-map-as (read-field file :defs) (Map String Dynamic)
+                      defs $ decode-map-as
+                        .unwrap $ read-field file :defs
+                        Map String Dynamic
                     MapEntryDecision :keep ns-name $ NsInfo :name ns-name :origin
-                      decode-map-as (read-field file :origin) 'Tag
+                      decode-map-as
+                        .unwrap $ read-field file :origin
+                        , 'Tag
                       , :doc (read-string file :ns-doc) :code
-                        decode-map-as (read-field file :ns-code) 'CirruQuote
+                        decode-map-as
+                          .unwrap $ read-field file :ns-code
+                          , 'CirruQuote
                         , :defs $ .filter-map-kv defs
                           fn (def-name d)
                             MapEntryDecision :keep def-name $ parse-ir-def ns-name def-name d
-              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ let
-                  listed $ read-field meta :entries
-                if (nil? listed)
-                  {} $ |default $ {}
-                    :init-fn $ read-field configs :init-fn
-                    :reload-fn $ read-field configs :reload-fn
-                  , listed
+              Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users (collect-users namespaces) :entries $ match (read-field meta :entries)
+                (:some listed) (parse-entries listed)
+                (:none)
+                  [] $ EntryInfo :name |default :init-fn
+                    name-text $ decode-map-as (read-field configs :init-fn) (Option app.program/ProgramName)
+                    , :reload-fn
+                      name-text $ decode-map-as (read-field configs :reload-fn) (Option app.program/ProgramName)
+                      , :description |
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> app.types/Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-sources)
@@ -3076,14 +3090,22 @@
             let
                 kind $ read-field d :kind
               DefInfo :id (def-id ns-name def-name) :ns ns-name :name def-name :doc (read-string d :doc) :head (read-string d :head) :kind
-                if (nil? kind) | $ .to-string $ decode-map-as kind 'Tag
+                match kind
+                  (:some raw)
+                    .to-string $ decode-map-as raw 'Tag
+                  (:none) |
                 , :source
-                  decode-map-as (read-field d :source) 'CirruQuote
+                  decode-map-as
+                    .unwrap $ read-field d :source
+                    , 'CirruQuote
                   , :schema (read-option-string d :schema) :type (read-option-string d :type) :deps
-                    decode-map-as (read-field d :deps) (List String)
+                    decode-map-as
+                      .unwrap $ read-field d :deps
+                      List String
                     , :types
                       foldl
-                        decode-map-as (read-field d :types)
+                        decode-map-as
+                          .unwrap $ read-field d :types
                           List $ List String
                         {}
                         fn (acc pair)
@@ -3093,18 +3115,20 @@
                             .unwrap-or (.get pair 0) |
                             .unwrap-or (.get pair 1) |
                       , :hash (read-string d :hash) :error (read-option-string d :error) :size
-                        source-size $ decode-map-as (read-field d :source) 'CirruQuote
-                        , :tests $ parse-tests $ read-field d :tests
+                        source-size $ decode-map-as
+                          .unwrap $ read-field d :source
+                          , 'CirruQuote
+                        , :tests $ parse-tests $ .unwrap-or (read-field d :tests) ([])
           :examples $ []
           :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
         'parse-program $ %{} 'CodeEntry
           :doc "|Reads either a `calcit ir` artifact or a `calcit.cirru` Snapshot."
           :code $ quote $ defn parse-program (data)
             if
-              non-nil? $ read-field data :sources
+              .some? $ read-field data :sources
               parse-ir data
               if
-                non-nil? $ read-field data :files
+                .some? $ read-field data :files
                 parse-snapshot data
                 raise "|Expected program-ir.cirru with :sources, or a calcit.cirru Snapshot with :files"
           :examples $ []
@@ -3113,8 +3137,14 @@
           :doc "|Reads a `calcit.cirru` Snapshot. Types are only the declared schemas; dependencies are resolved from symbols."
           :code $ quote $ defn parse-snapshot (data)
             let
-                files $ decode-map-as (read-field data :files) (Map Symbol Dynamic)
-                default-entry $ read-field (read-field data :entries) :default
+                files $ decode-map-as
+                  .unwrap $ read-field data :files
+                  Map Symbol Dynamic
+                default-entry $ .unwrap-or
+                  read-field
+                    .unwrap-or (read-field data :entries) ({})
+                    , :default
+                  {}
                 raw-init $ read-field default-entry :init-fn
                 bare $ .filter-map-kv files $ fn (ns-sym file)
                   MapEntryDecision :keep (.to-string ns-sym)
@@ -3124,8 +3154,11 @@
                     fn (def-name info)
                       MapEntryDecision :keep def-name $ assoc info :deps $ source-deps bare ns-info info
               Program :package (read-string data :package) :calcit-version | :format :snapshot :init-fn
-                if (nil? raw-init) | $ .to-string $ decode-map-as raw-init 'Symbol
-                , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ read-field data :entries
+                match raw-init
+                  (:some raw)
+                    .to-string $ decode-map-as raw 'Symbol
+                  (:none) |
+                , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ .unwrap-or (read-field data :entries) ({})
           :examples $ []
           :schema $ quote $ Fn Dynamic (-> app.types/Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-snapshot)
@@ -3140,23 +3173,31 @@
           :doc "|One `CodeEntry` of a Snapshot, before dependencies are resolved."
           :code $ quote $ defn parse-snapshot-def (ns-name def-name entry)
             let
-                code $ decode-map-as (read-field entry :code) 'CirruQuote
+                code $ decode-map-as
+                  .unwrap $ read-field entry :code
+                  , 'CirruQuote
                 schema $ read-field entry :schema
               DefInfo :id (def-id ns-name def-name) :ns ns-name :name def-name :doc (read-string entry :doc) :head
                 first-leaf $ code->tree code
                 , :kind | :source code :schema
-                  if (nil? schema) (Option :none)
-                    Option :some $ quote-text $ decode-map-as schema 'CirruQuote
-                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size (source-size code) :tests $ parse-tests $ read-field entry :tests
+                  match schema
+                    (:some raw)
+                      Option :some $ quote-text $ decode-map-as raw 'CirruQuote
+                    (:none) (Option :none)
+                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size (source-size code) :tests $ parse-tests $ .unwrap-or (read-field entry :tests) ([])
           :examples $ []
           :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
         'parse-snapshot-ns $ %{} 'CodeEntry (:doc "|One `FileEntry` of a Snapshot.")
           :code $ quote $ defn parse-snapshot-ns (ns-name file)
             let
-                ns-entry $ read-field file :ns
-                defs $ decode-map-as (read-field file :defs) (Map Symbol Dynamic)
+                ns-entry $ .unwrap $ read-field file :ns
+                defs $ decode-map-as
+                  .unwrap $ read-field file :defs
+                  Map Symbol Dynamic
               NsInfo :name ns-name :origin :project :doc (read-string ns-entry :doc) :code
-                decode-map-as (read-field ns-entry :code) 'CirruQuote
+                decode-map-as
+                  .unwrap $ read-field ns-entry :code
+                  , 'CirruQuote
                 , :defs $ .filter-map-kv defs $ fn (def-sym entry)
                   MapEntryDecision :keep (.to-string def-sym)
                     parse-snapshot-def ns-name (.to-string def-sym) entry
@@ -3170,7 +3211,9 @@
                 decode-map-as raw $ List Dynamic
                 fn (test)
                   hint-fn $ Fn Dynamic $ -> TestInfo
-                  TestInfo :name (read-string test :name) :source $ decode-map-as (read-field test :code) 'CirruQuote
+                  TestInfo :name (read-string test :name) :source $ decode-map-as
+                    .unwrap $ read-field test :code
+                    , 'CirruQuote
           :examples $ []
           :schema $ quote $ Fn Dynamic
             -> $ List app.types/TestInfo
@@ -3196,32 +3239,31 @@
         'read-field $ %{} 'CodeEntry
           :doc "|Reads a field of a Snapshot record or a plain map; nil when missing."
           :code $ quote $ defn read-field (value field)
-            cond
-                nil? value
-                , nil
-              (struct? value)
-                .unwrap-or
-                  get (&struct:to-map value) field
-                  , nil
-              true $ .unwrap-or
-                get (decode-map-as value 'Map) field
-                , nil
+            let
+                fields $ cond
+                    nil? value
+                    {}
+                  (struct? value) (&struct:to-map value)
+                  true $ decode-map-as value 'Map
+              match (get fields field)
+                (:some raw) (nil->option raw)
+                (:none) (Option :none)
           :examples $ []
-          :schema $ quote $ Fn Dynamic Tag (-> Dynamic)
+          :schema $ quote $ Fn Dynamic Tag
+            -> $ Option Dynamic
+            :open :decode
         'read-option-string $ %{} 'CodeEntry (:doc "|Reads an optional string field.")
           :code $ quote $ defn read-option-string (value field)
-            let
-                raw $ read-field value field
-              if (nil? raw) (Option :none)
+            match (read-field value field)
+              (:some raw)
                 Option :some $ decode-map-as raw 'String
+              (:none) (Option :none)
           :examples $ []
           :schema $ quote $ Fn Dynamic Tag
             -> $ Option String
         'read-string $ %{} 'CodeEntry (:doc "|Reads a string field, empty when missing.")
           :code $ quote $ defn read-string (value field)
-            let
-                raw $ read-field value field
-              if (nil? raw) | $ decode-map-as raw 'String
+            .unwrap-or (read-option-string value field) |
           :examples $ []
           :schema $ quote $ Fn Dynamic Tag (-> String)
         'resolve-leaf $ %{} 'CodeEntry
