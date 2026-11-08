@@ -424,11 +424,11 @@
         'comp-breadcrumb $ %{} 'CodeEntry
           :doc "|The open panels as a path; clicking a step closes the panels after it."
           :code $ quote $ defcomp comp-breadcrumb (stack active)
-            list->
+            keyed->
               {} $ :class-name style-crumbs
               .map-indexed stack $ fn (idx id)
-                hint-fn $ Fn Number String $ -> (List Dynamic)
-                [] idx $ span $ {}
+                hint-fn $ Fn Number String $ -> respo.schema/ChildPair
+                keyed-element idx $ span $ {}
                   :class-name $ str-spaced style-crumb $ if (= idx active) style-crumb-active |
                   :title id
                   :inner-text $ str
@@ -450,12 +450,12 @@
               if
                 .empty? $ :stack prefs
                 comp-empty-stack
-                list->
+                keyed->
                   {} $ :class-name style-panels
                   .map-indexed (:stack prefs)
                     fn (idx id)
-                      hint-fn $ Fn Number String $ -> (List Dynamic)
-                      [] (str idx |: id)
+                      hint-fn $ Fn Number String $ -> respo.schema/ChildPair
+                      keyed-component (str idx |: id)
                         comp-panel program idx id
                           .includes? (:changed store) id
                           :inline-types? prefs
@@ -585,13 +585,13 @@
                                   d! $ if (:shift? info) (Op :append id) (Op :focus id)
                               (:none) &unit
                           true &unit
-                  list->
+                  keyed->
                     {} $ :class-name style-palette-list
                     .map-indexed results $ fn (i id)
-                      hint-fn $ Fn Number String $ -> (List Dynamic)
+                      hint-fn $ Fn Number String $ -> respo.schema/ChildPair
                       let
                           parts $ split-id id
-                        [] id $ div
+                        keyed-element id $ div
                           {}
                             :class-name $ str-spaced style-palette-item $ if (= i current) style-palette-current |
                             :on-click $ fn (e d!)
@@ -724,22 +724,17 @@
           :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
         'comp-view-tabs $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-view-tabs (view)
-            list->
+            keyed->
               {} $ :class-name style-tabs
               .map
-                [] ([] :code |Code) ([] :tree "|Call tree") ([] :sunburst |Sunburst)
-                fn (pair)
-                  hint-fn $ Fn (List Dynamic)
-                    -> $ List Dynamic
+                [] (app.types/ViewTab :tag :code :label |Code) (app.types/ViewTab :tag :tree :label "|Call tree") (app.types/ViewTab :tag :sunburst :label |Sunburst)
+                fn (tab)
+                  hint-fn $ Fn app.types/ViewTab $ -> respo.schema/ChildPair
                   let
-                      tag $ decode-map-as
-                        .unwrap $ .get pair 0
-                        , 'Tag
-                    [] tag $ span $ {}
+                      tag $ :tag tab
+                    keyed-element tag $ span $ {}
                       :class-name $ str-spaced style-tab $ if (= tag view) style-tab-active |
-                      :inner-text $ decode-map-as
-                        .unwrap $ .get pair 1
-                        , 'String
+                      :inner-text $ :label tab
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
                           Fn app.types/Op $ -> Unit
@@ -1059,7 +1054,7 @@
       :ns $ %{} 'NsEntry (:doc "|Root component.")
         :code $ quote $ ns app.comp.container
           :require
-            respo.core :refer $ defcomp div span <> list-> input event-value keyboard-info
+            respo.core :refer $ defcomp div span <> keyed-> keyed-element keyed-component input event-value keyboard-info
             respo.css :refer $ defstyle
             respo-ui.css :as css
             respo-md.comp.md :refer $ comp-md-block
@@ -1201,11 +1196,11 @@
                           , "| callee" "| callees"
                 if
                   and open? $ not looped?
-                  list->
+                  keyed->
                     {} $ :class-name style-tree-children
                     .map children $ fn (child)
-                      hint-fn $ Fn String $ -> (List Dynamic)
-                      [] child $ comp-call-node program show-libs? expanded
+                      hint-fn $ Fn String $ -> respo.schema/ChildPair
+                      keyed-element child $ comp-call-node program show-libs? expanded
                         .concat path $ [] id
                         , child
                   span $ {}
@@ -1265,15 +1260,14 @@
               div
                 {} $ :class-name style-graph-bar
                 span $ {} (:class-name style-graph-label) (:inner-text |Root)
-                list->
+                keyed->
                   {} $ :class-name style-graph-roots
                   .map choices $ fn (pair)
-                    hint-fn $ Fn (List String)
-                      -> $ List Dynamic
+                    hint-fn $ Fn (List String) (-> respo.schema/ChildPair)
                     let
                         label $ .unwrap-or (.get pair 0) |
                         id $ .unwrap-or (.get pair 1) |
-                      [] (str label |: id)
+                      keyed-element (str label |: id)
                         span
                           {} (:title id)
                             :class-name $ str-spaced style-graph-root $ if (= id root) style-graph-root-active |
@@ -1299,22 +1293,17 @@
                 json $ if (= mode :namespaces) (namespace-json program show-libs?) (call-json program show-libs? root)
               div
                 {} $ :class-name style-graph-column
-                comp-root-picker program prefs root $ list->
+                comp-root-picker program prefs root $ keyed->
                   {} $ :class-name style-graph-actions
                   .map
-                    [] ([] :calls |Calls) ([] :namespaces |Namespaces)
-                    fn (pair)
-                      hint-fn $ Fn (List Dynamic)
-                        -> $ List Dynamic
+                    [] (app.types/ViewTab :tag :calls :label |Calls) (app.types/ViewTab :tag :namespaces :label |Namespaces)
+                    fn (tab)
+                      hint-fn $ Fn app.types/ViewTab $ -> respo.schema/ChildPair
                       let
-                          tag $ decode-map-as
-                            .unwrap $ .get pair 0
-                            , 'Tag
-                        [] tag $ span $ {}
+                          tag $ :tag tab
+                        keyed-element tag $ span $ {}
                           :class-name $ str-spaced style-graph-button $ if (= tag mode) style-graph-button-active |
-                          :inner-text $ decode-map-as
-                            .unwrap $ .get pair 1
-                            , 'String
+                          :inner-text $ :label tab
                           :on-click $ fn (e d!)
                             hint-fn $ Fn respo.schema/RespoEvent
                               Fn app.types/Op $ -> Unit
@@ -1562,7 +1551,7 @@
       :ns $ %{} 'NsEntry (:doc "|Call tree and sunburst structure views.")
         :code $ quote $ ns app.comp.graph
           :require
-            respo.core :refer $ defcomp div span <> list->
+            respo.core :refer $ defcomp div span <> keyed-> keyed-element
             respo.css :refer $ defstyle
             app.types :refer $ Op NsInfo DefInfo EntryInfo
             app.program :refer $ lookup-def split-id map-values
@@ -1659,11 +1648,11 @@
                 span $ {} (:class-name style-count)
                   :inner-text $ str $ .len defs
               if open?
-                list->
+                keyed->
                   {} $ :class-name style-ns-defs
                   .map defs $ fn (info)
-                    hint-fn $ Fn DefInfo $ -> (List Dynamic)
-                    [] (:name info)
+                    hint-fn $ Fn DefInfo $ -> respo.schema/ChildPair
+                    keyed-component (:name info)
                       comp-nav-def info
                         .includes? open-ids $ :id info
                         .includes? changed $ :id info
@@ -1679,9 +1668,9 @@
                 div $ {} (:class-name style-nav-empty)
                   :inner-text $ str "|No definitions match “" query "|”"
                 span $ {}
-              list-> ({})
+              keyed-> ({})
                 .map visible $ fn (ns-info)
-                  hint-fn $ Fn NsInfo $ -> (List Dynamic)
+                  hint-fn $ Fn NsInfo $ -> respo.schema/ChildPair
                   let
                       defs $ ->
                         map-values $ :defs ns-info
@@ -1689,7 +1678,7 @@
                           hint-fn $ Fn DefInfo $ -> Bool
                           or (.empty? query)
                             .includes? (:id info) query
-                    [] (:name ns-info)
+                    keyed-element (:name ns-info)
                       if (.empty? defs)
                         span $ {}
                         let
@@ -1705,17 +1694,17 @@
         'comp-side-tree $ %{} 'CodeEntry
           :doc "|Call tree from every program entry: init and reload roots start open, other rows open on the arrow; clicking a name opens it as the first panel."
           :code $ quote $ defn comp-side-tree (program show-libs? open-ids changed toggled)
-            list->
+            keyed->
               {} $ :class-name style-nav-list
               .map (:entries program)
                 fn (entry)
-                  hint-fn $ Fn EntryInfo $ -> (List Dynamic)
+                  hint-fn $ Fn EntryInfo $ -> respo.schema/ChildPair
                   let
                       roots $ if
                         = (:reload-fn entry) (:init-fn entry)
                         [] $ :init-fn entry
                         [] (:init-fn entry) (:reload-fn entry)
-                    [] (:name entry)
+                    keyed-element (:name entry)
                       div
                         {} $ :class-name style-side-entry
                         div
@@ -1725,13 +1714,13 @@
                               :name entry
                               :description entry
                           <> $ :name entry
-                        list-> ({})
+                        keyed-> ({})
                           .map
                             .filter roots $ fn (id)
                               not $ .empty? id
                             fn (id)
-                              hint-fn $ Fn String $ -> (List Dynamic)
-                              [] id $ side-node program show-libs? open-ids changed toggled (:name entry) ([]) id
+                              hint-fn $ Fn String $ -> respo.schema/ChildPair
+                              keyed-element id $ side-node program show-libs? open-ids changed toggled (:name entry) ([]) id
           :examples $ []
           :schema $ quote $ Fn app.types/Program Bool (Set String) (Set String) (Set String) (-> respo.schema/Element)
         'head-label $ %{} 'CodeEntry
@@ -1811,11 +1800,11 @@
                         head-label $ :head d
                       (:none) |
                 if open?
-                  list->
+                  keyed->
                     {} $ :class-name style-ns-defs
                     .map children $ fn (child)
-                      hint-fn $ Fn String $ -> (List Dynamic)
-                      [] child $ side-node program show-libs? open-ids changed toggled prefix
+                      hint-fn $ Fn String $ -> respo.schema/ChildPair
+                      keyed-element child $ side-node program show-libs? open-ids changed toggled prefix
                         .concat path $ [] id
                         , child
                   span $ {}
@@ -1957,7 +1946,7 @@
       :ns $ %{} 'NsEntry (:doc "|Left navigation.")
         :code $ quote $ ns app.comp.nav
           :require
-            respo.core :refer $ defcomp div span <> list-> input event-value
+            respo.core :refer $ defcomp div span <> keyed-> keyed-element keyed-component input event-value
             respo.css :refer $ defstyle
             app.types :refer $ Op NsInfo DefInfo EntryInfo
             app.program :refer $ map-values dynamic-ratio split-id lookup-def
@@ -1973,14 +1962,14 @@
                 <> $ str title "| (" (.len ids) "|)"
               if (.empty? ids)
                 div $ {} (:class-name style-none) (:inner-text |None)
-                list->
+                keyed->
                   {} $ :class-name style-def-list
                   .map ids $ fn (id)
-                    hint-fn $ Fn String $ -> (List Dynamic)
+                    hint-fn $ Fn String $ -> respo.schema/ChildPair
                     let
                         parts $ split-id id
                         known? $ .some? $ lookup-def program id
-                      [] id $ div
+                      keyed-element id $ div
                         {} (:title id)
                           :class-name $ str-spaced style-ref-card $ if known? | style-ref-missing
                           :on-click $ fn (e d!)
@@ -2133,11 +2122,11 @@
                 div
                   {} $ :class-name style-section-title
                   <> $ str "|Tests (" (.len tests) "|)"
-                list->
+                keyed->
                   {} $ :class-name style-tests
                   .map tests $ fn (test)
-                    hint-fn $ Fn TestInfo $ -> (List Dynamic)
-                    [] (:name test)
+                    hint-fn $ Fn TestInfo $ -> respo.schema/ChildPair
+                    keyed-element (:name test)
                       div
                         {} $ :class-name style-test
                         div
@@ -2336,7 +2325,7 @@
       :ns $ %{} 'NsEntry (:doc "|A definition panel in the panel stack.")
         :code $ quote $ ns app.comp.panel
           :require
-            respo.core :refer $ defcomp div span <> list->
+            respo.core :refer $ defcomp div span <> keyed-> keyed-element
             respo.css :refer $ defstyle
             respo-md.comp.md :refer $ comp-md-block
             app.types :refer $ Op CodeCtx TestInfo
@@ -2779,6 +2768,10 @@
           :code $ quote $ defunion ProgramName String Tag Symbol
           :examples $ []
           :schema $ quote UnionDef
+        'SearchHit $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstruct SearchHit (:score Number) (:id String)
+          :examples $ []
+          :schema $ quote StructDef
         'all-defs $ %{} 'CodeEntry (:doc "|Every definition of every namespace.")
           :code $ quote $ defn all-defs (namespaces)
             .flat-map (map-values namespaces)
@@ -3007,15 +3000,12 @@
           :code $ quote $ defn parse-entries (raw)
             if (nil? raw) ([])
               let
-                  pairs $ .to-list $ decode-map-as raw (Map Dynamic Dynamic)
-                  entries $ .map pairs $ fn (pair)
-                    hint-fn $ Fn (List Dynamic) (-> EntryInfo)
-                    let
-                        config $ .unwrap $ .get pair 1
+                  entries $ map-list-kv
+                    decode-map-as raw $ Map Dynamic Dynamic
+                    fn (name config)
+                      hint-fn $ Fn Dynamic Dynamic $ -> EntryInfo
                       EntryInfo :name
-                        name-text $ decode-map-as
-                          nil->option $ .unwrap $ .get pair 0
-                          Option app.program/ProgramName
+                        name-text $ decode-map-as (nil->option name) (Option app.program/ProgramName)
                         , :init-fn
                           name-text $ decode-map-as (read-field config :init-fn) (Option app.program/ProgramName)
                           , :reload-fn
@@ -3334,8 +3324,7 @@
               ->
                 all-defs $ :namespaces program
                 .flat-map $ fn (info)
-                  hint-fn $ Fn DefInfo $ ->
-                    List $ List Dynamic
+                  hint-fn $ Fn DefInfo $ -> (List app.program/SearchHit)
                   let
                       score $ fuzzy-score q (:id info) (:name info)
                       project? $ -> (:namespaces program)
@@ -3345,33 +3334,17 @@
                           = :project $ :origin ns-info
                         .unwrap-or false
                     if (< score 0) ([])
-                      [] $ []
+                      [] $ SearchHit :score
                         if project? (+ score 30) score
-                        :id info
+                        , :id $ :id info
                 .sort $ fn (a b)
-                  hint-fn $ Fn (List Dynamic) (List Dynamic) (-> Number)
-                  let
-                      sa $ decode-map-as
-                        .unwrap $ .get a 0
-                        , 'Number
-                      sb $ decode-map-as
-                        .unwrap $ .get b 0
-                        , 'Number
-                    if (= sa sb)
-                      .compare
-                        decode-map-as
-                          .unwrap $ .get a 1
-                          , 'String
-                        decode-map-as
-                          .unwrap $ .get b 1
-                          , 'String
-                      - sb sa
+                  hint-fn $ Fn app.program/SearchHit app.program/SearchHit $ -> Number
+                  if
+                    = (:score a) (:score b)
+                    .compare (:id a) (:id b)
+                    - (:score b) (:score a)
                 .take limit
-                .map $ fn (pair)
-                  hint-fn $ Fn (List Dynamic) (-> String)
-                  decode-map-as
-                    .unwrap $ .get pair 1
-                    , 'String
+                .map $ fn (hit) (:id hit)
           :examples $ []
           :schema $ quote $ Fn app.types/Program String Number
             -> $ List String
@@ -3666,6 +3639,10 @@
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
           :code $ quote $ defstruct TestInfo (:name String) (:source CirruQuote)
+          :examples $ []
+          :schema $ quote StructDef
+        'ViewTab $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstruct ViewTab (:tag Tag) (:label String)
           :examples $ []
           :schema $ quote StructDef
         'parse-prefs $ %{} 'CodeEntry
