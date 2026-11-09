@@ -1069,6 +1069,13 @@
             app.prompt :refer $ compose-prompt
     'app.comp.graph $ %{} 'FileEntry
       :defs $ {}
+        'CallWalk $ %{} 'CodeEntry (:doc |)
+          :code $ quote $ defstruct CallWalk
+            :seen $ Set String
+            :owner $ Map String String
+            :frontier $ List String
+          :examples $ []
+          :schema $ quote StructDef
         'at-least $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn at-least (lo x)
             if (< x lo) lo x
@@ -1098,40 +1105,22 @@
           :code $ quote $ defn call-json (program show-libs? root)
             let
                 state $ foldl (range 6)
-                  {}
-                    :seen $ #{} root
-                    :owner $ {}
-                    :frontier $ [] root
-                  fn (state depth)
-                    hint-fn $ Fn (Map Tag Dynamic) Number $ -> (Map Tag Dynamic)
-                    foldl
-                      decode-map-as
-                        .unwrap $ .get state :frontier
-                        List String
+                  CallWalk :seen (#{} root) :owner ({}) :frontier $ [] root
+                  fn (state _depth)
+                    hint-fn $ Fn app.comp.graph/CallWalk Number $ -> app.comp.graph/CallWalk
+                    foldl (:frontier state)
                       assoc state :frontier $ []
                       fn (acc parent)
-                        hint-fn $ Fn (Map Tag Dynamic) String $ -> (Map Tag Dynamic)
-                        foldl (call-children program show-libs? parent) acc $ fn (acc2 child)
-                          hint-fn $ Fn (Map Tag Dynamic) String $ -> (Map Tag Dynamic)
+                        hint-fn $ Fn app.comp.graph/CallWalk String $ -> app.comp.graph/CallWalk
+                        foldl (call-children program show-libs? parent) acc $ fn (walk child)
+                          hint-fn $ Fn app.comp.graph/CallWalk String $ -> app.comp.graph/CallWalk
                           let
-                              seen $ decode-map-as
-                                .unwrap $ .get acc2 :seen
-                                Set String
-                            if (.includes? seen child) acc2 $ -> acc2
-                              assoc :seen $ .include seen child
-                              assoc :owner $ .assoc
-                                decode-map-as
-                                  .unwrap $ .get acc2 :owner
-                                  Map String String
-                                , child parent
-                              assoc :frontier $ .concat
-                                decode-map-as
-                                  .unwrap $ .get acc2 :frontier
-                                  List String
-                                [] child
-              node-json program root $ decode-map-as
-                .unwrap $ .get state :owner
-                Map String String
+                              seen $ :seen walk
+                            if (.includes? seen child) walk $ struct-with walk
+                              :seen $ .include seen child
+                              :owner $ .assoc (:owner walk) child parent
+                              :frontier $ .concat (:frontier walk) ([] child)
+              node-json program root $ :owner state
           :examples $ []
           :schema $ quote $ Fn app.types/Program Bool String (-> String)
         'comp-call-node $ %{} 'CodeEntry
