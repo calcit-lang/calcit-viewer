@@ -10,6 +10,7 @@ import { store, updater } from '../js-out/app.updater.mjs';
 import { parse_program, lookup_def } from '../js-out/app.program.mjs';
 import { load_text_$x_ } from '../js-out/app.loader.mjs';
 import { comp_container } from '../js-out/app.comp.container.mjs';
+import { call_json } from '../js-out/app.comp.graph.mjs';
 import { make_string } from '../js-out/respo.render.html.mjs';
 
 const t = clt.init_tags(['package', 'calcit-version', 'format', 'init-fn', 'entries', 'namespaces', 'users', 'origin', 'defs', 'kind', 'head', 'doc', 'types', 'deps', 'tests', 'name', 'type', 'schema', 'source', 'ir', 'project', 'core', 'some', 'program']);
@@ -71,4 +72,20 @@ test('loading the IR opens the entry with call-head types on hover', () => {
   // `(double 21)` in main! shows the callee type on hover.
   assert.match(html, /data-tip="app\.main\/double · Fn Number \$ -&gt; Number"/);
   assert.match(html, /main!/);
+});
+
+test('sunburst assigns shared callees to the first caller and stops after six levels', () => {
+  const calls = {
+    root: ['left', 'right'], left: ['shared'], right: ['shared'],
+    shared: ['root', 'third'], third: ['fourth'], fourth: ['fifth'],
+    fifth: ['sixth'], sixth: ['seventh'], seventh: [],
+  };
+  const defs = Object.entries(calls).map(([name, deps]) =>
+    `(|${name} $ {} (:source $ quote $ def ${name} 0) (:types $ []) (:deps $ [] ${deps.map(dep => `|graph/${dep}`).join(' ')}))`
+  ).join(' ');
+  const source = `{} (:sources $ {} (|graph $ {} (:origin :project) (:ns-code $ quote $ ns graph) (:defs $ {} ${defs})))`;
+  const graph = parse_program(clt.parse_cirru_edn(source));
+  const tree = JSON.parse(call_json(graph, false, 'graph/root'));
+  const shape = node => [node.n, ...node.c.map(shape)];
+  assert.deepEqual(shape(tree), ['root', ['left', ['shared', ['third', ['fourth', ['fifth', ['sixth']]]]]], ['right']]);
 });
