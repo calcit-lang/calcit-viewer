@@ -2454,9 +2454,9 @@
           :schema $ quote Trait
         'FileReaderHost $ %{} 'CodeEntry (:doc |)
           :code $ quote $ deftrait FileReaderHost
-            :result $ JsNullish JsObject
-            :onload 'Dynamic
-            :onerror 'Dynamic
+            :result $ JsNullish String
+            :onload $ JsNullish $ Fn js-ffi.browser/EventHost (-> Unit)
+            :onerror $ JsNullish $ Fn js-ffi.browser/EventHost (-> Unit)
             .read-as-text! $ Fn app.loader/FileReaderHost app.loader/FileHost $ -> Unit
           :examples $ []
           :ffi $ {} (:backend :js) (:kind :external-object) (:target :browser)
@@ -2515,13 +2515,15 @@
                         filename $ .-name file
                         reader $ js-cast (new js/FileReader) 'app.loader/FileReaderHost
                       d! $ Op :loading filename
-                      js-set reader :onload $ fn (event)
+                      js-set reader :onload $ fn (_event)
+                        hint-fn $ Fn js-ffi.browser/EventHost $ -> Unit
                         let
                             result $ .-result reader
                           if (js-present? result)
                             load-text! (expect-string |FileReader.result result) filename d!
                             d! $ Op :error $ str "|Failed to read " filename
-                      js-set reader :onerror $ fn (event)
+                      js-set reader :onerror $ fn (_event)
+                        hint-fn $ Fn js-ffi.browser/EventHost $ -> Unit
                         d! $ Op :error $ str "|Failed to read " filename
                       .read-as-text! reader file
             , &unit
