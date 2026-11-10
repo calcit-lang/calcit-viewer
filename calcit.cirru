@@ -104,11 +104,11 @@
                             or
                               = (:head info) |defmacro
                               = (:kind info) |macro
-                            Option :some |macro
+                            Some |macro
                           (= (:kind info) |syntax)
-                            Option :some |syntax
+                            Some |syntax
                           true $ match (:type info)
-                            (:some t) (Option :some t)
+                            (:some t) (Some t)
                             (:none) (:schema info)
                 (and (.starts-with? leaf |.) (= last-idx 0) (not threaded?))
                   -> (:types ctx)
@@ -116,7 +116,7 @@
                     .map $ fn (receiver)
                       hint-fn $ Fn String $ -> String
                       str "|method on " receiver
-                true $ Option :none
+                true None
           :examples $ []
           :schema $ quote $ Fn app.types/CodeCtx String (List Number) (Option String) Bool
             -> $ Option String
@@ -176,7 +176,7 @@
             let
                 target $ if (symbol-leaf? leaf)
                   resolve-with (:namespaces ctx) (:imports ctx) (:ns-info ctx) leaf
-                  Option :none
+                  , None
                 t $ leaf-type ctx leaf path target threaded?
                 long? $ > (.len leaf) long-leaf-length
               if (text-block? leaf) (render-text-block leaf t)
@@ -229,7 +229,7 @@
           :doc "|Long or multi-line string as its own block: wrapped, with a line and character count and its inferred type, scrolling past 16 lines."
           :code $ quote $ defn render-text-block (leaf t)
             let
-                text $ .slice leaf 1 $ Option :none
+                text $ .slice leaf 1 None
                 lines $ .len $ .split text &newline
               div
                 {} $ :class-name style-text-block
@@ -1243,7 +1243,7 @@
                     if
                       .any? entry-roots $ fn (pair)
                         hint-fn $ Fn (List String) (-> Bool)
-                        = (.get pair 1) (Option :some id)
+                        = (.get pair 1) (Some id)
                       , entry-roots $ .concat entry-roots $ [] ([] |panel id)
                   (:none) entry-roots
               div
@@ -1614,7 +1614,7 @@
                 span $ {} (:class-name style-kind)
                   :inner-text $ head-label $ :head info
           :examples $ []
-          :schema $ quote $ Fn app.types/DefInfo Bool Bool (-> respo.schema/Component)
+          :schema $ quote $ Fn DefInfo Bool Bool (-> respo.schema/Component)
         'comp-nav-ns $ %{} 'CodeEntry
           :doc "|A namespace header that folds its definitions; namespaces start folded, and those with open or matching definitions open."
           :code $ quote $ defn comp-nav-ns (ns-info defs open? open-ids changed)
@@ -1647,7 +1647,7 @@
                         .includes? changed $ :id info
                 span $ {}
           :examples $ []
-          :schema $ quote $ Fn app.types/NsInfo (List app.types/DefInfo) Bool (Set String) (Set String) (-> respo.schema/Element)
+          :schema $ quote $ Fn NsInfo (List DefInfo) Bool (Set String) (Set String) (-> respo.schema/Element)
         'comp-nav-results $ %{} 'CodeEntry
           :doc "|Search mode: definitions whose id contains the query, grouped by namespace."
           :code $ quote $ defn comp-nav-results (program visible query open-ids changed toggled)
@@ -1679,7 +1679,7 @@
                             open? $ not= default-open? $ .includes? toggled (:name ns-info)
                           comp-nav-ns ns-info defs open? open-ids changed
           :examples $ []
-          :schema $ quote $ Fn app.types/Program (List app.types/NsInfo) String (Set String) (Set String) (Set String) (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/Program (List NsInfo) String (Set String) (Set String) (Set String) (-> respo.schema/Element)
         'comp-side-tree $ %{} 'CodeEntry
           :doc "|Call tree from every program entry: init and reload roots start open, other rows open on the arrow; clicking a name opens it as the first panel."
           :code $ quote $ defn comp-side-tree (program show-libs? open-ids changed toggled)
@@ -1741,7 +1741,7 @@
                     hint-fn $ Fn DefInfo $ -> Bool
                     .includes? (:id info) query
           :examples $ []
-          :schema $ quote $ Fn (List app.types/NsInfo) String (-> Bool)
+          :schema $ quote $ Fn (List NsInfo) String (-> Bool)
         'side-node $ %{} 'CodeEntry
           :doc "|One sidebar tree row and its callees when open. A definition already on the path is marked instead of repeated."
           :code $ quote $ defn side-node (program show-libs? open-ids changed toggled prefix path id)
@@ -2125,7 +2125,7 @@
                           assoc ctx :types $ {}
                           :source test
           :examples $ []
-          :schema $ quote $ Fn app.types/CodeCtx (List app.types/TestInfo) (-> respo.schema/Element)
+          :schema $ quote $ Fn CodeCtx (List TestInfo) (-> respo.schema/Element)
         'panel-width $ %{} 'CodeEntry
           :doc "|Panel width in pixels from the longest line of the formatted source: 640 by default, narrower only for clearly short code, wider up to 880 for long lines."
           :code $ quote $ defn panel-width (info)
@@ -2476,7 +2476,7 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'load-text! $ %{} 'CodeEntry
@@ -2496,7 +2496,7 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn String String
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'on-file-change $ %{} 'CodeEntry (:doc "|Reads the picked file with FileReader.")
@@ -2529,7 +2529,7 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn respo.schema/RespoEvent
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'restore-cached! $ %{} 'CodeEntry
@@ -2540,14 +2540,14 @@
                 match (.find-index raw &newline)
                   (:some idx)
                     load-text!
-                      .slice raw (inc idx) (Option :none)
-                      .slice raw 0 $ Option :some idx
+                      .slice raw (inc idx) None
+                      .slice raw 0 $ Some idx
                       , d!
                   (:none) &unit
               (:none) &unit
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'resume-watch! $ %{} 'CodeEntry
@@ -2560,7 +2560,7 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'stop-watch! $ %{} 'CodeEntry (:doc |)
@@ -2568,7 +2568,7 @@
             d! $ Op :stop-watching
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'watch! $ %{} 'CodeEntry
@@ -2581,7 +2581,7 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> Unit
             :features :js-ffi
         'watch-on-error $ %{} 'CodeEntry (:doc |)
@@ -2591,7 +2591,7 @@
               d! $ Op :error $ str "|Watching failed: " message
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> $ Fn String $ -> Unit
         'watch-on-text $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn watch-on-text (d!)
@@ -2600,7 +2600,7 @@
               load-text! text file-name d!
           :examples $ []
           :schema $ quote $ Fn
-            Fn app.types/Op $ -> Unit
+            Fn Op $ -> Unit
             -> $ Fn String String $ -> Unit
       :ns $ %{} 'NsEntry (:doc "|Reading program files picked by the user.")
         :code $ quote $ ns app.loader
@@ -2632,7 +2632,7 @@
                   , &unit
               , &unit
           :examples $ []
-          :schema $ quote $ Fn app.types/Op (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn Op (-> Unit) (:features :js-ffi)
         'main! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
@@ -2770,8 +2770,8 @@
                 hint-fn $ Fn NsInfo $ -> (List DefInfo)
                 map-values $ :defs ns-info
           :examples $ []
-          :schema $ quote $ Fn (Map String app.types/NsInfo)
-            -> $ List app.types/DefInfo
+          :schema $ quote $ Fn (Map String NsInfo)
+            -> $ List DefInfo
         'at-most $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn at-most (hi x)
             if (> x hi) hi x
@@ -2815,7 +2815,7 @@
                     .unwrap-or (.get acc2 dep) ([])
                     [] $ :id info
           :examples $ []
-          :schema $ quote $ Fn (Map String app.types/NsInfo)
+          :schema $ quote $ Fn (Map String NsInfo)
             -> $ Map String $ List String
         'def-id $ %{} 'CodeEntry
           :doc "|Joins a namespace and a definition name into `ns/def`."
@@ -2832,7 +2832,7 @@
                 .len $ .filter-kv types $ fn (path t) (.includes? t |Dynamic)
                 , total
           :examples $ []
-          :schema $ quote $ Fn app.types/DefInfo (-> Number)
+          :schema $ quote $ Fn DefInfo (-> Number)
           :tests $ [] $ %{} 'TestEntry (:name |ratio-of-dynamic-types)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-ir
@@ -2881,8 +2881,8 @@
                   .get (:defs ns-info)
                     .unwrap-or (.get parts 1) |
           :examples $ []
-          :schema $ quote $ Fn app.types/Program String
-            -> $ Option app.types/DefInfo
+          :schema $ quote $ Fn Program String
+            -> $ Option DefInfo
         'lower-ascii $ %{} 'CodeEntry
           :doc "|ASCII lower case; Calcit strings have no case conversion method."
           :code $ quote $ defn lower-ascii (text)
@@ -2917,7 +2917,7 @@
                   (Symbol symbol) (.to-string symbol)
               (:none) |
           :examples $ []
-          :schema $ quote $ Fn (Option app.program/ProgramName) (-> String)
+          :schema $ quote $ Fn (Option ProgramName) (-> String)
         'ns-imports $ %{} 'CodeEntry
           :doc "|Reads `:require` rules of an `ns` form into referred names and namespace aliases."
           :code $ quote $ defn ns-imports (ns-tree)
@@ -2962,14 +2962,12 @@
                               .unwrap-or (.get items 2) |
                               , target
                           (= kind |:refer)
-                            foldl
-                              .slice items 2 $ Option :none
-                              , acc $ fn (acc2 name)
-                                hint-fn $ Fn
+                            foldl (.slice items 2 None) acc $ fn (acc2 name)
+                              hint-fn $ Fn
+                                Map Tag $ Map String String
+                                , String $ ->
                                   Map Tag $ Map String String
-                                  , String $ ->
-                                    Map Tag $ Map String String
-                                update-section acc2 :refers name $ def-id target name
+                              update-section acc2 :refers name $ def-id target name
                           true acc
           :examples $ []
           :schema $ quote $ Fn app.types/SourceTree
@@ -2978,44 +2976,47 @@
             :code $ quote $ let
                 imports $ ns-imports $ [] |ns |app.main
                   [] |:require ([] |respo.core |:refer |div |span) ([] |app.config |:as |config)
-              assert= (Option :some |respo.core/span)
+              assert= (Some |respo.core/span)
                 .get
                   .unwrap $ .get imports :refers
                   , |span
-              assert= (Option :some |app.config)
+              assert= (Some |app.config)
                 .get
                   .unwrap $ .get imports :aliases
                   , |config
         'parse-entries $ %{} 'CodeEntry
           :doc "|Program entries from a Snapshot `:entries` map or IR `:meta :entries`, `default` first."
           :code $ quote $ defn parse-entries (raw)
-            if (nil? raw) ([])
-              let
-                  entries $ map-list-kv
-                    decode-map-as raw $ Map Dynamic Dynamic
-                    fn (name config)
-                      hint-fn $ Fn Dynamic Dynamic $ -> EntryInfo
-                      EntryInfo :name
-                        name-text $ decode-map-as (nil->option name) (Option app.program/ProgramName)
-                        , :init-fn
-                          name-text $ decode-map-as (read-field config :init-fn) (Option app.program/ProgramName)
-                          , :reload-fn
-                            name-text $ decode-map-as (read-field config :reload-fn) (Option app.program/ProgramName)
-                            , :description $ read-string config :description
-                .sort entries $ fn (a b)
-                  hint-fn $ Fn EntryInfo EntryInfo $ -> Number
-                  cond
-                      = (:name a) |default
-                      , -1
-                    (= (:name b) |default)
-                      , 1
-                    true $ .compare (:name a) (:name b)
+            match raw
+              (:some raw)
+                let
+                    entries $ map-list-kv
+                      decode-map-as raw $ Map Dynamic Dynamic
+                      fn (name config)
+                        hint-fn $ Fn Dynamic Dynamic $ -> EntryInfo
+                        EntryInfo :name
+                          name-text $ decode-map-as (nil->option name) (Option app.program/ProgramName)
+                          , :init-fn
+                            name-text $ decode-map-as (read-field config :init-fn) (Option app.program/ProgramName)
+                            , :reload-fn
+                              name-text $ decode-map-as (read-field config :reload-fn) (Option app.program/ProgramName)
+                              , :description $ read-string config :description
+                  .sort entries $ fn (a b)
+                    hint-fn $ Fn EntryInfo EntryInfo $ -> Number
+                    cond
+                        = (:name a) |default
+                        , -1
+                      (= (:name b) |default)
+                        , 1
+                      true $ .compare (:name a) (:name b)
+              (:none) ([])
           :examples $ []
-          :schema $ quote $ Fn Dynamic
-            -> $ List app.types/EntryInfo
+          :schema $ quote $ Fn (Option Dynamic)
+            -> $ List EntryInfo
           :tests $ [] $ %{} 'TestEntry (:name |entries-default-first)
             :code $ quote $ let
-                entries $ parse-entries $ parse-cirru-edn "|{} (:test $ {} (:init-fn 'app.test/run!) (:reload-fn 'app.test/run!)) (:default $ {} (:init-fn 'app.main/main!) (:reload-fn 'app.main/reload!) (:description |App))"
+                entries $ parse-entries $ Some
+                  parse-cirru-edn "|{} (:test $ {} (:init-fn 'app.test/run!) (:reload-fn 'app.test/run!)) (:default $ {} (:init-fn 'app.main/main!) (:reload-fn 'app.main/reload!) (:description |App))"
               assert= ([] |default |test)
                 .map entries $ fn (e) (:name e)
               assert= |app.main/main! $ :init-fn $ .unwrap (.first entries)
@@ -3046,7 +3047,8 @@
                           fn (def-name d)
                             MapEntryDecision :keep def-name $ parse-ir-def ns-name def-name d
               Program :package (read-string meta :package) :calcit-version (read-string meta :calcit-version) :format :ir :init-fn (read-string configs :init-fn) :namespaces namespaces :users (collect-users namespaces) :entries $ match (read-field meta :entries)
-                (:some listed) (parse-entries listed)
+                (:some listed)
+                  parse-entries $ Some listed
                 (:none)
                   [] $ EntryInfo :name |default :init-fn
                     name-text $ decode-map-as (read-field configs :init-fn) (Option app.program/ProgramName)
@@ -3054,7 +3056,7 @@
                       name-text $ decode-map-as (read-field configs :reload-fn) (Option app.program/ProgramName)
                       , :description |
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> app.types/Program)
+          :schema $ quote $ Fn Dynamic (-> Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-sources)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-ir
@@ -3062,7 +3064,7 @@
               assert= :ir $ :format program
               assert= |app.main/main! $ :init-fn program
               assert= ([] |app.main/double) (:deps info)
-              assert= (Option :some "|Fn $ -> Number") (:schema info)
+              assert= (Some "|Fn $ -> Number") (:schema info)
               assert= ([] |app.main/main!)
                 .unwrap $ get (:users program) |app.main/double
               assert= |Number $ .unwrap $ get (:types info) |3
@@ -3099,9 +3101,9 @@
                         source-size $ decode-map-as
                           .unwrap $ read-field d :source
                           , 'CirruQuote
-                        , :tests $ parse-tests $ .unwrap-or (read-field d :tests) ([])
+                        , :tests $ parse-tests $ read-field d :tests
           :examples $ []
-          :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
+          :schema $ quote $ Fn String String Dynamic (-> DefInfo)
         'parse-program $ %{} 'CodeEntry
           :doc "|Reads either a `calcit ir` artifact or a `calcit.cirru` Snapshot."
           :code $ quote $ defn parse-program (data)
@@ -3113,7 +3115,7 @@
                 parse-snapshot data
                 raise "|Expected program-ir.cirru with :sources, or a calcit.cirru Snapshot with :files"
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> app.types/Program)
+          :schema $ quote $ Fn Dynamic (-> Program)
         'parse-snapshot $ %{} 'CodeEntry
           :doc "|Reads a `calcit.cirru` Snapshot. Types are only the declared schemas; dependencies are resolved from symbols."
           :code $ quote $ defn parse-snapshot (data)
@@ -3139,16 +3141,16 @@
                   (:some raw)
                     .to-string $ decode-map-as raw 'Symbol
                   (:none) |
-                , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ .unwrap-or (read-field data :entries) ({})
+                , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ read-field data :entries
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> app.types/Program)
+          :schema $ quote $ Fn Dynamic (-> Program)
           :tests $ [] $ %{} 'TestEntry (:name |reads-snapshot)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-snapshot
                 main $ .unwrap $ lookup-def program |app.main/main!
               assert= :snapshot $ :format program
               assert= ([] |app.main/double) (:deps main)
-              assert= (Option :some "|Fn $ -> Number") (:schema main)
+              assert= (Some "|Fn $ -> Number") (:schema main)
               assert= |defn $ :head main
         'parse-snapshot-def $ %{} 'CodeEntry
           :doc "|One `CodeEntry` of a Snapshot, before dependencies are resolved."
@@ -3163,11 +3165,11 @@
                 , :kind | :source code :schema
                   match schema
                     (:some raw)
-                      Option :some $ quote-text $ decode-map-as raw 'CirruQuote
-                    (:none) (Option :none)
-                  , :type (Option :none) :deps ([]) :types ({}) :hash | :error (Option :none) :size (source-size code) :tests $ parse-tests $ .unwrap-or (read-field entry :tests) ([])
+                      Some $ quote-text $ decode-map-as raw 'CirruQuote
+                    (:none) None
+                  , :type None :deps ([]) :types ({}) :hash | :error None :size (source-size code) :tests $ parse-tests $ read-field entry :tests
           :examples $ []
-          :schema $ quote $ Fn String String Dynamic (-> app.types/DefInfo)
+          :schema $ quote $ Fn String String Dynamic (-> DefInfo)
         'parse-snapshot-ns $ %{} 'CodeEntry (:doc "|One `FileEntry` of a Snapshot.")
           :code $ quote $ defn parse-snapshot-ns (ns-name file)
             let
@@ -3183,32 +3185,34 @@
                   MapEntryDecision :keep (.to-string def-sym)
                     parse-snapshot-def ns-name (.to-string def-sym) entry
           :examples $ []
-          :schema $ quote $ Fn String Dynamic (-> app.types/NsInfo)
+          :schema $ quote $ Fn String Dynamic (-> NsInfo)
         'parse-tests $ %{} 'CodeEntry
           :doc "|Definition tests from IR `:tests` maps or Snapshot `TestEntry` records."
           :code $ quote $ defn parse-tests (raw)
-            if (nil? raw) ([])
-              .map
-                decode-map-as raw $ List Dynamic
-                fn (test)
-                  hint-fn $ Fn Dynamic $ -> TestInfo
-                  TestInfo :name (read-string test :name) :source $ decode-map-as
-                    .unwrap $ read-field test :code
-                    , 'CirruQuote
+            match raw
+              (:some raw)
+                .map
+                  decode-map-as raw $ List Dynamic
+                  fn (test)
+                    hint-fn $ Fn Dynamic $ -> TestInfo
+                    TestInfo :name (read-string test :name) :source $ decode-map-as
+                      .unwrap $ read-field test :code
+                      , 'CirruQuote
+              (:none) ([])
           :examples $ []
-          :schema $ quote $ Fn Dynamic
-            -> $ List app.types/TestInfo
+          :schema $ quote $ Fn (Option Dynamic)
+            -> $ List TestInfo
           :tests $ [] $ %{} 'TestEntry (:name |reads-ir-and-snapshot-tests)
             :code $ quote $ do
               assert= ([] |doubles)
                 .map
-                  parse-tests $ parse-cirru-edn "|[] $ {} (:name |doubles) (:code $ quote $ assert= 4 $ double 2)"
+                  parse-tests $ Some $ parse-cirru-edn "|[] $ {} (:name |doubles) (:code $ quote $ assert= 4 $ double 2)"
                   fn (t) (:name t)
               assert= ([] |rec)
                 .map
-                  parse-tests $ parse-cirru-edn "|[] $ %{} 'TestEntry (:name |rec) (:code $ quote $ do 1)"
+                  parse-tests $ Some $ parse-cirru-edn "|[] $ %{} 'TestEntry (:name |rec) (:code $ quote $ do 1)"
                   fn (t) (:name t)
-              assert= ([]) (parse-tests nil)
+              assert= ([]) (parse-tests None)
         'quote-text $ %{} 'CodeEntry
           :doc "|One-line text of a quoted Cirru expression such as a schema."
           :code $ quote $ defn quote-text (code)
@@ -3228,7 +3232,7 @@
                   true $ decode-map-as value 'Map
               match (get fields field)
                 (:some raw) (nil->option raw)
-                (:none) (Option :none)
+                (:none) None
           :examples $ []
           :schema $ quote $ Fn Dynamic Tag
             -> $ Option Dynamic
@@ -3237,8 +3241,8 @@
           :code $ quote $ defn read-option-string (value field)
             match (read-field value field)
               (:some raw)
-                Option :some $ decode-map-as raw 'String
-              (:none) (Option :none)
+                Some $ decode-map-as raw 'String
+              (:none) None
           :examples $ []
           :schema $ quote $ Fn Dynamic Tag
             -> $ Option String
@@ -3254,15 +3258,15 @@
               ns-imports $ code->tree $ :code ns-info
               , ns-info leaf
           :examples $ []
-          :schema $ quote $ Fn (Map String app.types/NsInfo) app.types/NsInfo String
+          :schema $ quote $ Fn (Map String NsInfo) NsInfo String
             -> $ Option String
           :tests $ [] $ %{} 'TestEntry (:name |resolves-local-and-imported)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-snapshot
                 namespaces $ :namespaces program
                 main-ns $ .unwrap $ get namespaces |app.main
-              assert= (Option :some |app.main/double) (resolve-leaf namespaces main-ns |double)
-              assert= (Option :none) (resolve-leaf namespaces main-ns |unknown)
+              assert= (Some |app.main/double) (resolve-leaf namespaces main-ns |double)
+              assert= None $ resolve-leaf namespaces main-ns |unknown
         'resolve-with $ %{} 'CodeEntry
           :doc "|Like `resolve-leaf` with the namespace imports already read."
           :code $ quote $ defn resolve-with (namespaces imports ns-info leaf)
@@ -3274,8 +3278,8 @@
                   and (> slash 0)
                     < slash $ dec $ .len leaf
                   let
-                      head $ .slice leaf 0 $ Option :some slash
-                      tail $ .slice leaf (inc slash) (Option :none)
+                      head $ .slice leaf 0 $ Some slash
+                      tail $ .slice leaf (inc slash) None
                     def-id
                       .unwrap-or (.get aliases head) head
                       , tail
@@ -3292,11 +3296,11 @@
                     .contains-key? (:defs target)
                       .unwrap-or (.get parts 1) |
                   .unwrap-or false
-              if known? (Option :some candidate) (Option :none)
+              if known? (Some candidate) None
           :examples $ []
-          :schema $ quote $ Fn (Map String app.types/NsInfo)
+          :schema $ quote $ Fn (Map String NsInfo)
             Map Tag $ Map String String
-            , app.types/NsInfo String
+            , NsInfo String
               -> $ Option String
         'sample-ir $ %{} 'CodeEntry
           :doc "|Small `calcit ir --sources-only` artifact used by tests."
@@ -3337,7 +3341,7 @@
                 .take limit
                 .map $ fn (hit) (:id hit)
           :examples $ []
-          :schema $ quote $ Fn app.types/Program String Number
+          :schema $ quote $ Fn Program String Number
             -> $ List String
           :tests $ [] $ %{} 'TestEntry (:name |fuzzy-quick-open)
             :code $ quote $ let
@@ -3366,7 +3370,7 @@
                   hint-fn $ Fn String String $ -> Number
                   .compare a b
           :examples $ []
-          :schema $ quote $ Fn (Map String app.types/NsInfo) app.types/NsInfo app.types/DefInfo
+          :schema $ quote $ Fn (Map String NsInfo) NsInfo DefInfo
             -> $ List String
         'source-size $ %{} 'CodeEntry
           :doc "|Number of leaves in a definition's source, used as its area in charts."
@@ -3380,8 +3384,8 @@
             match (.find-index id |/)
               (:some idx)
                 []
-                  .slice id 0 $ Option :some idx
-                  .slice id (inc idx) (Option :none)
+                  .slice id 0 $ Some idx
+                  .slice id (inc idx) None
               (:none) ([] id |)
           :examples $ []
           :schema $ quote $ Fn String
@@ -3396,7 +3400,7 @@
               .find-index hay $ .unwrap-or (.first needle) |
               (:some idx)
                 subsequence? (.rest needle)
-                  .slice hay (inc idx) (Option :none)
+                  .slice hay (inc idx) None
               (:none) false
           :examples $ []
           :schema $ quote $ Fn String String (-> Bool)
@@ -3445,7 +3449,7 @@
                     , | (.join-string sections &newline) "|## Useful commands" | "|```bash" (str "|calcit query def '" first-id |') (str "|calcit query context '" first-id "|' --format edn") (str "|calcit query type-at '" first-id "|' --path <path>") (str "|calcit query usages '" first-id |') "|```"
                 , &newline
           :examples $ []
-          :schema $ quote $ Fn app.types/Program app.types/Prefs String (-> String)
+          :schema $ quote $ Fn app.types/Program Prefs String (-> String)
           :tests $ [] $ %{} 'TestEntry (:name |prompt-from-open-panels)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-ir
@@ -3645,7 +3649,7 @@
                 if (struct? data) (&struct:to-map data) data
                 , app.types/Prefs
           :examples $ []
-          :schema $ quote $ Fn String (-> app.types/Prefs)
+          :schema $ quote $ Fn String (-> Prefs)
           :tests $ [] $ %{} 'TestEntry (:name |saved-preferences-roundtrip)
             :code $ quote $ let
                 prefs $ struct-with (:prefs app.updater/store)
@@ -3677,21 +3681,21 @@
                       , kept
                   -> store
                     assoc :changed $ changed-ids (:program store) program
-                    assoc :program $ Option :some program
-                    assoc :error $ Option :none
+                    assoc :program $ Some program
+                    assoc :error None
                     assoc :file-name file-name
                     assoc :loaded-at time
-                    assoc :loading $ Option :none
+                    assoc :loading None
                     update-prefs $ fn (prefs) (assoc prefs :stack stack)
               (:error message)
                 -> store
-                  assoc :error $ Option :some message
-                  assoc :loading $ Option :none
+                  assoc :error $ Some message
+                  assoc :loading None
               (:loading file-name)
-                assoc store :loading $ Option :some file-name
+                assoc store :loading $ Some file-name
               (:tree-root id)
                 -> store
-                  assoc :tree-root $ Option :some id
+                  assoc :tree-root $ Some id
                   assoc :expanded $ #{}
               (:set-expanded keys) (assoc store :expanded keys)
               (:sun-mode mode) (assoc store :sun-mode mode)
@@ -3719,10 +3723,9 @@
               (:restore prefs) (assoc store :prefs prefs)
               (:watching file-name)
                 -> store
-                  assoc :watching $ Option :some file-name
-                  assoc :resumable $ Option :none
-              (:stop-watching)
-                assoc store :watching $ Option :none
+                  assoc :watching $ Some file-name
+                  assoc :resumable None
+              (:stop-watching) (assoc store :watching None)
               (:view view)
                 update-prefs store $ fn (prefs) (assoc prefs :view view)
               (:focus id)
@@ -3795,13 +3798,12 @@
                   assoc prefs :nav-hidden? $ not $ :nav-hidden? prefs
               (:palette-open)
                 -> store
-                  assoc :palette $ Option :some |
+                  assoc :palette $ Some |
                   assoc :palette-idx 0
-              (:palette-close)
-                assoc store :palette $ Option :none
+              (:palette-close) (assoc store :palette None)
               (:palette-query text)
                 -> store
-                  assoc :palette $ Option :some text
+                  assoc :palette $ Some text
                   assoc :palette-idx 0
               (:palette-move delta)
                 assoc store :palette-idx $ let
@@ -3810,9 +3812,9 @@
               (:resumable file-name)
                 if
                   .some? $ :watching store
-                  , store $ assoc store :resumable $ Option :some file-name
+                  , store $ assoc store :resumable $ Some file-name
           :examples $ []
-          :schema $ quote $ Fn app.types/Store app.types/Op (-> app.types/Store)
+          :schema $ quote $ Fn Store Op (-> Store)
           :tests $ []
             %{} 'TestEntry (:name |history-back-forward)
               :code $ quote $ let
@@ -3836,12 +3838,11 @@
               :code $ quote $ let
                   offered $ updater store $ Op :resumable |program-ir.cirru
                   watching $ updater offered $ Op :watching |program-ir.cirru
-                assert= (Option :some |program-ir.cirru) (:resumable offered)
-                assert= (Option :none) (:resumable watching)
-                assert= (Option :some |program-ir.cirru) (:watching watching)
+                assert= (Some |program-ir.cirru) (:resumable offered)
+                assert= None $ :resumable watching
+                assert= (Some |program-ir.cirru) (:watching watching)
                 assert= watching $ updater watching $ Op :resumable |other.cirru
-                assert= (Option :none)
-                  :watching $ updater watching $ Op :stop-watching
+                assert= None $ :watching $ updater watching (Op :stop-watching)
             %{} 'TestEntry (:name |open-load-and-refresh)
               :code $ quote $ let
                   program $ parse-program $ parse-cirru-edn sample-ir
@@ -3894,16 +3895,16 @@
             -> $ Set String
         'store $ %{} 'CodeEntry (:doc "|Initial store.")
           :code $ quote $ def store
-            Store :program (Option :none) :error (Option :none) :file-name | :loaded-at 0 :changed (#{}) :watching (Option :none) :resumable (Option :none) :expanded (#{}) :zoom (Option :none) :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette (Option :none) :palette-idx 0 :loading (Option :none) :tree-root (Option :none) :sun-mode :calls :side-toggled (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
+            Store :program None :error None :file-name | :loaded-at 0 :changed (#{}) :watching None :resumable None :expanded (#{}) :zoom None :copied-at 0 :ns-toggled (#{}) :history ([]) :future ([]) :active 0 :collapsed (#{}) :palette None :palette-idx 0 :loading None :tree-root None :sun-mode :calls :side-toggled (#{}) :prefs $ Prefs :stack ([]) :filter | :show-libs? false :inline-types? false :view :code :prompt-open? false :prompt-draft | :prompt-source? true :nav-hidden? false
           :examples $ []
-          :schema $ quote app.types/Store
+          :schema $ quote Store
         'update-prefs $ %{} 'CodeEntry (:doc "|Applies `f` to the view preferences.")
           :code $ quote $ defn update-prefs (store f)
             assoc store :prefs $ f $ :prefs store
           :examples $ []
-          :schema $ quote $ Fn app.types/Store
-            Fn app.types/Prefs $ -> app.types/Prefs
-            -> app.types/Store
+          :schema $ quote $ Fn Store
+            Fn Prefs $ -> Prefs
+            -> Store
         'updater $ %{} 'CodeEntry
           :doc "|Applies one operation and records panel stack changes as navigation history; the last panel becomes the active one."
           :code $ quote $ defn updater (store op)
@@ -3925,7 +3926,7 @@
                     , 50
                 assoc :future $ if navigated? (:future next) ([])
           :examples $ []
-          :schema $ quote $ Fn app.types/Store app.types/Op (-> app.types/Store)
+          :schema $ quote $ Fn Store Op (-> Store)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.updater
           :require
