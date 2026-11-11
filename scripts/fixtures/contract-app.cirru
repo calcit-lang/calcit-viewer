@@ -29,7 +29,7 @@
     'app.main $ %{} 'FileEntry
       :defs $ {}
         'Point $ %{} 'CodeEntry (:doc |)
-          :code $ quote $ defstruct Point (:x 'Number)
+          :code $ quote $ defstruct Point (:x Number)
           :examples $ []
           :schema $ quote StructDef
         'bench! $ %{} 'CodeEntry (:doc |)
@@ -60,7 +60,7 @@
         'read-point $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn read-point (raw) (decode-map-as raw 'app.main/Point)
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> app.main/Point)
+          :schema $ quote $ Fn Dynamic (-> Point)
         'reload! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn reload! () &unit
           :examples $ []
