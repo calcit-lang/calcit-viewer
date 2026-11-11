@@ -4,7 +4,10 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as clt from '../js-out/calcit.core.mjs';
 import { store, updater } from '../js-out/app.updater.mjs';
 import { parse_program, lookup_def } from '../js-out/app.program.mjs';
@@ -49,6 +52,24 @@ test('definitions carry source, schema, inferred types, deps and tests', () => {
   assert.match(field(types, '3.1.0.1.0'), /^Fn Number/);
   assert.deepEqual(toArray(field(double, t.deps)), ['calcit.core/*']);
   assert.deepEqual(toArray(field(double, t.tests)).map(test => field(test, t.name)), ['doubles']);
+});
+
+test('Point source preserves the field type in legacy and current IR', () => {
+  const legacyPoint = def('app.main/Point');
+  assert.match(clt.format_cirru_edn(field(legacyPoint, t.source)), /defstruct Point \$ :x 'Number/);
+
+  const out = mkdtempSync(join(tmpdir(), 'viewer-contract-ir-'));
+  try {
+    execFileSync('calcit', ['contract-app.cirru', '--emit-path', out, 'ir', '--sources-only'], {
+      cwd: new URL('./fixtures/', import.meta.url),
+    });
+    const currentIR = readFileSync(join(out, 'program-ir.cirru'), 'utf8');
+    const currentProgram = parse_program(clt.parse_cirru_edn(currentIR));
+    const point = clt.option_$o_unwrap(lookup_def(currentProgram, 'app.main/Point'));
+    assert.match(clt.format_cirru_edn(field(point, t.source)), /defstruct Point \$ :x Number/);
+  } finally {
+    rmSync(out, { recursive: true });
+  }
 });
 
 test('users are derived from deps', () => {
