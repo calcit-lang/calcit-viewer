@@ -3011,8 +3011,9 @@
                       true $ .compare (:name a) (:name b)
               (:none) ([])
           :examples $ []
-          :schema $ quote $ Fn (Option Dynamic)
+          :schema $ quote $ Fn (Option Input)
             -> $ List EntryInfo
+            :generics Input
           :tests $ [] $ %{} 'TestEntry (:name |entries-default-first)
             :code $ quote $ let
                 entries $ parse-entries $ Some
@@ -3056,7 +3057,7 @@
                       name-text $ decode-map-as (read-field configs :reload-fn) (Option app.program/ProgramName)
                       , :description |
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Program)
+          :schema $ quote $ Fn Input (-> Program) (:generics Input)
           :tests $ [] $ %{} 'TestEntry (:name |reads-sources)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-ir
@@ -3103,7 +3104,7 @@
                           , 'CirruQuote
                         , :tests $ parse-tests $ read-field d :tests
           :examples $ []
-          :schema $ quote $ Fn String String Dynamic (-> DefInfo)
+          :schema $ quote $ Fn String String Input (-> DefInfo) (:generics Input)
         'parse-program $ %{} 'CodeEntry
           :doc "|Reads either a `calcit ir` artifact or a `calcit.cirru` Snapshot."
           :code $ quote $ defn parse-program (data)
@@ -3115,7 +3116,7 @@
                 parse-snapshot data
                 raise "|Expected program-ir.cirru with :sources, or a calcit.cirru Snapshot with :files"
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Program)
+          :schema $ quote $ Fn Input (-> Program) (:generics Input)
         'parse-snapshot $ %{} 'CodeEntry
           :doc "|Reads a `calcit.cirru` Snapshot. Types are only the declared schemas; dependencies are resolved from symbols."
           :code $ quote $ defn parse-snapshot (data)
@@ -3143,7 +3144,7 @@
                   (:none) |
                 , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ read-field data :entries
           :examples $ []
-          :schema $ quote $ Fn Dynamic (-> Program)
+          :schema $ quote $ Fn Input (-> Program) (:generics Input)
           :tests $ [] $ %{} 'TestEntry (:name |reads-snapshot)
             :code $ quote $ let
                 program $ parse-program $ parse-cirru-edn sample-snapshot
@@ -3169,7 +3170,7 @@
                     (:none) None
                   , :type None :deps ([]) :types ({}) :hash | :error None :size (source-size code) :tests $ parse-tests $ read-field entry :tests
           :examples $ []
-          :schema $ quote $ Fn String String Dynamic (-> DefInfo)
+          :schema $ quote $ Fn String String Input (-> DefInfo) (:generics Input)
         'parse-snapshot-ns $ %{} 'CodeEntry (:doc "|One `FileEntry` of a Snapshot.")
           :code $ quote $ defn parse-snapshot-ns (ns-name file)
             let
@@ -3185,7 +3186,7 @@
                   MapEntryDecision :keep (.to-string def-sym)
                     parse-snapshot-def ns-name (.to-string def-sym) entry
           :examples $ []
-          :schema $ quote $ Fn String Dynamic (-> NsInfo)
+          :schema $ quote $ Fn String Input (-> NsInfo) (:generics Input)
         'parse-tests $ %{} 'CodeEntry
           :doc "|Definition tests from IR `:tests` maps or Snapshot `TestEntry` records."
           :code $ quote $ defn parse-tests (raw)
@@ -3200,8 +3201,9 @@
                       , 'CirruQuote
               (:none) ([])
           :examples $ []
-          :schema $ quote $ Fn (Option Dynamic)
+          :schema $ quote $ Fn (Option Input)
             -> $ List TestInfo
+            :generics Input
           :tests $ [] $ %{} 'TestEntry (:name |reads-ir-and-snapshot-tests)
             :code $ quote $ do
               assert= ([] |doubles)
@@ -3234,8 +3236,9 @@
                 (:some raw) (nil->option raw)
                 (:none) None
           :examples $ []
-          :schema $ quote $ Fn Dynamic Tag
+          :schema $ quote $ Fn Input Tag
             -> $ Option Dynamic
+            :generics Input
             :open :decode
         'read-option-string $ %{} 'CodeEntry (:doc "|Reads an optional string field.")
           :code $ quote $ defn read-option-string (value field)
@@ -3244,13 +3247,14 @@
                 Some $ decode-map-as raw 'String
               (:none) None
           :examples $ []
-          :schema $ quote $ Fn Dynamic Tag
+          :schema $ quote $ Fn Input Tag
             -> $ Option String
+            :generics Input
         'read-string $ %{} 'CodeEntry (:doc "|Reads a string field, empty when missing.")
           :code $ quote $ defn read-string (value field)
             .unwrap-or (read-option-string value field) |
           :examples $ []
-          :schema $ quote $ Fn Dynamic Tag (-> String)
+          :schema $ quote $ Fn Input Tag (-> String) (:generics Input)
         'resolve-leaf $ %{} 'CodeEntry
           :doc "|Resolves a symbol leaf inside `ns-info` to a definition id: qualified names, `:as` aliases, `:refer` names, same-namespace definitions, then calcit.core."
           :code $ quote $ defn resolve-leaf (namespaces ns-info leaf)
