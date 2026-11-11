@@ -204,7 +204,7 @@
                             , |
                         :on-click $ fn (e d!)
                           hint-fn $ Fn respo.schema/RespoEvent
-                            Fn app.types/Op $ -> Unit
+                            Fn Op $ -> Unit
                             -> Unit
                           d! $ Op :open (:next-idx ctx) (.unwrap target)
                       if
@@ -438,7 +438,7 @@
                       , id
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :truncate idx
           :examples $ []
@@ -531,7 +531,7 @@
               span $ {} (:class-name style-secondary) (:inner-text "|Search definitions")
                 :on-click $ fn (e d!)
                   hint-fn $ Fn respo.schema/RespoEvent
-                    Fn app.types/Op $ -> Unit
+                    Fn Op $ -> Unit
                     -> Unit
                   d! $ Op :palette-open
           :examples $ []
@@ -549,25 +549,25 @@
                 {} (:class-name style-palette-mask)
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :palette-close
                 div
                   {} (:class-name style-palette)
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       , &unit
                   input $ {} (:class-name style-palette-input) (:value query) (:id |palette-input) (:placeholder "|Go to definition…")
                     :on-input $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :palette-query $ event-value e
                     :on-keydown $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       let
                           info $ keyboard-info e
@@ -596,7 +596,7 @@
                             :class-name $ str-spaced style-palette-item $ if (= i current) style-palette-current |
                             :on-click $ fn (e d!)
                               hint-fn $ Fn respo.schema/RespoEvent
-                                Fn app.types/Op $ -> Unit
+                                Fn Op $ -> Unit
                                 -> Unit
                               d! $ Op :palette-close
                               d! $ Op :focus id
@@ -666,7 +666,7 @@
                     , "| updated ×"
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :clear-changed
               span $ {} (:class-name style-status-hint)
@@ -683,19 +683,19 @@
                 span $ {} (:class-name style-icon-button) (:inner-text "|☰") (:title "|Toggle sidebar (⌘B)")
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :toggle-nav
                 span $ {} (:class-name style-icon-button) (:inner-text "|←") (:title "|Back (Alt+←)")
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :back
                 span $ {} (:class-name style-icon-button) (:inner-text "|→") (:title "|Forward (Alt+→)")
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :forward
                 comp-view-tabs $ :view prefs
@@ -703,21 +703,21 @@
                 span $ {} (:class-name style-search) (:inner-text "|Search definitions  ⌘K")
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :palette-open
                 span $ {} (:inner-text |Prompt)
                   :class-name $ str-spaced style-tab $ if (:prompt-open? prefs) style-tab-active |
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :toggle-prompt
                 span $ {} (:inner-text |Types) (:title "|Inline types (T)")
                   :class-name $ str-spaced style-tab $ if (:inline-types? prefs) style-tab-active |
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :toggle-inline-types
           :examples $ []
@@ -737,7 +737,7 @@
                       :inner-text $ :label tab
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
-                          Fn app.types/Op $ -> Unit
+                          Fn Op $ -> Unit
                           -> Unit
                         d! $ Op :view tag
           :examples $ []
@@ -754,7 +754,7 @@
                     :inner-text $ str "|● Watching " file-name
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                         :features :js-ffi
                       stop-watch! d!
@@ -763,7 +763,7 @@
                     span $ {} (:class-name style-status-button) (:inner-text "|Watch file…")
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
-                          Fn app.types/Op $ -> Unit
+                          Fn Op $ -> Unit
                           -> Unit
                           :features :js-ffi
                         watch! d!
@@ -773,7 +773,7 @@
                           :inner-text $ str "|Resume watching " file-name
                           :on-click $ fn (e d!)
                             hint-fn $ Fn respo.schema/RespoEvent
-                              Fn app.types/Op $ -> Unit
+                              Fn Op $ -> Unit
                               -> Unit
                               :features :js-ffi
                             resume-watch! d!
@@ -804,7 +804,7 @@
                     span $ {} (:class-name style-secondary) (:inner-text "|Watch a file…")
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
-                          Fn app.types/Op $ -> Unit
+                          Fn Op $ -> Unit
                           -> Unit
                           :features :js-ffi
                         watch! d!
@@ -1107,13 +1107,13 @@
                 state $ foldl (range 6)
                   CallWalk :seen (#{} root) :owner ({}) :frontier $ [] root
                   fn (state _depth)
-                    hint-fn $ Fn app.comp.graph/CallWalk Number $ -> app.comp.graph/CallWalk
+                    hint-fn $ Fn CallWalk Number $ -> CallWalk
                     foldl (:frontier state)
                       assoc state :frontier $ []
                       fn (acc parent)
-                        hint-fn $ Fn app.comp.graph/CallWalk String $ -> app.comp.graph/CallWalk
+                        hint-fn $ Fn CallWalk String $ -> CallWalk
                         foldl (call-children program show-libs? parent) acc $ fn (walk child)
-                          hint-fn $ Fn app.comp.graph/CallWalk String $ -> app.comp.graph/CallWalk
+                          hint-fn $ Fn CallWalk String $ -> CallWalk
                           let
                               seen $ :seen walk
                             if (.includes? seen child) walk $ struct-with walk
@@ -1144,7 +1144,7 @@
                       true "|▸"
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       if
                         not $ .empty? children
@@ -1154,7 +1154,7 @@
                     {} (:class-name style-tree-name) (:title "|Click to expand, ↗ to read the code")
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
-                          Fn app.types/Op $ -> Unit
+                          Fn Op $ -> Unit
                           -> Unit
                         if
                           not $ .empty? children
@@ -1173,7 +1173,7 @@
                   span $ {} (:class-name style-tree-open) (:inner-text "|↗") (:title "|Read the code")
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :focus id
                   if looped?
@@ -1208,13 +1208,13 @@
                   span $ {} (:class-name style-graph-button) (:inner-text "|Expand 3 levels")
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :set-expanded $ expand-keys program show-libs? ([]) root 3
                   span $ {} (:class-name style-graph-button) (:inner-text |Collapse)
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :set-expanded $ #{}
                 if
@@ -1262,7 +1262,7 @@
                             :class-name $ str-spaced style-graph-root $ if (= id root) style-graph-root-active |
                             :on-click $ fn (e d!)
                               hint-fn $ Fn respo.schema/RespoEvent
-                                Fn app.types/Op $ -> Unit
+                                Fn Op $ -> Unit
                                 -> Unit
                               d! $ Op :tree-root id
                           span $ {} (:class-name style-graph-root-label) (:inner-text label)
@@ -1295,7 +1295,7 @@
                           :inner-text $ :label tab
                           :on-click $ fn (e d!)
                             hint-fn $ Fn respo.schema/RespoEvent
-                              Fn app.types/Op $ -> Unit
+                              Fn Op $ -> Unit
                               -> Unit
                             d! $ Op :sun-mode tag
                 div $ {} (:class-name style-graph-hint)
@@ -1566,14 +1566,14 @@
                     :value $ :filter prefs
                     :on-input $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :filter $ event-value e
                   div
                     {} (:class-name style-check)
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
-                          Fn app.types/Op $ -> Unit
+                          Fn Op $ -> Unit
                           -> Unit
                         d! $ Op :toggle-libs
                     <> $ if (:show-libs? prefs) "|☑ Show libraries" "|☐ Show libraries"
@@ -1604,7 +1604,7 @@
                       , "|% of recorded types"
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :open 0 $ :id info
                 span $ {} (:class-name style-dot)
@@ -1623,7 +1623,7 @@
                 {} (:class-name style-ns-name)
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :toggle-ns $ :name ns-info
                 span $ {} (:inner-text "|▸")
@@ -1771,7 +1771,7 @@
                     :class-name $ str-spaced style-side-toggle $ if open? style-fold-open |
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       if (.empty? children) &unit $ d! $ Op :toggle-side key
                   span $ {} (:class-name style-def-name)
@@ -1780,7 +1780,7 @@
                       , id
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :open 0 id
                   span $ {} (:class-name style-kind)
@@ -1963,7 +1963,7 @@
                           :class-name $ str-spaced style-ref-card $ if known? | style-ref-missing
                           :on-click $ fn (e d!)
                             hint-fn $ Fn respo.schema/RespoEvent
-                              Fn app.types/Op $ -> Unit
+                              Fn Op $ -> Unit
                               -> Unit
                             if known?
                               d! $ Op :open next-idx id
@@ -1985,7 +1985,7 @@
                   :title id
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :toggle-collapse id
                 span $ {} (:class-name style-strip-text)
@@ -2063,14 +2063,14 @@
                 span $ {} (:class-name style-close) (:inner-text "|⇤") (:title "|Fold this panel")
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :toggle-collapse id
                 span $ {} (:class-name style-close) (:inner-text "|×")
                   :title "|Close this and later panels (Esc closes the last)"
                   :on-click $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :close idx
           :examples $ []
@@ -2334,7 +2334,7 @@
                   :placeholder "|Ask about the open definitions…"
                   :on-input $ fn (e d!)
                     hint-fn $ Fn respo.schema/RespoEvent
-                      Fn app.types/Op $ -> Unit
+                      Fn Op $ -> Unit
                       -> Unit
                     d! $ Op :prompt-draft $ event-value e
                 div
@@ -2342,7 +2342,7 @@
                   span $ {} (:class-name style-copy) (:inner-text "|Copy prompt")
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                         :features :js-ffi
                       browser/clipboard-write-text! text
@@ -2351,7 +2351,7 @@
                     :inner-text $ if (:prompt-source? prefs) "|☑ Include source" "|☐ Include source"
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :toggle-prompt-source
                   if (> copied-at 0)
@@ -2360,7 +2360,7 @@
                   span $ {} (:class-name style-option) (:inner-text |Close)
                     :on-click $ fn (e d!)
                       hint-fn $ Fn respo.schema/RespoEvent
-                        Fn app.types/Op $ -> Unit
+                        Fn Op $ -> Unit
                         -> Unit
                       d! $ Op :toggle-prompt
               pre $ {} (:class-name style-preview) (:inner-text text)
@@ -2516,14 +2516,14 @@
                         reader $ js-cast (new js/FileReader) 'app.loader/FileReaderHost
                       d! $ Op :loading filename
                       js-set reader :onload $ fn (_event)
-                        hint-fn $ Fn js-ffi.browser/EventHost $ -> Unit
+                        hint-fn $ Fn browser/EventHost $ -> Unit
                         let
                             result $ .-result reader
                           if (js-present? result)
                             load-text! (expect-string |FileReader.result result) filename d!
                             d! $ Op :error $ str "|Failed to read " filename
                       js-set reader :onerror $ fn (_event)
-                        hint-fn $ Fn js-ffi.browser/EventHost $ -> Unit
+                        hint-fn $ Fn browser/EventHost $ -> Unit
                         d! $ Op :error $ str "|Failed to read " filename
                       .read-as-text! reader file
             , &unit
@@ -3345,7 +3345,7 @@
               ->
                 all-defs $ :namespaces program
                 .flat-map $ fn (info)
-                  hint-fn $ Fn DefInfo $ -> (List app.program/SearchHit)
+                  hint-fn $ Fn DefInfo $ -> (List SearchHit)
                   let
                       score $ fuzzy-score q (:id info) (:name info)
                       project? $ -> (:namespaces program)
@@ -3359,7 +3359,7 @@
                         if project? (+ score 30) score
                         , :id $ :id info
                 .sort $ fn (a b)
-                  hint-fn $ Fn app.program/SearchHit app.program/SearchHit $ -> Number
+                  hint-fn $ Fn SearchHit SearchHit $ -> Number
                   if
                     = (:score a) (:score b)
                     .compare (:id a) (:id b)
