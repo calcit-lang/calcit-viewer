@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as clt from '../js-out/calcit.core.mjs';
 import { store, updater } from '../js-out/app.updater.mjs';
+import { Op } from '../js-out/app.types.mjs';
 import { parse_program, lookup_def } from '../js-out/app.program.mjs';
 import { load_text_$x_ } from '../js-out/app.loader.mjs';
 import { comp_container } from '../js-out/app.comp.container.mjs';
@@ -67,6 +68,12 @@ test('Point source preserves the field type in legacy and current IR', () => {
     const currentProgram = parse_program(clt.parse_cirru_edn(currentIR));
     const point = clt.option_$o_unwrap(lookup_def(currentProgram, 'app.main/Point'));
     assert.match(clt.format_cirru_edn(field(point, t.source)), /defstruct Point \$ :x Number/);
+    let current = store;
+    load_text_$x_(currentIR, 'program-ir.cirru', op => { current = updater(current, op); });
+    const focus = clt._PCT__$o__$o_(Op, clt.to_tag('focus'), 'app.main/Point');
+    const html = make_string(comp_container(updater(current, focus)));
+    assert.match(html, /data-comp="comp-code".*?<span class="">:x<\/span><span><\/span><\/span><span[^>]*><span class="">Number<\/span>/);
+
   } finally {
     rmSync(out, { recursive: true });
   }
