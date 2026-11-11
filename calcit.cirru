@@ -3240,6 +3240,28 @@
             -> $ Option Dynamic
             :generics Input
             :open :decode
+          :tests $ [] $ %{} 'TestEntry (:name |typed-map-and-record-inputs)
+            :code $ quote $ let
+                fields $ assert-type
+                  {} (:name |map) (:description |Example)
+                  Map Tag String
+                entry $ app.types/EntryInfo :name |record :init-fn |app.main/main! :reload-fn |app.main/reload! :description |Example
+                entries $ Some $ assert-type
+                  {} $ :default fields
+                  Map Tag $ Map Tag String
+                source $ decode-map-as (parse-cirru-edn "|quote $ do 1") CirruQuote
+                test-data $ assert-type
+                  {} $ :code source
+                  Map Tag CirruQuote
+              assert= (Some |map) (read-field fields :name)
+              assert= (Some |record) (read-option-string entry :name)
+              assert= |Example $ read-string entry :description
+              assert= |Example $ .unwrap $ get fields :description
+              assert= |record $ :name entry
+              assert= |Example $ :description $ .unwrap
+                .first $ parse-entries entries
+              assert= source $ :source $ .unwrap
+                .first $ parse-tests $ Some ([] test-data)
         'read-option-string $ %{} 'CodeEntry (:doc "|Reads an optional string field.")
           :code $ quote $ defn read-option-string (value field)
             match (read-field value field)
