@@ -36,6 +36,16 @@ test('program metadata and entries come from :meta', () => {
   assert.deepEqual(entries.map(e => field(e, t['init-fn'])), ['app.main/main!', 'app.main/bench!']);
 });
 
+test('Snapshot entry names decode consistently across metadata and entry rows', () => {
+  for (const name of ["'app.main/main!", "|app.main/main!", ":app.main/main!"]) {
+    const snapshot = clt.parse_cirru_edn(`{} (:package |app) (:files $ {}) (:entries $ {} (:default $ {} (:init-fn ${name})))`);
+    const loaded = parse_program(snapshot);
+    const [entry] = toArray(field(loaded, t.entries));
+    assert.equal(field(loaded, t['init-fn']), 'app.main/main!');
+    assert.equal(field(entry, t['init-fn']), 'app.main/main!');
+  }
+});
+
 test('namespaces keep their origin, including ones without definitions', () => {
   const namespaces = field(program, t.namespaces);
   assert.equal(field(field(namespaces, 'app.empty'), t.origin), t.project);
