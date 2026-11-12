@@ -517,7 +517,7 @@
                   (:none)
                     span $ {}
           :examples $ []
-          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io)
         'comp-empty-stack $ %{} 'CodeEntry (:doc "|Shown when no panel is open.")
           :code $ quote $ defcomp comp-empty-stack ()
             div
@@ -672,7 +672,7 @@
               span $ {} (:class-name style-status-hint)
                 :inner-text "|⌘K search · Alt+← back · Esc close panel · [ ] switch panel · ⌘B sidebar"
           :examples $ []
-          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io)
         'comp-toolbar $ %{} 'CodeEntry
           :doc "|Views, the breadcrumb of open panels, and reading switches."
           :code $ quote $ defcomp comp-toolbar (store)
@@ -780,7 +780,7 @@
                       (:none)
                         span $ {}
           :examples $ []
-          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io)
         'comp-welcome $ %{} 'CodeEntry
           :doc "|First screen: what the viewer reads, how to produce it, and the two ways to open a file."
           :code $ quote $ defcomp comp-welcome ()
@@ -811,7 +811,7 @@
                     span $ {}
                 comp-md-block "|Generate the file in your project, then open `js-out/program-ir.cirru`:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nA `calcit.cirru` Snapshot also opens, with declared schemas but no inferred types." $ {} $ :class-name style-welcome-md
           :examples $ []
-          :schema $ quote $ Fn (-> respo.schema/Component)
+          :schema $ quote $ Fn (-> respo.schema/Component) (:features :io)
         'style-app $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-app
             {} $ |& $ {} (:position :fixed) (:inset 0) (:display :flex) (:background-color "|var(--bg)") (:color "|var(--text)") (:font-family "|var(--font-ui)")
@@ -2498,7 +2498,7 @@
           :schema $ quote $ Fn String String
             Fn Op $ -> Unit
             -> Unit
-            :features :js-ffi
+            :features :io :js-ffi
         'on-file-change $ %{} 'CodeEntry (:doc "|Reads the picked file with FileReader.")
           :code $ quote $ defn on-file-change (e d!)
             let
@@ -2531,7 +2531,7 @@
           :schema $ quote $ Fn respo.schema/RespoEvent
             Fn Op $ -> Unit
             -> Unit
-            :features :js-ffi
+            :features :io :js-ffi
         'restore-cached! $ %{} 'CodeEntry
           :doc "|Loads the file text kept by `load-text!`, if any."
           :code $ quote $ defn restore-cached! (d!)
@@ -2549,7 +2549,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> Unit
-            :features :js-ffi
+            :features :io :js-ffi
         'resume-watch! $ %{} 'CodeEntry
           :doc "|Resumes the stored file handle; the browser asks for read permission."
           :code $ quote $ defn resume-watch! (d!)
@@ -2562,7 +2562,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> Unit
-            :features :js-ffi
+            :features :io :js-ffi
         'stop-watch! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn stop-watch! (d!) (stop-watch)
             d! $ Op :stop-watching
@@ -2583,7 +2583,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> Unit
-            :features :js-ffi
+            :features :io :js-ffi
         'watch-on-error $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn watch-on-error (d!)
             fn (message)
@@ -2602,6 +2602,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> $ Fn String String $ -> Unit
+            :features :io
       :ns $ %{} 'NsEntry (:doc "|Reading program files picked by the user.")
         :code $ quote $ ns app.loader
           :require
@@ -2632,7 +2633,7 @@
                   , &unit
               , &unit
           :examples $ []
-          :schema $ quote $ Fn Op (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn Op (-> Unit) (:features :js-ffi :state)
         'main! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn main! ()
             println "|Running mode:" $ if config/dev? |dev |release
@@ -2650,7 +2651,7 @@
             browser/document-add-event-listener! |visibilitychange $ fn (event) (persist-prefs!)
             println "|App started."
           :examples $ []
-          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn (-> Unit) (:features :io :js-ffi :state)
         'mount-target $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn mount-target ()
             narrow-element $ .unwrap $ browser/query-selector |.app
@@ -2699,12 +2700,12 @@
                   dispatch! $ Op :toggle-inline-types
                 true &unit
           :examples $ []
-          :schema $ quote $ Fn String (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn String (-> Unit) (:features :js-ffi :state)
         'persist-prefs! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn persist-prefs! ()
             browser/storage-set! prefs-key $ format-cirru-edn $ :prefs @*store
           :examples $ []
-          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn (-> Unit) (:features :js-ffi :state)
         'prefs-key $ %{} 'CodeEntry (:doc |)
           :code $ quote $ def prefs-key |calcit-viewer-prefs
           :examples $ []
@@ -2719,13 +2720,13 @@
               hud! |error build-errors
             , &unit
           :examples $ []
-          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn (-> Unit) (:features :io :js-ffi :state)
         'render-app! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn render-app! ()
             with-memo-frame $ fn () $ render! (mount-target) (comp-container @*store)
               fn (op) (dispatch! op)
           :examples $ []
-          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn (-> Unit) (:features :io :js-ffi :state)
         'restore-prefs! $ %{} 'CodeEntry
           :doc "|Restores view preferences; unreadable data is ignored."
           :code $ quote $ defn restore-prefs! ()
@@ -2736,7 +2737,7 @@
                   fn (message) (println "|Ignored stored preferences:" message)
               (:none) &unit
           :examples $ []
-          :schema $ quote $ Fn (-> Unit) (:features :js-ffi)
+          :schema $ quote $ Fn (-> Unit) (:features :io :js-ffi :state)
       :ns $ %{} 'NsEntry (:doc |)
         :code $ quote $ ns app.main
           :require
@@ -3138,10 +3139,7 @@
                     fn (def-name info)
                       MapEntryDecision :keep def-name $ assoc info :deps $ source-deps bare ns-info info
               Program :package (read-string data :package) :calcit-version | :format :snapshot :init-fn
-                match raw-init
-                  (:some raw)
-                    .to-string $ decode-map-as raw 'Symbol
-                  (:none) |
+                name-text $ decode-map-as raw-init $ Option app.program/ProgramName
                 , :namespaces namespaces :users (collect-users namespaces) :entries $ parse-entries $ read-field data :entries
           :examples $ []
           :schema $ quote $ Fn Input (-> Program) (:generics Input)
