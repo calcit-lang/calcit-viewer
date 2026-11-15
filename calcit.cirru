@@ -2992,11 +2992,11 @@
               (:some raw)
                 let
                     entries $ map-list-kv
-                      decode-map-as raw $ Map Dynamic Dynamic
+                      decode-map-as raw $ Map app.program/ProgramName $ Map Tag Dynamic
                       fn (name config)
-                        hint-fn $ Fn Dynamic Dynamic $ -> EntryInfo
+                        hint-fn $ Fn ProgramName (Map Tag Dynamic) (-> EntryInfo)
                         EntryInfo :name
-                          name-text $ decode-map-as (nil->option name) (Option app.program/ProgramName)
+                          name-text $ nil->option name
                           , :init-fn
                             name-text $ decode-map-as (read-field config :init-fn) (Option app.program/ProgramName)
                             , :reload-fn
@@ -3015,14 +3015,22 @@
           :schema $ quote $ Fn (Option Input)
             -> $ List EntryInfo
             :generics Input
-          :tests $ [] $ %{} 'TestEntry (:name |entries-default-first)
-            :code $ quote $ let
-                entries $ parse-entries $ Some
-                  parse-cirru-edn "|{} (:test $ {} (:init-fn 'app.test/run!) (:reload-fn 'app.test/run!)) (:default $ {} (:init-fn 'app.main/main!) (:reload-fn 'app.main/reload!) (:description |App))"
-              assert= ([] |default |test)
-                .map entries $ fn (e) (:name e)
-              assert= |app.main/main! $ :init-fn $ .unwrap (.first entries)
-              assert= |App $ :description $ .unwrap (.first entries)
+          :tests $ []
+            %{} 'TestEntry (:name |entries-default-first)
+              :code $ quote $ let
+                  entries $ parse-entries $ Some
+                    parse-cirru-edn "|{} (:test $ {} (:init-fn 'app.test/run!) (:reload-fn 'app.test/run!)) (:default $ {} (:init-fn 'app.main/main!) (:reload-fn 'app.main/reload!) (:description |App))"
+                assert= ([] |default |test)
+                  .map entries $ fn (e) (:name e)
+                assert= |app.main/main! $ :init-fn $ .unwrap (.first entries)
+                assert= |App $ :description $ .unwrap (.first entries)
+            %{} 'TestEntry (:name |string-and-tag-entry-keys)
+              :code $ quote $ let
+                  entries $ parse-entries $ Some
+                    parse-cirru-edn "|{} (|main $ {} (:init-fn |app.main/main!)) (:test $ {} (:init-fn |app.test/main!))"
+                  names $ .map entries $ fn (e) (:name e)
+                assert= ([] |main |test) names
+              :tags $ #{} :unit
         'parse-ir $ %{} 'CodeEntry
           :doc "|Reads `program-ir.cirru` written by `calcit ir` (`:sources` section)."
           :code $ quote $ defn parse-ir (data)
