@@ -3190,13 +3190,17 @@
           :code $ quote $ defn parse-tests (raw)
             match raw
               (:some raw)
-                .map
-                  decode-map-as raw $ List Dynamic
-                  fn (test)
-                    hint-fn $ Fn Dynamic $ -> TestInfo
-                    TestInfo :name (read-string test :name) :source $ decode-map-as
-                      .unwrap $ read-field test :code
-                      , 'CirruQuote
+                if (list? raw)
+                  .map raw $ fn (test)
+                    let
+                        input $ if (struct? test)
+                          decode-map-as (&struct:to-map test) app.types/TestEntryInput
+                          decode-map-as test app.types/TestEntryInput
+                        name $ match (:name input)
+                          (:some text) text
+                          (:none) |
+                      TestInfo :name name :source $ :code input
+                  raise "|Expected tests as a List"
               (:none) ([])
           :examples $ []
           :schema $ quote $ Fn (Option Input)
@@ -3654,6 +3658,13 @@
             :tree-root $ Option String
             :sun-mode Tag
             :side-toggled $ Set String
+          :examples $ []
+          :schema $ quote StructDef
+        'TestEntryInput $ %{} 'CodeEntry
+          :doc "|One test entry from IR or Snapshot: name is optional and code is the quoted test body."
+          :code $ quote $ defstruct TestEntryInput
+            :name $ Option String
+            :code CirruQuote
           :examples $ []
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
