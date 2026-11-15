@@ -3039,12 +3039,12 @@
                 configs $ .unwrap-or (read-field data :configs) ({})
                 sources $ decode-map-as
                   .unwrap $ read-field data :sources
-                  Map String Dynamic
+                  Map String $ Map Tag Dynamic
                 namespaces $ .filter-map-kv sources $ fn (ns-name file)
                   let
                       defs $ decode-map-as
                         .unwrap $ read-field file :defs
-                        Map String Dynamic
+                        Map String $ Map Tag Dynamic
                     MapEntryDecision :keep ns-name $ NsInfo :name ns-name :origin
                       decode-map-as
                         .unwrap $ read-field file :origin
