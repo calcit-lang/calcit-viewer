@@ -462,7 +462,7 @@
                           = idx $ :active store
                           .includes? (:collapsed store) id
           :examples $ []
-          :schema $ quote $ Fn app.types/Store app.types/Program (-> respo.schema/NodeValue)
+          :schema $ quote $ Fn app.types/Store app.types/Program (-> respo.schema/NodeValue) (:features :state)
         'comp-container $ %{} 'CodeEntry
           :doc "|Root layout: navigation, toolbar, the current view and the status bar."
           :code $ quote $ defcomp comp-container (store)
@@ -517,7 +517,7 @@
                   (:none)
                     span $ {}
           :examples $ []
-          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io)
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io :state)
         'comp-empty-stack $ %{} 'CodeEntry (:doc "|Shown when no panel is open.")
           :code $ quote $ defcomp comp-empty-stack ()
             div
@@ -672,7 +672,7 @@
               span $ {} (:class-name style-status-hint)
                 :inner-text "|⌘K search · Alt+← back · Esc close panel · [ ] switch panel · ⌘B sidebar"
           :examples $ []
-          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io)
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io :state)
         'comp-toolbar $ %{} 'CodeEntry
           :doc "|Views, the breadcrumb of open panels, and reading switches."
           :code $ quote $ defcomp comp-toolbar (store)
@@ -780,7 +780,7 @@
                       (:none)
                         span $ {}
           :examples $ []
-          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io)
+          :schema $ quote $ Fn app.types/Store (-> respo.schema/Component) (:features :io :state)
         'comp-welcome $ %{} 'CodeEntry
           :doc "|First screen: what the viewer reads, how to produce it, and the two ways to open a file."
           :code $ quote $ defcomp comp-welcome ()
@@ -811,7 +811,7 @@
                     span $ {}
                 comp-md-block "|Generate the file in your project, then open `js-out/program-ir.cirru`:\n\n```bash\ncalcit calcit.cirru ir --sources-only\n```\n\nA `calcit.cirru` Snapshot also opens, with declared schemas but no inferred types." $ {} $ :class-name style-welcome-md
           :examples $ []
-          :schema $ quote $ Fn (-> respo.schema/Component) (:features :io)
+          :schema $ quote $ Fn (-> respo.schema/Component) (:features :io :state)
         'style-app $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defstyle style-app
             {} $ |& $ {} (:position :fixed) (:inset 0) (:display :flex) (:background-color "|var(--bg)") (:color "|var(--text)") (:font-family "|var(--font-ui)")
@@ -1994,7 +1994,7 @@
                     , id
               comp-panel-body program idx id changed? inline-types? active?
           :examples $ []
-          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool Bool (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool Bool (-> respo.schema/Component) (:features :state)
         'comp-panel-body $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn comp-panel-body (program idx id changed? inline-types? active?)
             match (lookup-def program id)
@@ -2039,7 +2039,7 @@
                     comp-def-list program |Uses (:deps info) (inc idx)
                     comp-def-list program "|Used by" users $ inc idx
           :examples $ []
-          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool (-> respo.schema/Element) (:features :state)
         'comp-panel-header $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-panel-header (idx id head changed?)
             let
@@ -2476,9 +2476,9 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn
-            Fn Op $ -> Unit
+            Fn Op (-> Unit) (:features :io :state)
             -> Unit
-            :features :js-ffi
+            :features :io :js-ffi :state
         'load-text! $ %{} 'CodeEntry
           :doc "|Parses file text into a Program and dispatches it; keeps small files for the next visit."
           :code $ quote $ defn load-text! (text file-name d!)
@@ -2496,9 +2496,9 @@
             , &unit
           :examples $ []
           :schema $ quote $ Fn String String
-            Fn Op $ -> Unit
+            Fn Op (-> Unit) (:features :io :state)
             -> Unit
-            :features :io :js-ffi
+            :features :io :js-ffi :state
         'on-file-change $ %{} 'CodeEntry (:doc "|Reads the picked file with FileReader.")
           :code $ quote $ defn on-file-change (e d!)
             let
@@ -2531,7 +2531,7 @@
           :schema $ quote $ Fn respo.schema/RespoEvent
             Fn Op $ -> Unit
             -> Unit
-            :features :io :js-ffi
+            :features :io :js-ffi :state
         'restore-cached! $ %{} 'CodeEntry
           :doc "|Loads the file text kept by `load-text!`, if any."
           :code $ quote $ defn restore-cached! (d!)
@@ -2547,9 +2547,9 @@
               (:none) &unit
           :examples $ []
           :schema $ quote $ Fn
-            Fn Op $ -> Unit
+            Fn Op (-> Unit) (:features :io :state)
             -> Unit
-            :features :io :js-ffi
+            :features :io :js-ffi :state
         'resume-watch! $ %{} 'CodeEntry
           :doc "|Resumes the stored file handle; the browser asks for read permission."
           :code $ quote $ defn resume-watch! (d!)
@@ -2562,7 +2562,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> Unit
-            :features :io :js-ffi
+            :features :io :js-ffi :state
         'stop-watch! $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn stop-watch! (d!) (stop-watch)
             d! $ Op :stop-watching
@@ -2583,7 +2583,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> Unit
-            :features :io :js-ffi
+            :features :io :js-ffi :state
         'watch-on-error $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn watch-on-error (d!)
             fn (message)
@@ -2602,7 +2602,7 @@
           :schema $ quote $ Fn
             Fn Op $ -> Unit
             -> $ Fn String String $ -> Unit
-            :features :io
+            :features :io :state
       :ns $ %{} 'NsEntry (:doc "|Reading program files picked by the user.")
         :code $ quote $ ns app.loader
           :require
@@ -3673,6 +3673,7 @@
           :code $ quote $ defstruct TestEntryInput
             :name $ Option String
             :code CirruQuote
+            :tags $ Option $ Set Tag
           :examples $ []
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
