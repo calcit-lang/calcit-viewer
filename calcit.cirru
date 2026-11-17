@@ -462,7 +462,7 @@
                           = idx $ :active store
                           .includes? (:collapsed store) id
           :examples $ []
-          :schema $ quote $ Fn app.types/Store app.types/Program (-> respo.schema/NodeValue)
+          :schema $ quote $ Fn app.types/Store app.types/Program (-> respo.schema/NodeValue) (:features :state)
         'comp-container $ %{} 'CodeEntry
           :doc "|Root layout: navigation, toolbar, the current view and the status bar."
           :code $ quote $ defcomp comp-container (store)
@@ -1994,7 +1994,7 @@
                     , id
               comp-panel-body program idx id changed? inline-types? active?
           :examples $ []
-          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool Bool (-> respo.schema/Component)
+          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool Bool (-> respo.schema/Component) (:features :state)
         'comp-panel-body $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defn comp-panel-body (program idx id changed? inline-types? active?)
             match (lookup-def program id)
@@ -2039,7 +2039,7 @@
                     comp-def-list program |Uses (:deps info) (inc idx)
                     comp-def-list program "|Used by" users $ inc idx
           :examples $ []
-          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool (-> respo.schema/Element)
+          :schema $ quote $ Fn app.types/Program Number String Bool Bool Bool (-> respo.schema/Element) (:features :state)
         'comp-panel-header $ %{} 'CodeEntry (:doc |)
           :code $ quote $ defcomp comp-panel-header (idx id head changed?)
             let
