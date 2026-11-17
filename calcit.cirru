@@ -3673,6 +3673,7 @@
           :code $ quote $ defstruct TestEntryInput
             :name $ Option String
             :code CirruQuote
+            :tags $ Option $ Set Tag
           :examples $ []
           :schema $ quote StructDef
         'TestInfo $ %{} 'CodeEntry (:doc "|A test attached to a definition.")
