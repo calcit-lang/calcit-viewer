@@ -1,5 +1,5 @@
 
-{} (:calcit-version |0.43.0)
+{} (:calcit-version |0.44.0)
   :version |0.2.0
   :dependencies $ {} (|Respo/respo-feather.calcit |0.6.7)
     |Respo/respo-markdown.calcit |0.9.3
