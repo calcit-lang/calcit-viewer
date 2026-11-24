@@ -746,7 +746,7 @@
           :doc "|Watching controls; only shown where the File System Access API exists."
           :code $ quote $ defcomp comp-watch (store)
             if
-              not $ supports-watch
+              not $ contract/expect-bool |supports-watch $ supports-watch
               span $ {}
               match (:watching store)
                 (:some file-name)
@@ -800,7 +800,8 @@
                     {} $ :class-name style-primary
                     <> "|Open program-ir.cirru…"
                     input $ {} (:type |file) (:accept |.cirru) (:class-name style-file-input) (:on-change on-file-change)
-                  if (supports-watch)
+                  if
+                    contract/expect-bool |supports-watch $ supports-watch
                     span $ {} (:class-name style-secondary) (:inner-text "|Watch a file…")
                       :on-click $ fn (e d!)
                         hint-fn $ Fn respo.schema/RespoEvent
@@ -1062,6 +1063,7 @@
             app.loader :refer $ on-file-change watch! resume-watch! stop-watch!
             app.program :refer $ search-defs split-id
             |../src/file-watch.mjs :refer $ supports-watch
+            js-ffi.contract :as contract
             app.comp.nav :refer $ comp-nav
             app.comp.panel :refer $ comp-panel
             app.comp.graph :refer $ comp-call-tree comp-sunburst
