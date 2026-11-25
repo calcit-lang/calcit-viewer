@@ -6,7 +6,8 @@ import { store, updater } from '../js-out/app.updater.mjs';
 import { Op, parse_prefs } from '../js-out/app.types.mjs';
 import { parse_program, lookup_def, sample_ir } from '../js-out/app.program.mjs';
 import { on_file_change, load_text_$x_ } from '../js-out/app.loader.mjs';
-import { comp_container } from '../js-out/app.comp.container.mjs';
+import { comp_container, comp_welcome } from '../js-out/app.comp.container.mjs';
+import { with_memo_frame } from '../js-out/respo.memo.mjs';
 import { comp_nav_def } from '../js-out/app.comp.nav.mjs';
 import { component_$q_, component_tree, render_node_value } from '../js-out/respo.util.detect.mjs';
 import { make_string } from '../js-out/respo.render.html.mjs';
@@ -118,3 +119,16 @@ for (const mode of ['load', 'missing-result', 'error']) {
     }
   });
 }
+
+test('file watch option follows browser capability', () => {
+  const previous = globalThis.window;
+  try {
+    globalThis.window = {};
+    assert.equal(with_memo_frame(() => make_string(comp_welcome())).includes('Watch a file'), false);
+    globalThis.window = { showOpenFilePicker() {} };
+    assert.equal(with_memo_frame(() => make_string(comp_welcome())).includes('Watch a file'), true);
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
+});
