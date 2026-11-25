@@ -7,7 +7,7 @@ Demo http://repo.calcit-lang.org/calcit-viewer/ .
 
 ### 当前工具链与使用者影响
 
-CLI 与 `@calcit/procs` 使用正式 **0.45.0**。升级后重新安装依赖并编译。已发布模块为 Respo **0.19.17**、UI **0.16.4**、Markdown **0.9.8**、Feather **0.6.12** 和 JS FFI **0.2.23**，传递 Router 为 **0.12.16**。现有 IR 和 Snapshot 打开方式沿用。
+CLI 与 `@calcit/procs` 使用正式 **0.45.1**。升级后重新安装依赖并编译。已发布模块为 Respo **0.19.18**、UI **0.16.5**、Markdown **0.9.9**、Feather **0.6.13** 和 JS FFI **0.2.24**，传递 Router 为 **0.12.17**。现有 IR 和 Snapshot 打开方式沿用。
 
 导航、调用树和视图选项使用 Respo 的具名 `ChildPair`，保留原键与顺序。快速搜索用具名结构保留分数和定义 ID，沿用原排名规则。程序入口名称在读取原始 Map 后仍按 `String | Tag | Symbol` 校验。
 
