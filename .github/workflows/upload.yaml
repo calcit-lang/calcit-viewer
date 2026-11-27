@@ -89,7 +89,7 @@ jobs:
         timeout-minutes: 10
         # Dependabot PRs do not receive ordinary Actions deployment secrets.
         if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')
-        uses: worktools/cos-upload-action@v1.2.0
+        uses: worktools/cos-upload-action@v1.3.0
         with:
           source-dir: dist
           bucket: ${{ secrets.COS_BUCKET }}
